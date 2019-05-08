@@ -15,7 +15,7 @@ from ABF import ABF
 version = sys.version_info
 
 
-class MicrosimGIU(Tk):
+class MicrosimGUI(Tk):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -922,9 +922,6 @@ class MSEntry(Entry):
         super().__init__(parent, borderwidth=2, highlightbackground='#FFFFFF', relief='flat', highlightthickness=1,
                          font='-size 11', **kwargs)
 
-
-gui = MicrosimGIU()
-gui.mainloop()
 
 # style.configure('Button.border', relief='flat')
 # style.configure('Button.label', foreground='#FFFFFF', background='#0074BF', font='-size 11 -weight bold', width=8)
