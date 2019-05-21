@@ -3,13 +3,14 @@ from tkinter import ttk, filedialog, messagebox
 import os
 import sys
 from simulator._5_simulation_engine import SimulationEngine
-from Utils import Settings
+from Utils import Settings, as_currency
 import collections
 import matplotlib
 matplotlib.use("TkAgg")
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from ABF import ABF
+import pandas as pd
 
 
 version = sys.version_info
@@ -135,7 +136,7 @@ class MicrosimGUI(Tk):
         self.payroll_tax = DoubleVar(value=self.default_settings.payroll_tax)
         self.benefits_tax = BooleanVar(value=self.default_settings.benefits_tax)
         self.average_state_tax = DoubleVar(value=self.default_settings.average_state_tax)
-        self.max_taxable_earnings_per_person = IntVar(self.default_settings.max_taxable_earnings_per_person)
+        self.max_taxable_earnings_per_person = IntVar(value=self.default_settings.max_taxable_earnings_per_person)
         self.total_taxable_earnings = IntVar(value=self.default_settings.total_taxable_earnings)
 
         # When the file location entries are modified, check to see if they all have some value
@@ -443,9 +444,9 @@ class MicrosimGUI(Tk):
         self.benefit_financing_frame.grid(column=0, row=2, columnspan=2, sticky=(N, E, W))
         self.payroll_tax_label.grid(column=0, row=0, sticky=W, padx=(8, 0))
         self.payroll_tax_input.grid(column=1, row=0, sticky=W)
-        self.benefits_tax_input.grid(column=0, row=1, columnspan=2, sticky=W, padx=(8, 0))
-        self.average_state_tax_label.grid(column=0, row=2, sticky=W, padx=(8, 0))
-        self.average_state_tax_input.grid(column=1, row=2, sticky=W)
+        self.average_state_tax_label.grid(column=0, row=1, sticky=W, padx=(8, 0))
+        self.average_state_tax_input.grid(column=1, row=1, sticky=W)
+        self.benefits_tax_input.grid(column=0, row=2, columnspan=2, sticky=W, padx=(16, 0))
         self.max_taxable_earnings_per_person_label.grid(column=0, row=3, sticky=W, padx=(8, 0))
         self.max_taxable_earnings_per_person_input.grid(column=1, row=3, sticky=W)
         self.total_taxable_earnings_label.grid(column=0, row=4, sticky=W, padx=(8, 0))
@@ -512,9 +513,9 @@ class MicrosimGUI(Tk):
 
         # TODO: Remove
         # --------- TEST ONLY -------------
-        self.fmla_file.set('C://Users//mtrinh//PycharmProjects//MicrosimGUI//data//fmla_2012//fmla_clean_2012_resp_length.csv')
-        self.acs_file.set('C://Users//mtrinh//PycharmProjects//MicrosimGUI//data//acs//ACS_cleaned_forsimulation_ma.csv')
-        self.output_directory.set('C://Users//mtrinh//PycharmProjects//MicrosimGUI/output')
+        self.fmla_file.set('C:/Users/mtrinh/PycharmProjects/MicrosimGUI/data/fmla_2012/fmla_clean_2012_resp_length.csv')
+        self.acs_file.set('C:/Users/mtrinh/PycharmProjects/MicrosimGUI/data/acs/ACS_cleaned_forsimulation_ma_small.csv')
+        self.output_directory.set('C:/Users/mtrinh/PycharmProjects/MicrosimGUI/output')
         # self.test_result_output()
 
     def check_all_gov_employees(self, event=None):
@@ -561,15 +562,12 @@ class MicrosimGUI(Tk):
 
         settings = self.create_settings()
 
-        # ------------ TEST ONLY --------------
-        abf_module = ABF(settings, 10**7)
-        print(abf_module.run())
-
         # run simulation
         # initiate a SimulationEngine instance
         st = settings.state.lower()
         fullFp_acs, fullFp_fmla, fullFp_out = settings.acs_file, settings.fmla_file, settings.output_directory
         fp_fmla = '.'+fullFp_fmla[fullFp_fmla.find('/data/fmla_2012/'):]
+        print(fp_fmla)
         fp_acs = '.'+fullFp_acs[fullFp_acs.find('/data/acs/'):]
         fp_out = fullFp_out
         clf_name = settings.simulation_method
@@ -608,47 +606,37 @@ class MicrosimGUI(Tk):
         ks = ['Own Health', 'Maternity', 'New Child', 'Ill Child', 'Ill Spouse', 'Ill Parent']
         od_bars = collections.OrderedDict((k, d_bars[k]) for k in ks)
 
-        results_window = Toplevel(self)
-        results_content = Frame(results_window, bg=self.dark_bg)
-        results_summary_frame = Frame(results_content, bg=self.dark_bg)
-        result_graph = Frame(results_content)
-        cost_result_label = Label(results_summary_frame,
-                                  text="Cost: ${} Million".format(round(sum(od_bars.values()), 1)),
-                                  font='-size 14', bg=self.dark_bg, fg=self.light_font, justify=LEFT)
-        state_result_label = Label(results_summary_frame, text="State: {}".format(self.state.get()), font='-size 12',
-                                   bg=self.dark_bg, fg=self.light_font)
-
-        results_content.pack(fill=BOTH)
-        results_summary_frame.pack(fill=X, padx=15)
-        cost_result_label.pack(fill=X, pady=(10, 5))
-        state_result_label.pack(fill=X)
-        result_graph.pack(fill=X, padx=15, pady=15)
-
         total_benefits = sum([costs[leave_type] for leave_type in ks])
-        abf_module = ABF(settings, total_benefits)
-        print(abf_module.run())
+        self.abf_module = ABF(settings, total_benefits * 10**6)
+        abf_output, pivot_tables = self.abf_module.run()
 
-        self.display_bar_graph(od_bars, result_graph)
+        self.results_window = ResultsWindow(self, od_bars, abf_output, pivot_tables)
+
+    def run_abf(self):
+        settings = self.create_settings()
+        print(vars(settings))
+
+        abf_output, pivot_tables = self.abf_module.rerun(settings)
+        self.results_window.update_abf_output(abf_output)
+        self.results_window.update_pivot_tables(pivot_tables)
 
     def test_result_output(self):
         # This code currently generates a mock up of a results window
-        results_window = Toplevel(self)
-        results_content = Frame(results_window, bg=self.dark_bg)
-        results_summary_frame = Frame(results_content, bg=self.dark_bg)
-        result_graph = Frame(results_content)
-        cost_result_label = Label(results_summary_frame, text="Cost: {}".format('XXX'), font='-size 14',
-                                  bg=self.dark_bg, fg=self.light_font, justify=LEFT)
-        state_result_label = Label(results_summary_frame, text="State: {}".format(self.state.get()), font='-size 12',
-                                   bg=self.dark_bg, fg=self.light_font)
+        simulation_results = {'Own Health': 10, 'Maternity': 200, 'New Child': 10, 'Ill Child': 8,
+                                'Ill Spouse': 5, 'Ill Parent': 0}
+        abf_output = {'Total Income (Weighted)': 0, 'Total Income': 0,
+                      'Income Standard Error': 0, 'Total Income Upper Confidence Interval': 0,
+                      'Total Income Lower Confidence Interval': 0,
+                      'Total Tax Revenue': 0,
+                      'Tax Standard Error': 0, 'Total Tax Revenue Upper Confidence Interval': 0,
+                      'Total Tax Revenue Lower Confidence Interval': 0, 'Tax Revenue Recouped from Benefits': 0}
 
-        results_content.pack(fill=BOTH)
-        results_summary_frame.pack(fill=X, padx=15)
-        cost_result_label.pack(fill=X, pady=(10, 5))
-        state_result_label.pack(fill=X)
-        result_graph.pack(fill=X, padx=15, pady=15)
+        pivot_table = pd.DataFrame({('sum', 'income_w'): 0, ('sum', 'ptax_rev_w'): 0},
+                                   index=['Private', 'Federal', 'State', 'Local'])
 
-        self.display_bar_graph({'Own Health': 10, 'Maternity': 200, 'New Child': 10, 'Ill Child': 8,
-                                'Ill Spouse': 5, 'Ill Parent': 0}, results_content)
+        pivot_tables = {'class': pivot_table, 'age': pivot_table, 'gender': pivot_table}
+
+        self.results_window = ResultsWindow(self, simulation_results, abf_output, pivot_tables)
 
     # Create an object with all of the setting values
     def create_settings(self):
@@ -834,7 +822,103 @@ class MicrosimGUI(Tk):
             labels[idx].grid(column=idx, row=0, sticky=(E, W))
             inputs[idx].grid(column=idx, row=1, sticky=(E, W))
 
-    # Display simulation results as bar graph.
+
+class ResultsWindow(Toplevel):
+    def __init__(self, parent, simulation_output, abf_output, pivot_tables):
+        super().__init__(parent)
+        self.dark_bg = parent.dark_bg
+        self.notebook_bg = parent.notebook_bg
+        self.light_font = parent.light_font
+
+        self.content = Frame(self, bg=self.dark_bg)
+        self.notebook = ttk.Notebook(self.content, style='MSNotebook.TNotebook')
+
+        self.summary_frame = Frame(self.notebook, bg=self.dark_bg)
+        self.notebook.add(self.summary_frame, text='Summary')
+
+        self.abf = Frame(self.notebook, bg=self.notebook_bg)
+        self.abf_info_container = Frame(self.abf, bg=self.dark_bg)
+        self.abf_canvas = Canvas(self.abf_info_container, bg=self.dark_bg)
+        self.abf_info = Frame(self.abf_info_container, bg=self.dark_bg)
+        self.abf_canvas.create_window((2, 2), window=self.abf_info, anchor='nw')  # Add frame to canvas
+        self.abf_info_scroll = ttk.Scrollbar(self.abf_info_container, orient=VERTICAL,
+                                             command=self.abf_canvas.yview)
+        self.abf_canvas.configure(yscrollcommand=self.abf_info_scroll.set)
+        self.abf_info_container.pack(side=TOP, fill=BOTH, expand=True)
+        self.abf_canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
+        self.abf_info_scroll.pack(side=RIGHT, fill=Y)
+        self.abf_summary = ABFResultsSummary(self.abf_info, abf_output, self.dark_bg, self.light_font)
+        self.abf_summary.pack(fill=X)
+        self.abf_pivot_tables = Frame(self.abf_info, bg=self.dark_bg)
+        self.abf_pivot_tables.pack(fill=X)
+        self.abf_params = Frame(self.abf, bg=self.notebook_bg, borderwidth=1, relief='solid')
+        self.abf_params.pack(fill=X, side=BOTTOM, padx=2, pady=2)
+        self.abf_params_inputs = Frame(self.abf_params, bg=self.notebook_bg, pady=4)
+        self.abf_params_inputs.pack(fill=X, side=TOP)
+        self.run_button = MSButton(self.abf_params, text="Run ABF", command=parent.run_abf, padx=4)
+        self.run_button.pack(side=BOTTOM, anchor='center', pady=(5, 2))
+        self.notebook.add(self.abf, text="Benefits Financing")
+
+        self.cost_result_label = Label(self.summary_frame,
+                                       text="Cost: ${} Million".format(round(sum(simulation_output.values()))),
+                                       font='-size 14', bg=self.dark_bg, fg=self.light_font, justify=LEFT)
+        self.state_result_label = Label(self.summary_frame, text="State: {}".format(parent.state.get()),
+                                        font='-size 12', bg=self.dark_bg, fg=self.light_font)
+        self.result_graph = Frame(self.summary_frame)
+
+        self.content.pack(fill=BOTH)
+        self.notebook.pack(expand=True, fill=BOTH)
+        self.notebook.select(self.summary_frame)
+        self.notebook.enable_traversal()
+
+        self.cost_result_label.pack(fill=X, pady=(10, 5))
+        self.state_result_label.pack(fill=X)
+        self.result_graph.pack(fill=X, padx=15, pady=15)
+
+        self.display_bar_graph(simulation_output, self.result_graph)
+
+        self.display_abf_pivot_table(pivot_tables)
+
+        self.abf_canvas.configure(scrollregion=(0, 0, 0, 940))
+        self.abf_canvas.bind("<MouseWheel>", self.scroll_abf)
+
+        self.payroll_tax_label = Label(self.abf_params_inputs, text='Payroll Tax (%):', bg=self.notebook_bg)
+        self.payroll_tax_input = Entry(self.abf_params_inputs, textvariable=parent.payroll_tax)
+        CreateToolTip(self.payroll_tax_label, 'The payroll tax that will be implemented to fund benefits program.')
+
+        self.benefits_tax_input = ttk.Checkbutton(self.abf_params_inputs, text='Benefits Tax', onvalue=True,
+                                                  offvalue=False, variable=parent.benefits_tax,
+                                                  style='MSCheckbutton.TCheckbutton')
+        CreateToolTip(self.benefits_tax_input, 'Whether or not program benefits are taxed.')
+
+        self.average_state_tax_label = Label(self.abf_params_inputs, text='State Average Tax Rate (%):',
+                                             bg=self.notebook_bg)
+        self.average_state_tax_input = Entry(self.abf_params_inputs, textvariable=parent.average_state_tax)
+        CreateToolTip(self.average_state_tax_label, 'The average tax rate of a selected state.')
+
+        self.max_taxable_earnings_per_person_label = Label(self.abf_params_inputs,
+                                                           text='Maximum Taxable Earnings\nPer Person ($):',
+                                                           bg=self.notebook_bg, justify=LEFT)
+        self.max_taxable_earnings_per_person_input = Entry(self.abf_params_inputs,
+                                                           textvariable=parent.max_taxable_earnings_per_person)
+        CreateToolTip(self.max_taxable_earnings_per_person_label, 'The maximum amount that a person can be taxed.')
+
+        self.total_taxable_earnings_label = Label(self.abf_params_inputs, text='Total Taxable Earnings ($):',
+                                                  bg=self.notebook_bg)
+        self.total_taxable_earnings_input = Entry(self.abf_params_inputs,
+                                                  textvariable=parent.total_taxable_earnings)
+        CreateToolTip(self.total_taxable_earnings_label, 'The total earnings that can be taxed.')
+
+        self.payroll_tax_label.grid(column=0, row=0, sticky=W, padx=(8, 0))
+        self.payroll_tax_input.grid(column=1, row=0, sticky=W)
+        self.average_state_tax_label.grid(column=0, row=1, sticky=W, padx=(8, 0))
+        self.average_state_tax_input.grid(column=1, row=1, sticky=W)
+        self.benefits_tax_input.grid(column=0, row=2, columnspan=2, sticky=W, padx=(16, 0))
+        self.max_taxable_earnings_per_person_label.grid(column=0, row=3, sticky=W, padx=(8, 0))
+        self.max_taxable_earnings_per_person_input.grid(column=1, row=3, sticky=W)
+        self.total_taxable_earnings_label.grid(column=0, row=4, sticky=W, padx=(8, 0))
+        self.total_taxable_earnings_input.grid(column=1, row=4, sticky=W)
+
     def display_bar_graph(self, data, frame):
         figure = Figure(figsize=(8, 6), dpi=100)
         index = range(len(data.keys()))
@@ -849,6 +933,78 @@ class MicrosimGUI(Tk):
         save_button = MSButton(frame, text='Save Figure', command=lambda: self.save_file(figure))
         save_button.config(width=0)
         save_button.pack(side=RIGHT, padx=10, pady=10)
+
+    def save_file(self, figure):
+        filename = filedialog.asksaveasfilename(defaultextension='.png', initialdir=os.getcwd(),
+                                                filetypes=[('PNG', '.png'), ('PDF', '*.pdf'), ('PGF', '*.pgf'),
+                                                           ('EPS', '*.eps'), ('PS', '*.ps'), ('Raw', '*.raw'),
+                                                           ('RGBA', '*.rgba'), ('SVG', '*.svg'), ('SVGZ', '*.svgz')])
+        if filename is None:
+            return
+
+        figure.savefig(filename)
+
+    def display_abf_pivot_table(self, pivot_tables):
+        for pivot_table in pivot_tables.values():
+            pt_frame = Frame(self.abf_pivot_tables, bg=self.light_font, padx=5, pady=2)
+            income_w_label = Label(pt_frame, text="Income (Weighted)", bg=self.light_font, fg=self.dark_bg,
+                                   font='-weight bold')
+            tax_rev_w_label = Label(pt_frame, text="Tax Revenue (Weighted)", bg=self.light_font, fg=self.dark_bg,
+                                    font='-weight bold')
+            income_w_label.grid(column=1, row=0, sticky='we', padx=4, pady=2)
+            tax_rev_w_label.grid(column=2, row=0, sticky='we', padx=4, pady=2)
+            index_values = list(pivot_table.index.values)
+            for i, index in enumerate(index_values):
+                index_label = Label(pt_frame, text=index, bg=self.light_font, fg=self.dark_bg)
+                cat_income_w_label = Label(pt_frame, text=as_currency(pivot_table.loc[index, ('sum', 'income_w')]),
+                                           bg=self.light_font, fg=self.dark_bg, borderwidth=1, relief='solid',
+                                           justify=RIGHT, padx=4, pady=2, width=20, anchor=E)
+                cat_tax_rev_w_label = Label(pt_frame, text=as_currency(pivot_table.loc[index, ('sum', 'ptax_rev_w')]),
+                                            bg=self.light_font, fg=self.dark_bg, borderwidth=1, relief='solid',
+                                            justify=RIGHT, padx=4, pady=2, width=20, anchor=E)
+                index_label.grid(column=0, row=i + 1, sticky='w', padx=4, pady=2)
+                cat_income_w_label.grid(column=1, row=i + 1)
+                cat_tax_rev_w_label.grid(column=2, row=i + 1)
+            pt_frame.pack(side=BOTTOM, anchor='w', padx=8, pady=5)
+
+    def update_abf_output(self, abf_output):
+        self.abf_summary.update_results(abf_output)
+
+    def update_pivot_tables(self, pivot_tables):
+        for pivot_table in self.abf_pivot_tables.winfo_children():
+            pivot_table.destroy()
+
+        self.display_abf_pivot_table(pivot_tables)
+
+    def scroll_abf(self, event):
+        move_unit = 0
+        if event.num == 5 or event.delta > 0:
+            move_unit = -1
+        elif event.num == 4 or event.delta < 0:
+            move_unit = 1
+
+        self.abf_canvas.yview_scroll(move_unit, 'units')
+
+
+class ABFResultsSummary(Frame):
+    def __init__(self, parent, output, dark_bg, light_font):
+        super().__init__(parent, bg=dark_bg)
+
+        self.components = {}
+        idx = 0
+        for key, value in output.items():
+            component_label = Label(self, text=key + ':', bg=dark_bg, fg=light_font, anchor='e')
+            component_value = Label(self, text=as_currency(value), bg=light_font, fg=dark_bg, anchor='e', padx=5)
+
+            self.components[key] = {'label': component_label, 'value': component_value}
+
+            component_label.grid(column=0, row=idx, sticky='we', padx=3, pady=2)
+            component_value.grid(column=1, row=idx, sticky='we', padx=3, pady=2)
+            idx += 1
+
+    def update_results(self, output):
+        for key, value in output.items():
+            self.components[key]['value'].config(text=as_currency(value))
 
 
 # From StackOverflow: https://stackoverflow.com/questions/3221956/how-do-i-display-tooltips-in-tkinter

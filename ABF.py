@@ -24,8 +24,8 @@ class ABF:
         self.local_employees = settings.local_employees
         self.max_taxable_earnings_per_person = settings.max_taxable_earnings_per_person
         self.benefits_tax = settings.benefits_tax
-        self.average_state_tax = settings.average_state_tax
-        self.payroll_tax = settings.payroll_tax
+        self.average_state_tax = settings.average_state_tax / 100
+        self.payroll_tax = settings.payroll_tax / 100
 
     # FUNCTION #1: Drop unneeded observations per the Paid Family Leave Policy Parameters
     def abf_data(self, reps):
@@ -44,34 +44,38 @@ class ABF:
             print('Unemp workers are not in the dataset')
 
         # Restriction #2: Keep only selected State from either the "State or Work" or "State of Residence" ACS file
-        if self.state_of_work:  # Use "ACS State of Work" File
-
-            if self.state is not None:  # Need to test if we get a Nationwide estimate if geography=True or None
-
-                index_names = self.df[self.df['POWSP'] != self.state].index
-                dropped_geog = (len(index_names))
-                message_geog = "We dropped %s workers from the dataset, who live outside the geographical bounds" % \
-                               dropped_geog
-                print(message_geog)
-                self.df.drop(index_names, inplace=True)
-            else:
-                print('State is null')
-
-        elif not self.state_of_work:  # Use "ACS State of Residence" File
-
-            if self.state is not None:  # Need to test if we get a nationwide estimate if geography=True or None
-                index_names = self.df[self.df['ST'] != self.state].index
-                dropped_geog = (len(index_names))
-                message_geog = "We dropped %s workers from the dataset, who live outside the geographical bounds" % \
-                               dropped_geog
-                print(message_geog)
-                self.df.drop(index_names, inplace=True)
-            else:
-                print('State is null')
+        # if self.state_of_work:  # Use "ACS State of Work" File
+        #
+        #     if self.state is not None:  # Need to test if we get a Nationwide estimate if geography=True or None
+        #
+        #         index_names = self.df[self.df['POWSP'] != self.state].index
+        #         dropped_geog = (len(index_names))
+        #         message_geog = "We dropped %s workers from the dataset, who live outside the geographical bounds" % \
+        #                        dropped_geog
+        #         print(message_geog)
+        #         self.df.drop(index_names, inplace=True)
+        #     else:
+        #         print('State is null')
+        #
+        # else:  # Use "ACS State of Residence" File
+        #
+        #     if self.state is not None:  # Need to test if we get a nationwide estimate if geography=True or None
+        #         old_length = self.df.shape[0]
+        #         self.df = self.df[self.df['ST'] == self.state]
+        #         dropped_geog = old_length - self.df.shape[0]
+        #         # index_names = self.df[self.df['ST'] != self.state].index
+        #         # dropped_geog = (len(index_names))
+        #         # self.df.drop(index_names, inplace=True)
+        #         message_geog = "We dropped %s workers from the dataset, who live outside the geographical bounds" % \
+        #                        dropped_geog
+        #         print(message_geog)
+        #     else:
+        #         print('State is null')
 
         # Restriction #3: Exclude employers smaller than the minimum employer size parameter
         if self.eligible_size is not None:  # None = Null Value
 
+            self.df['emp_size'] = np.random.randint(1, 2000, self.df.shape[0])
             emp_size_max_id = self.df['emp_size'].idxmax()
             emp_size_max_val = (self.df.loc[[emp_size_max_id], ['emp_size']]).values[0]
 
@@ -165,6 +169,8 @@ class ABF:
             censor = len(index_names)
             message_censor = "We censored %s observations to the wage max" % censor
             print(message_censor)
+        else:
+            self.df['income_final'] = self.df['income']
 
         #######################################################################################################
         # OUTPUT DATASET
@@ -213,6 +219,8 @@ class ABF:
             message = "With a state tax rate of %s and a benefit outlay of %s, the estimated state tax revenue is %s" \
                       % (self.average_state_tax, self.benefits, recoup_tax_rev)
             print(message)
+        else:
+            recoup_tax_rev = 0
 
         # Step 2 - Calculate Standard Errors with 80 Replicate Weights
 
@@ -263,20 +271,26 @@ class ABF:
         print(total_ptax_w_lci)
 
         # Return Dictionary with Final Output Values
-        abf_output = {'total_income_w': total_income_w, 'total_income': total_income,
-                      'income_se': income_se, 'total_income_w_uci': total_income_w_uci,
-                      'total_income_w_lci': total_income_w_lci,
-                      'total_ptax_rev_w': total_ptax_rev_w,
-                      'tax_se': tax_se, 'Total_ptax_w_UCI': total_ptax_w_uci, 'total_ptax_w_lci': total_ptax_w_lci,
-                      'recoup_tax_rev': recoup_tax_rev}
+        abf_output = {'Total Income (Weighted)': total_income_w, 'Total Income': total_income,
+                      'Income Standard Error': income_se, 'Total Income Upper Confidence Interval': total_income_w_uci,
+                      'Total Income Lower Confidence Interval': total_income_w_lci,
+                      'Total Tax Revenue (Weighted)': total_ptax_rev_w,
+                      'Tax Revenue Standard Error': tax_se,
+                      'Total Tax Revenue Upper Confidence Interval': total_ptax_w_uci,
+                      'Total Tax Revenue Lower Confidence Interval': total_ptax_w_lci,
+                      'Tax Revenue Recouped from Benefits': recoup_tax_rev}
         print(abf_output)
 
         pd.set_option('display.float_format', lambda x: '%.2f' % x)
-        print(pd.pivot_table(self.df, index=["class"], values=["income_w", "ptax_rev_w"], aggfunc=[np.sum]))
-        print(pd.pivot_table(self.df, index=["age_cat"], values=["income_w", "ptax_rev_w"], aggfunc=[np.sum]))
-        print(pd.pivot_table(self.df, index=["GENDER_CAT"], values=["income_w", "ptax_rev_w"], aggfunc=[np.sum]))
+        revenue_by_class = pd.pivot_table(self.df, index=["class"], values=["income_w", "ptax_rev_w"], aggfunc=[np.sum])
+        revenue_by_age = pd.pivot_table(self.df, index=["age_cat"], values=["income_w", "ptax_rev_w"], aggfunc=[np.sum])
+        revenue_by_gender = pd.pivot_table(self.df, index=["GENDER_CAT"], values=["income_w", "ptax_rev_w"],
+                                           aggfunc=[np.sum])
 
-        return abf_output
+        pivot_tables = {'Revenue by Employment Type': revenue_by_class, 'Revenue by Age': revenue_by_age,
+                        'Revenue by Gender': revenue_by_gender}
+
+        return abf_output, pivot_tables
 
     def run(self):
         # Load in Raw Data File
@@ -286,8 +300,9 @@ class ABF:
         acs = policy + reps
 
         # for chunk in pd.read_csv('xNJ_2012-2016p.csv', chunksize = 100000, low_memory=False):
-        self.df = self.df.loc[:, acs]
-        self.df['income'] = self.df['PERNP']
+        # self.df = self.df.loc[:, acs]
+        # self.df['income'] = self.df['PERNP']
+        self.df['income'] = self.df['wage12']
 
         # Create Class variable to aggregate the COW variable for display purposes
         self.df['class'] = self.df['COW']
@@ -299,11 +314,11 @@ class ABF:
 
         # Create Age Categories for display purposes (need to find out variable specification on the microsim side)
         age_ranges = ["[{0} - {1})".format(AGEP, AGEP + 10) for AGEP in range(0, 100, 10)]
-        self.df['age_cat'] = pd.cut(x=self.df['AGEP'], bins=list(range(0, 110, 10)), labels=age_ranges, right=False)
+        self.df['age_cat'] = pd.cut(x=self.df['age'], bins=list(range(0, 110, 10)), labels=age_ranges, right=False)
 
         # Create Gender Categories for display pruposes
-        self.df['GENDER_CAT'] = np.where(self.df['SEX'] == 1, 'male', 'female')
-        self.df['GENDER_CAT'] = np.where(np.isnan(self.df['SEX']), np.nan, self.df['GENDER_CAT'])  # code missing responses as missing
+        self.df['GENDER_CAT'] = np.where(self.df['male'] == 1, 'male', 'female')
+        self.df['GENDER_CAT'] = np.where(np.isnan(self.df['male']), np.nan, self.df['GENDER_CAT'])  # code missing responses as missing
 
         self.abf_data(reps)
 
@@ -357,5 +372,8 @@ class ABF:
         # abf_output = abf_calcs(stateofwork=True, geography=44, selfemp=False, minsize=None, fed_gov=False,
         #                        state_gov=False, local_gov=False, wagemax=66300, benefits_taxed=True, statetax_amt=.15,
         #                        benefits=175000000, paytax_rate=0.012)
-        abf_output = self.abf_calcs(reps)
-        print(abf_output)
+        return self.abf_calcs(reps)
+
+    def rerun(self, settings):
+        self.update_settings(settings)
+        return self.abf_calcs(['PWGTP' + str(i) for i in range(1, 81)])
