@@ -2,16 +2,16 @@ from tkinter import *
 from tkinter import ttk, filedialog, messagebox
 import os
 import sys
-from simulator._5_simulation_engine import SimulationEngine
+from _5_simulation import SimulationEngine
 from Utils import Settings, as_currency
 import collections
 import matplotlib
+
 matplotlib.use("TkAgg")
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from ABF import ABF
 import pandas as pd
-
 
 version = sys.version_info
 
@@ -29,7 +29,7 @@ class MicrosimGUI(Tk):
                        'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'PR', 'RI', 'SC', 'SD', 'TN',
                        'TX', 'UT', 'VT', 'VA', 'VI', 'WA', 'WV', 'WI', 'WY')
         self.simulation_methods = ('Logistic Regression', 'Ridge Classifier', 'K Nearest Neighbor', 'Naive Bayes',
-                                   'Support Vector Machine', 'Random Forest', 'Stochastic Gradient Descent')
+                                   'Support Vector Machine', 'Random Forest')
         self.dark_bg = '#333333'
         self.light_font = '#f2f2f2'
         self.notebook_bg = '#fcfcfc'
@@ -188,7 +188,7 @@ class MicrosimGUI(Tk):
         self.state_label = Label(self.main_frame, text='State:', bg=self.dark_bg, fg=self.light_font)
         self.state_input = ttk.Combobox(self.main_frame, textvariable=self.state, state="readonly", width=5,
                                         values=self.states)
-        self.state_input.current(self.states.index('MA'))
+        self.state_input.current(self.states.index('RI'))
         CreateToolTip(self.state_label, 'The state that will be used to estimate program cost. Only people '
                                         'from this state will be chosen from the input and output files.')
 
@@ -196,7 +196,7 @@ class MicrosimGUI(Tk):
                                              bg=self.dark_bg, fg=self.light_font)
         self.simulation_method_input = ttk.Combobox(self.main_frame, textvariable=self.simulation_method,
                                                     state="readonly", width=21, values=self.simulation_methods)
-        self.simulation_method_input.current(0)
+        self.simulation_method_input.current(self.simulation_methods.index('K Nearest Neighbor'))
         CreateToolTip(self.simulation_method_label, 'The method used to train model.')
 
         # ------------------------------------------ Program Settings ------------------------------------------------
@@ -513,8 +513,8 @@ class MicrosimGUI(Tk):
 
         # TODO: Remove
         # --------- TEST ONLY -------------
-        self.fmla_file.set('C:/Users/mtrinh/PycharmProjects/MicrosimGUI/data/fmla_2012/fmla_clean_2012_resp_length.csv')
-        self.acs_file.set('C:/Users/mtrinh/PycharmProjects/MicrosimGUI/data/acs/ACS_cleaned_forsimulation_ma_small.csv')
+        self.fmla_file.set('C:/Users/mtrinh/PycharmProjects/MicrosimGUI/data/fmla_2012/fmla_clean_2012.csv')
+        self.acs_file.set('C:/Users/mtrinh/PycharmProjects/MicrosimGUI/data/acs/ACS_cleaned_forsimulation_2016_ri.csv')
         self.output_directory.set('C:/Users/mtrinh/PycharmProjects/MicrosimGUI/output')
         # self.test_result_output()
 
@@ -565,52 +565,79 @@ class MicrosimGUI(Tk):
         # run simulation
         # initiate a SimulationEngine instance
         st = settings.state.lower()
-        fullFp_acs, fullFp_fmla, fullFp_out = settings.acs_file, settings.fmla_file, settings.output_directory
-        fp_fmla = '.'+fullFp_fmla[fullFp_fmla.find('/data/fmla_2012/'):]
-        print(fp_fmla)
-        fp_acs = '.'+fullFp_acs[fullFp_acs.find('/data/acs/'):]
-        fp_out = fullFp_out
+        yr = 16
+        fp_fmla_in = './data/fmla_2012/fmla_2012_employee_restrict_puf.csv'
+        fp_cps_in = './data/cps/CPS2014extract.csv'
+        fp_acsh_in = './data/acs/'
+        fp_acsp_in = './data/acs/'
+        fp_fmla_out = './data/fmla_2012/fmla_clean_2012.csv'
+        fp_cps_out = './data/cps/cps_for_acs_sim.csv'
+        fp_acs_out = './data/acs/'
+        fp_length_distribution_out = './data/fmla_2012/length_distributions.json'
+        fps_in = [fp_fmla_in, fp_cps_in, fp_acsh_in, fp_acsp_in]
+        fps_out = [fp_fmla_out, fp_cps_out, fp_acs_out, fp_length_distribution_out]
+
+        # fullFp_acs, fullFp_fmla, fullFp_out = settings.acs_file, settings.fmla_file, settings.output_directory
+        # fp_fmla = '.'+fullFp_fmla[fullFp_fmla.find('/data/fmla_2012/'):]
+        # print(fp_fmla)
+        # fp_acs = '.'+fullFp_acs[fullFp_acs.find('/data/acs/'):]
+        # fp_out = fullFp_out
         clf_name = settings.simulation_method
-        rr1 = settings.replacement_ratio
-        hrs = settings.eligible_hours
-        max_wk = settings.max_weeks  # this returns a dict
 
-        max_wk['own'] = max_wk.pop('Own Health')
-        max_wk['matdis'] = max_wk.pop('Maternity')
-        max_wk['bond'] = max_wk.pop('New Child')
-        max_wk['illchild'] = max_wk.pop('Ill Child')
-        max_wk['illspouse'] = max_wk.pop('Ill Spouse')
-        max_wk['illparent'] = max_wk.pop('Ill Parent')
-        max_wk_replace = settings.weekly_ben_cap
+        # prog_para
+        elig_wage12 = settings.eligible_earnings
+        elig_wkswork = settings.eligible_weeks
+        elig_yrhours = settings.eligible_hours
+        elig_empsize = settings.eligible_size
+        rrp = settings.replacement_ratio
+        wkbene_cap = settings.weekly_ben_cap
 
-        empgov = settings.government_employees
-        empself = settings.self_employed
+        d_maxwk = settings.max_weeks  # this returns a dict
+        d_maxwk['own'] = d_maxwk.pop('Own Health')
+        d_maxwk['matdis'] = d_maxwk.pop('Maternity')
+        d_maxwk['bond'] = d_maxwk.pop('New Child')
+        d_maxwk['illchild'] = d_maxwk.pop('Ill Child')
+        d_maxwk['illspouse'] = d_maxwk.pop('Ill Spouse')
+        d_maxwk['illparent'] = d_maxwk.pop('Ill Parent')
 
-        se = SimulationEngine(st, fp_acs, fp_fmla, fp_out, clf_name, rr1, hrs, max_wk, max_wk_replace, empgov,
-                              empself)
-        # compute program costs
+        d_takeup = settings.take_up_rates  # this returns a dict
+        d_takeup['own'] = d_takeup.pop('Own Health')
+        d_takeup['matdis'] = d_takeup.pop('Maternity')
+        d_takeup['bond'] = d_takeup.pop('New Child')
+        d_takeup['illchild'] = d_takeup.pop('Ill Child')
+        d_takeup['illspouse'] = d_takeup.pop('Ill Spouse')
+        d_takeup['illparent'] = d_takeup.pop('Ill Parent')
+
+        incl_empgov = settings.government_employees
+        incl_empself = settings.self_employed
+
+        prog_para = [elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp, wkbene_cap, d_maxwk, d_takeup,
+                     incl_empgov, incl_empself]
+
+        se = SimulationEngine(st, yr, fps_in, fps_out, clf_name, prog_para)
+
+        # Run model
+        se.save_program_parameters()
+        se.prepare_data()
         acs = se.get_acs_simulated()
-        d_type = se.d_type  # get a dict from varname style leave types to user-readable leave types
-        takeups = settings.take_up_rates  # this returns a dict of user input of takeup in GUI
-        for k, v in d_type.items():
-            takeups[k] = takeups.pop(v)  # convert readable types to varname types
-        costs = se.get_cost(acs, takeups)
+        costs, fig = se.get_cost()
 
-        d_bars = {'Own Health': costs['Own Health'],
-                  'Maternity': costs['Maternity'],
-                  'New Child': costs['New Child'],
-                  'Ill Child': costs['Ill Child'],
-                  'Ill Spouse': costs['Ill Spouse'],
-                  'Ill Parent': costs['Ill Parent']}
+        # compute program costs
+        d_bars = {'Own Health': list(costs.loc[costs['type'] == 'own', 'cost'])[0],
+                  'Maternity': list(costs.loc[costs['type'] == 'matdis', 'cost'])[0],
+                  'New Child': list(costs.loc[costs['type'] == 'bond', 'cost'])[0],
+                  'Ill Child': list(costs.loc[costs['type'] == 'illchild', 'cost'])[0],
+                  'Ill Spouse': list(costs.loc[costs['type'] == 'illspouse', 'cost'])[0],
+                  'Ill Parent': list(costs.loc[costs['type'] == 'illparent', 'cost'])[0]}
 
         ks = ['Own Health', 'Maternity', 'New Child', 'Ill Child', 'Ill Spouse', 'Ill Parent']
         od_bars = collections.OrderedDict((k, d_bars[k]) for k in ks)
 
-        total_benefits = sum([costs[leave_type] for leave_type in ks])
-        self.abf_module = ABF(settings, total_benefits * 10**6)
+        total_benefits = list(costs.loc[costs['type'] == 'total', 'cost'])[0]
+        self.abf_module = ABF(acs, settings, total_benefits)
         abf_output, pivot_tables = self.abf_module.run()
 
-        self.results_window = ResultsWindow(self, od_bars, abf_output, pivot_tables)
+        self.results_window = ResultsWindow(self, od_bars, fig, abf_output, pivot_tables)
 
     def run_abf(self):
         settings = self.create_settings()
@@ -623,7 +650,7 @@ class MicrosimGUI(Tk):
     def test_result_output(self):
         # This code currently generates a mock up of a results window
         simulation_results = {'Own Health': 10, 'Maternity': 200, 'New Child': 10, 'Ill Child': 8,
-                                'Ill Spouse': 5, 'Ill Parent': 0}
+                              'Ill Spouse': 5, 'Ill Parent': 0}
         abf_output = {'Total Income (Weighted)': 0, 'Total Income': 0,
                       'Income Standard Error': 0, 'Total Income Upper Confidence Interval': 0,
                       'Total Income Lower Confidence Interval': 0,
@@ -824,7 +851,7 @@ class MicrosimGUI(Tk):
 
 
 class ResultsWindow(Toplevel):
-    def __init__(self, parent, simulation_output, abf_output, pivot_tables):
+    def __init__(self, parent, simulation_output, simulation_chart, abf_output, pivot_tables):
         super().__init__(parent)
         self.dark_bg = parent.dark_bg
         self.notebook_bg = parent.notebook_bg
@@ -860,7 +887,8 @@ class ResultsWindow(Toplevel):
         self.notebook.add(self.abf, text="Benefits Financing")
 
         self.cost_result_label = Label(self.summary_frame,
-                                       text="Cost: ${} Million".format(round(sum(simulation_output.values()))),
+                                       text="Cost: ${} Million".format(
+                                           round(sum(simulation_output.values()) / 10 ** 6, 1)),
                                        font='-size 14', bg=self.dark_bg, fg=self.light_font, justify=LEFT)
         self.state_result_label = Label(self.summary_frame, text="State: {}".format(parent.state.get()),
                                         font='-size 12', bg=self.dark_bg, fg=self.light_font)
@@ -875,7 +903,7 @@ class ResultsWindow(Toplevel):
         self.state_result_label.pack(fill=X)
         self.result_graph.pack(fill=X, padx=15, pady=15)
 
-        self.display_bar_graph(simulation_output, self.result_graph)
+        self.display_bar_graph(simulation_chart, self.result_graph)
 
         self.display_abf_pivot_table(pivot_tables)
 
@@ -919,18 +947,12 @@ class ResultsWindow(Toplevel):
         self.total_taxable_earnings_label.grid(column=0, row=4, sticky=W, padx=(8, 0))
         self.total_taxable_earnings_input.grid(column=1, row=4, sticky=W)
 
-    def display_bar_graph(self, data, frame):
-        figure = Figure(figsize=(8, 6), dpi=100)
-        index = range(len(data.keys()))
-        graph = figure.add_subplot(111, ylabel='Cost')
-        graph.bar(index, data.values(), tick_label=list(data.keys()))
-        graph.set_xlabel('Leave Type', fontsize=14, labelpad=10)
-        graph.set_ylabel('Cost', fontsize=14, labelpad=10)
-        canvas = FigureCanvasTkAgg(figure, frame)
+    def display_bar_graph(self, simulation_chart, frame):
+        canvas = FigureCanvasTkAgg(simulation_chart, frame)
         canvas.draw()
         canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True)
 
-        save_button = MSButton(frame, text='Save Figure', command=lambda: self.save_file(figure))
+        save_button = MSButton(frame, text='Save Figure', command=lambda: self.save_file(simulation_chart))
         save_button.config(width=0)
         save_button.pack(side=RIGHT, padx=10, pady=10)
 
@@ -1077,7 +1099,6 @@ class MSEntry(Entry):
     def __init__(self, parent=None, **kwargs):
         super().__init__(parent, borderwidth=2, highlightbackground='#FFFFFF', relief='flat', highlightthickness=1,
                          font='-size 11', **kwargs)
-
 
 # style.configure('Button.border', relief='flat')
 # style.configure('Button.label', foreground='#FFFFFF', background='#0074BF', font='-size 11 -weight bold', width=8)

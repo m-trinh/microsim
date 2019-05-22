@@ -3,13 +3,15 @@ import numpy as np
 
 
 class ABF:
-    def __init__(self, settings, benefits):
+    def __init__(self, acs, settings, benefits):
         self.acs_file = settings.acs_file
-        self.df = pd.read_csv(self.acs_file, dtype={'COW': str})
+        # self.df = pd.read_csv(self.acs_file, dtype={'COW': str})
+        self.df = acs
 
         self.update_settings(settings)
 
         self.benefits = benefits
+        print('BENEFITS:', self.benefits)
 
     def update_settings(self, settings):
         self._update_settings(settings)
@@ -28,20 +30,20 @@ class ABF:
         self.payroll_tax = settings.payroll_tax / 100
 
     # FUNCTION #1: Drop unneeded observations per the Paid Family Leave Policy Parameters
-    def abf_data(self, reps):
+    def abf_data(self):
         # Restriction #1: Exclude those who are not in the formal economy.
         # Drop COW=8 (Working without pay in family business or farm) & COW=9 (Unemployed and last worked 5 years ago
         # or earlier or never)
-        if ((self.df['COW'] == 8) | (self.df['COW'] == 9)).any():
-
-            index_names = self.df[(self.df['COW'] == 8) | (self.df['COW'] == 9)].index
-            dropped_unemp = (len(index_names))
-            message_uemp = "We dropped %s unemployed workers from the dataset" % dropped_unemp
-            print(message_uemp)
-            self.df.drop(index_names, inplace=True)
-
-        else:
-            print('Unemp workers are not in the dataset')
+        # if ((self.df['COW'] == 8) | (self.df['COW'] == 9)).any():
+        #
+        #     index_names = self.df[(self.df['COW'] == 8) | (self.df['COW'] == 9)].index
+        #     dropped_unemp = (len(index_names))
+        #     message_uemp = "We dropped %s unemployed workers from the dataset" % dropped_unemp
+        #     print(message_uemp)
+        #     self.df.drop(index_names, inplace=True)
+        #
+        # else:
+        #     print('Unemp workers are not in the dataset')
 
         # Restriction #2: Keep only selected State from either the "State or Work" or "State of Residence" ACS file
         # if self.state_of_work:  # Use "ACS State of Work" File
@@ -73,120 +75,109 @@ class ABF:
         #         print('State is null')
 
         # Restriction #3: Exclude employers smaller than the minimum employer size parameter
-        if self.eligible_size is not None:  # None = Null Value
-
-            self.df['emp_size'] = np.random.randint(1, 2000, self.df.shape[0])
-            emp_size_max_id = self.df['emp_size'].idxmax()
-            emp_size_max_val = (self.df.loc[[emp_size_max_id], ['emp_size']]).values[0]
-
-            if emp_size_max_val > self.eligible_size:
-                # Need to confirm that the emp_size variable constructed on the microsim side wouldn't have any blanks
-                index_names = self.df[self.df['emp_size'] < self.eligible_size].index
-                type(index_names)
-                dropped_empsize = (len(index_names))
-                message_empsize = "We dropped %s workers from the dataset, at firms smaller than minsize" % \
-                                  dropped_empsize
-                print(message_empsize)
-
-                self.df.drop(index_names, inplace=True)
-
-            else:
-                print('All employers are larger than the min size')
-        else:
-            print('There is no Minimum Emp Size restriction')
+        # if self.eligible_size is not None:  # None = Null Value
+        #
+        #     self.df['emp_size'] = np.random.randint(1, 2000, self.df.shape[0])
+        #     emp_size_max_id = self.df['emp_size'].idxmax()
+        #     emp_size_max_val = (self.df.loc[[emp_size_max_id], ['emp_size']]).values[0]
+        #
+        #     if emp_size_max_val > self.eligible_size:
+        #         # Need to confirm that the emp_size variable constructed on the microsim side wouldn't have any blanks
+        #         index_names = self.df[self.df['emp_size'] < self.eligible_size].index
+        #         type(index_names)
+        #         dropped_empsize = (len(index_names))
+        #         message_empsize = "We dropped %s workers from the dataset, at firms smaller than minsize" % \
+        #                           dropped_empsize
+        #         print(message_empsize)
+        #
+        #         self.df.drop(index_names, inplace=True)
+        #
+        #     else:
+        #         print('All employers are larger than the min size')
+        # else:
+        #     print('There is no Minimum Emp Size restriction')
 
         # Restriction #4: Exclude those who are Self-Employed (drop self-employed: COW=6 & COW=7)
-        if self.self_employed is not None:
-
-            if not self.self_employed:
-
-                if ((self.df['COW'] == 6) | (self.df['COW'] == 7)).any():
-                    index_names = self.df[(self.df['COW'] == 6) | (self.df['COW'] == 7)].index
-                    dropped_selfemp = (len(index_names))
-                    message_selfemp = "We dropped %s self-employed workers from the dataset" % dropped_selfemp
-                    print(message_selfemp)
-                    self.df.drop(index_names, inplace=True)
-
-                else:
-                    print('Self Emp workers are not in the dataset')
-            else:
-                print('Self-employed workers recieve PFML')
+        # if self.self_employed is not None:
+        #
+        #     if not self.self_employed:
+        #
+        #         if ((self.df['COW'] == 6) | (self.df['COW'] == 7)).any():
+        #             index_names = self.df[(self.df['COW'] == 6) | (self.df['COW'] == 7)].index
+        #             dropped_selfemp = (len(index_names))
+        #             message_selfemp = "We dropped %s self-employed workers from the dataset" % dropped_selfemp
+        #             print(message_selfemp)
+        #             self.df.drop(index_names, inplace=True)
+        #
+        #         else:
+        #             print('Self Emp workers are not in the dataset')
+        #     else:
+        #         print('Self-employed workers recieve PFML')
 
         # Restriction #5: Exclude federal gov workers, if policy applies (drop COW=5)
-        if self.fed_employees is not None:  # TRUE (Constraint is applied)
-
-            if not self.fed_employees:
-
-                if (self.df['COW'] == 5).any():
-                    index_names = self.df[(self.df['COW'] == 5)].index
-                    dropped_fed = (len(index_names))
-                    message_fed = "We dropped %s federal employees from the dataset" % dropped_fed
-                    print(message_fed)
-                    self.df.drop(index_names, inplace=True)
-                else:
-                    print('Fed workers are not in the dataset')
-            else:
-                print('Fed employees recieve PFML')
-
-        # Restriction #6: Exclude state govs workers, if policy applies (drop COW=4)
-        if self.state_employees is not None:  # TRUE (Constraint is applied)
-
-            if not self.state_employees:
-
-                if (self.df['COW'] == 4).any():
-                    index_names = self.df[(self.df['COW'] == 4)].index
-                    dropped_state = (len(index_names))
-                    message_state = "We dropped %s state employees from the dataset" % dropped_state
-                    print(message_state)
-
-                    self.df.drop(index_names, inplace=True)
-                else:
-                    print('State workers are not in the dataset')
-            else:
-                print('State employees recieve PFML')
-
-        # Restriction #7: Drop local gov workers, if policy applies (drop COW=3)
-        if self.local_employees is not None:  # TRUE (Constraint is applied)
-
-            if not self.local_employees:
-
-                if (self.df['COW'] == 3).any():
-                    index_names = self.df[(self.df['COW'] == 3)].index
-                    dropped_local = (len(index_names))
-                    message_local = "We dropped %s local employees from the dataset" % dropped_local
-                    print(message_local)
-                    self.df.drop(index_names, inplace=True)
-                else:
-                    print('Local workers are not in the dataset')
-            else:
-                print('Local employees recieve PFML')
+        # if self.fed_employees is not None:  # TRUE (Constraint is applied)
+        #
+        #     if not self.fed_employees:
+        #
+        #         if (self.df['COW'] == 5).any():
+        #             index_names = self.df[(self.df['COW'] == 5)].index
+        #             dropped_fed = (len(index_names))
+        #             message_fed = "We dropped %s federal employees from the dataset" % dropped_fed
+        #             print(message_fed)
+        #             self.df.drop(index_names, inplace=True)
+        #         else:
+        #             print('Fed workers are not in the dataset')
+        #     else:
+        #         print('Fed employees recieve PFML')
+        #
+        # # Restriction #6: Exclude state govs workers, if policy applies (drop COW=4)
+        # if self.state_employees is not None:  # TRUE (Constraint is applied)
+        #
+        #     if not self.state_employees:
+        #
+        #         if (self.df['COW'] == 4).any():
+        #             index_names = self.df[(self.df['COW'] == 4)].index
+        #             dropped_state = (len(index_names))
+        #             message_state = "We dropped %s state employees from the dataset" % dropped_state
+        #             print(message_state)
+        #
+        #             self.df.drop(index_names, inplace=True)
+        #         else:
+        #             print('State workers are not in the dataset')
+        #     else:
+        #         print('State employees recieve PFML')
+        #
+        # # Restriction #7: Drop local gov workers, if policy applies (drop COW=3)
+        # if self.local_employees is not None:  # TRUE (Constraint is applied)
+        #
+        #     if not self.local_employees:
+        #
+        #         if (self.df['COW'] == 3).any():
+        #             index_names = self.df[(self.df['COW'] == 3)].index
+        #             dropped_local = (len(index_names))
+        #             message_local = "We dropped %s local employees from the dataset" % dropped_local
+        #             print(message_local)
+        #             self.df.drop(index_names, inplace=True)
+        #         else:
+        #             print('Local workers are not in the dataset')
+        #     else:
+        #         print('Local employees recieve PFML')
 
         # Apply Taxable Wage Max
         if self.max_taxable_earnings_per_person is not None:  # TRUE (Constraint is applied)
-            self.df['income_final'] = np.where((self.df['income'] > self.max_taxable_earnings_per_person),
-                                          self.max_taxable_earnings_per_person, self.df['income'])
-            index_names = self.df[self.df['income'] > self.max_taxable_earnings_per_person].index
+            self.df['income_final'] = np.where((self.df['wage12'] > self.max_taxable_earnings_per_person),
+                                          self.max_taxable_earnings_per_person, self.df['wage12'])
+            index_names = self.df[self.df['wage12'] > self.max_taxable_earnings_per_person].index
             censor = len(index_names)
             message_censor = "We censored %s observations to the wage max" % censor
             print(message_censor)
         else:
             self.df['income_final'] = self.df['income']
 
-        #######################################################################################################
-        # OUTPUT DATASET
-
-        # Append needed columns from data chunks into an aggregated dataframe
-        policy = ['income_final', 'income_w', 'ptax_rev_w', 'ptax_rev_final', 'PWGTP', 'class', 'ST', 'POWSP',
-                  'age_cat', 'GENDER_CAT']
-        acs2 = policy + reps
-
-        self.df = self.df.loc[:, acs2]
-        # self.income_agg = pd.concat([self.income_agg, income_select])
-
     # FUNCTION #2: Conduct Final Calculations on the slimmer ABF Output dataset
-    def abf_calcs(self, reps):
+    def abf_calcs(self):
         # Step 1 - Calculate Point Estimates
-
+        reps = ['PWGTP' + str(i) for i in range(1, 81)]
         # Income
         # Intermediate output: unweighted income base (full geographic area)
         total_income = self.df['income_final'].sum()
@@ -293,24 +284,13 @@ class ABF:
         return abf_output, pivot_tables
 
     def run(self):
-        # Load in Raw Data File
-        reps = ['PWGTP' + str(i) for i in range(1, 81)]
-        policy = ["id", "ST", "POWSP", "emp_size", "COW", "ESR", "PERNP", "PWGTP", "WAGEP", "SEMP", "class", "AGEP",
-                  "SEX"]
-        acs = policy + reps
-
-        # for chunk in pd.read_csv('xNJ_2012-2016p.csv', chunksize = 100000, low_memory=False):
-        # self.df = self.df.loc[:, acs]
-        # self.df['income'] = self.df['PERNP']
-        self.df['income'] = self.df['wage12']
-
         # Create Class variable to aggregate the COW variable for display purposes
-        self.df['class'] = self.df['COW']
+        self.df['class'] = ''
         cleanup = {1: "Private", 2: "Private", 3: "Local", 4: "State", 5: "Federal", 6: "Self-Employed",
                    7: "Self-Employed", 8: "Other", 9: "Other"}
-        for i in range(self.df.shape[0]):
-            if not pd.isnull(self.df.at[i, 'class']):
-                self.df.at[i, 'class'] = cleanup[int(float(self.df.at[i, 'class']))]
+        for i in self.df.index.values:
+            if not pd.isnull(self.df.at[i, 'COW']):
+                self.df.at[i, 'class'] = cleanup[int(float(self.df.at[i, 'COW']))]
 
         # Create Age Categories for display purposes (need to find out variable specification on the microsim side)
         age_ranges = ["[{0} - {1})".format(AGEP, AGEP + 10) for AGEP in range(0, 100, 10)]
@@ -320,7 +300,7 @@ class ABF:
         self.df['GENDER_CAT'] = np.where(self.df['male'] == 1, 'male', 'female')
         self.df['GENDER_CAT'] = np.where(np.isnan(self.df['male']), np.nan, self.df['GENDER_CAT'])  # code missing responses as missing
 
-        self.abf_data(reps)
+        self.abf_data()
 
         # for chunk in pd.read_csv(self.acs_file, chunksize=100000, low_memory=False):
         #     df = pd.concat([df2, chunk])
@@ -372,8 +352,9 @@ class ABF:
         # abf_output = abf_calcs(stateofwork=True, geography=44, selfemp=False, minsize=None, fed_gov=False,
         #                        state_gov=False, local_gov=False, wagemax=66300, benefits_taxed=True, statetax_amt=.15,
         #                        benefits=175000000, paytax_rate=0.012)
-        return self.abf_calcs(reps)
+        return self.abf_calcs()
 
     def rerun(self, settings):
         self.update_settings(settings)
-        return self.abf_calcs(['PWGTP' + str(i) for i in range(1, 81)])
+        self.abf_data()
+        return self.abf_calcs()
