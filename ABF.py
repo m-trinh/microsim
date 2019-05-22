@@ -4,14 +4,10 @@ import numpy as np
 
 class ABF:
     def __init__(self, acs, settings, benefits):
-        self.acs_file = settings.acs_file
-        # self.df = pd.read_csv(self.acs_file, dtype={'COW': str})
         self.df = acs
-
         self.update_settings(settings)
 
         self.benefits = benefits
-        print('BENEFITS:', self.benefits)
 
     def update_settings(self, settings):
         self._update_settings(settings)

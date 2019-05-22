@@ -11,7 +11,6 @@ matplotlib.use("TkAgg")
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from ABF import ABF
-import pandas as pd
 
 version = sys.version_info
 
@@ -105,7 +104,7 @@ class MicrosimGUI(Tk):
 
         # These are the variables that the users will update. These will be passed to the microsim.
         self.fmla_file = StringVar()
-        self.acs_file = StringVar()
+        self.acs_directory = StringVar()
         self.output_directory = StringVar()
         self.detail = IntVar()
         self.state = StringVar()
@@ -143,11 +142,11 @@ class MicrosimGUI(Tk):
         # If they do, enable the run button
         if version[1] < 6:
             self.fmla_file.trace("w", self.check_file_entries)
-            self.acs_file.trace("w", self.check_file_entries)
+            self.acs_directory.trace("w", self.check_file_entries)
             self.output_directory.trace("w", self.check_file_entries)
         else:
             self.fmla_file.trace_add("write", self.check_file_entries)
-            self.acs_file.trace_add("write", self.check_file_entries)
+            self.acs_directory.trace_add("write", self.check_file_entries)
             self.output_directory.trace_add("write", self.check_file_entries)
 
         # Below is the code for creating the widgets for user inputs and labels. Entries, comboboxes, and checkboxes
@@ -162,12 +161,13 @@ class MicrosimGUI(Tk):
         CreateToolTip(self.fmla_label, 'A CSV or Excel file that contains leave taking data to use to train '
                                        'model. This should be FMLA survey data.')
 
-        self.acs_label = Label(self.main_frame, text="ACS File:", bg=self.dark_bg, fg=self.light_font)
-        self.acs_input = MSEntry(self.main_frame, textvariable=self.acs_file)
-        self.acs_button = MSButton(self.main_frame, text="Browse", command=lambda: self.browse_file(self.acs_input))
+        self.acs_label = Label(self.main_frame, text="ACS Directory:", bg=self.dark_bg, fg=self.light_font)
+        self.acs_input = MSEntry(self.main_frame, textvariable=self.acs_directory)
+        self.acs_button = MSButton(self.main_frame, text="Browse",
+                                   command=lambda: self.browse_directory(self.acs_input))
         CreateToolTip(self.acs_label,
-                      'A CSV or Excel file that contains population data that the model will use to estimate '
-                      'the cost of a paid leave program. This should be ACS data.')
+                      'A directory that contains ACS files that the model will use to estimate the cost of a paid '
+                      'leave program. There should be one household and one person file for the selected state.')
 
         self.output_directory_label = Label(self.main_frame, text="Output Directory:", bg=self.dark_bg,
                                             fg=self.light_font)
@@ -513,8 +513,8 @@ class MicrosimGUI(Tk):
 
         # TODO: Remove
         # --------- TEST ONLY -------------
-        self.fmla_file.set('C:/Users/mtrinh/PycharmProjects/MicrosimGUI/data/fmla_2012/fmla_clean_2012.csv')
-        self.acs_file.set('C:/Users/mtrinh/PycharmProjects/MicrosimGUI/data/acs/ACS_cleaned_forsimulation_2016_ri.csv')
+        self.fmla_file.set('C:/Users/mtrinh/PycharmProjects/MicrosimGUI/data/fmla_2012/fmla_2012_employee_restrict_puf.csv')
+        self.acs_directory.set('C:/Users/mtrinh/PycharmProjects/MicrosimGUI/data/acs')
         self.output_directory.set('C:/Users/mtrinh/PycharmProjects/MicrosimGUI/output')
         # self.test_result_output()
 
@@ -566,10 +566,10 @@ class MicrosimGUI(Tk):
         # initiate a SimulationEngine instance
         st = settings.state.lower()
         yr = 16
-        fp_fmla_in = './data/fmla_2012/fmla_2012_employee_restrict_puf.csv'
+        fp_fmla_in = settings.fmla_file
         fp_cps_in = './data/cps/CPS2014extract.csv'
-        fp_acsh_in = './data/acs/'
-        fp_acsp_in = './data/acs/'
+        fp_acsh_in = settings.acs_directory
+        fp_acsp_in = settings.acs_directory
         fp_fmla_out = './data/fmla_2012/fmla_clean_2012.csv'
         fp_cps_out = './data/cps/cps_for_acs_sim.csv'
         fp_acs_out = './data/acs/'
@@ -647,29 +647,29 @@ class MicrosimGUI(Tk):
         self.results_window.update_abf_output(abf_output)
         self.results_window.update_pivot_tables(pivot_tables)
 
-    def test_result_output(self):
-        # This code currently generates a mock up of a results window
-        simulation_results = {'Own Health': 10, 'Maternity': 200, 'New Child': 10, 'Ill Child': 8,
-                              'Ill Spouse': 5, 'Ill Parent': 0}
-        abf_output = {'Total Income (Weighted)': 0, 'Total Income': 0,
-                      'Income Standard Error': 0, 'Total Income Upper Confidence Interval': 0,
-                      'Total Income Lower Confidence Interval': 0,
-                      'Total Tax Revenue': 0,
-                      'Tax Standard Error': 0, 'Total Tax Revenue Upper Confidence Interval': 0,
-                      'Total Tax Revenue Lower Confidence Interval': 0, 'Tax Revenue Recouped from Benefits': 0}
-
-        pivot_table = pd.DataFrame({('sum', 'income_w'): 0, ('sum', 'ptax_rev_w'): 0},
-                                   index=['Private', 'Federal', 'State', 'Local'])
-
-        pivot_tables = {'class': pivot_table, 'age': pivot_table, 'gender': pivot_table}
-
-        self.results_window = ResultsWindow(self, simulation_results, abf_output, pivot_tables)
+    # def test_result_output(self):
+    #     # This code currently generates a mock up of a results window
+    #     simulation_results = {'Own Health': 10, 'Maternity': 200, 'New Child': 10, 'Ill Child': 8,
+    #                           'Ill Spouse': 5, 'Ill Parent': 0}
+    #     abf_output = {'Total Income (Weighted)': 0, 'Total Income': 0,
+    #                   'Income Standard Error': 0, 'Total Income Upper Confidence Interval': 0,
+    #                   'Total Income Lower Confidence Interval': 0,
+    #                   'Total Tax Revenue': 0,
+    #                   'Tax Standard Error': 0, 'Total Tax Revenue Upper Confidence Interval': 0,
+    #                   'Total Tax Revenue Lower Confidence Interval': 0, 'Tax Revenue Recouped from Benefits': 0}
+    #
+    #     pivot_table = pd.DataFrame({('sum', 'income_w'): 0, ('sum', 'ptax_rev_w'): 0},
+    #                                index=['Private', 'Federal', 'State', 'Local'])
+    #
+    #     pivot_tables = {'class': pivot_table, 'age': pivot_table, 'gender': pivot_table}
+    #
+    #     self.results_window = ResultsWindow(self, simulation_results, abf_output, pivot_tables)
 
     # Create an object with all of the setting values
     def create_settings(self):
         # The inputs are linked to a tkinter variable. Those values will have to be retrieved from each variable
         # and passed on to the settings objects
-        return Settings(self.fmla_file.get(), self.acs_file.get(), self.output_directory.get(), self.detail.get(),
+        return Settings(self.fmla_file.get(), self.acs_directory.get(), self.output_directory.get(), self.detail.get(),
                         self.state.get(), self.simulation_method.get(), self.benefit_effect.get(), self.calibrate.get(),
                         self.clone_factor.get(), self.se_analysis.get(), self.extend.get(),
                         self.fmla_protection_constraint.get(), self.replacement_ratio.get(),
@@ -707,7 +707,7 @@ class MicrosimGUI(Tk):
         figure.savefig(filename)
 
     def check_file_entries(self, *_):
-        if self.fmla_file.get() and self.acs_file.get() and self.output_directory.get():
+        if self.fmla_file.get() and self.acs_directory.get() and self.output_directory.get():
             self.run_button.config(state=NORMAL, bg=self.theme_color)
         else:
             self.run_button.config(state=DISABLED, bg='#99d6ff')
