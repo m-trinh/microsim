@@ -1,6 +1,5 @@
 '''
 main simulation engine
-
 chris zhang 3/4/2019
 '''
 import pandas as pd
@@ -24,7 +23,6 @@ class SimulationEngine:
 
     def __init__(self, st, yr, fps_in, fps_out, clf_name, prog_para):
         '''
-
         :param st: state name, 'ca', 'ma', etc.
         :param yr: end year of 5-year ACS
         :param fps_in: filepaths of infiles (FMLA, ACS h, ACS p, CPS)
@@ -52,8 +50,11 @@ class SimulationEngine:
         self.wkbene_cap = prog_para[5]
         self.d_maxwk = prog_para[6] # dict from types to max week of benefits
         self.d_takeup = prog_para[7] # dict from types to take up rates
-        self.incl_empgov = prog_para[8]
-        self.incl_empself = prog_para[9]
+        self.incl_empgov_fed = prog_para[8]
+        self.incl_empgov_st = prog_para[9]
+        self.incl_empgov_loc = prog_para[10]
+        self.incl_empself = prog_para[11]
+        self.sim_method = prog_para[12]
 
         # leave types
         self.types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
@@ -62,9 +63,9 @@ class SimulationEngine:
         self.d_clf = {}
         self.d_clf['Logistic Regression'] = sklearn.linear_model.LogisticRegression(solver='liblinear', multi_class='auto')
         self.d_clf['Ridge Classifier'] = sklearn.linear_model.RidgeClassifier()
-        self.d_clf['Stochastic Gradient Descent'] = sklearn.linear_model.SGDClassifier(loss='modified_huber', max_iter=1000, tol=0.001)
+        #self.d_clf['Stochastic Gradient Descent'] = sklearn.linear_model.SGDClassifier(loss='modified_huber', max_iter=1000, tol=0.001)
         self.d_clf['Naive Bayes'] = sklearn.naive_bayes.MultinomialNB()
-        self.d_clf['Support Vector Machine'] = sklearn.svm.SVC(probability=True)
+        self.d_clf['Support Vector Machine'] = sklearn.svm.SVC(probability=True, gamma='auto')
         self.d_clf['Random Forest'] = sklearn.ensemble.RandomForestClassifier()
         self.d_clf['K Nearest Neighbor'] = sklearn.neighbors.KNeighborsClassifier()
 
@@ -80,13 +81,17 @@ class SimulationEngine:
         para_labels = ['State', 'Year',
                        'Minimum Annual Wage','Minimum Annual Work Weeks','Minimum Annual Work Hours',
                        'Minimum Employer Size','Proposed Wage Replacement Ratio','Weekly Benefit Cap',
-                       'Include Goverment Employees','Include Self-employed']
+                       'Include Goverment Employees, Federal',
+                       'Include Goverment Employees, State',
+                       'Include Goverment Employees, Local',
+                       'Include Self-employed',
+                       'Simulation Method']
         para_labels_m = ['Maximum Week of Benefit Receiving',
                          'Take Up Rates'] # type-specific parameters
 
         para_values = [self.st.upper(),self.yr + 2000,
                        self.elig_wage12,self.elig_wkswork,self.elig_yrhours,self.elig_empsize,self.rrp,self.wkbene_cap,
-                       self.incl_empgov,self.incl_empself]
+                       self.incl_empgov_fed, self.incl_empgov_st,self.incl_empgov_loc,self.incl_empself, self.clf_name]
         para_values_m = [self.d_maxwk, self.d_takeup]
 
         d = pd.DataFrame(para_values, index=para_labels)
@@ -255,8 +260,12 @@ class SimulationEngine:
         # sample restriction
         acs = acs.drop(acs[(acs['taker']==0) & (acs['needer']==0)].index)
 
-        if not self.incl_empgov:
-            acs = acs.drop(acs[(acs['empgov_fed']==1) | (acs['empgov_st']==1) | (acs['empgov_loc']==1)].index)
+        if not self.incl_empgov_fed:
+            acs = acs.drop(acs[acs['empgov_fed']==1].index)
+        if not self.incl_empgov_st:
+            acs = acs.drop(acs[acs['empgov_st']==1].index)
+        if not self.incl_empgov_loc:
+            acs = acs.drop(acs[acs['empgov_loc']==1].index)
         if not self.incl_empself:
             acs = acs.drop(acs[(acs['COW']==6) | (acs['COW']==7)].index)
 
@@ -315,15 +324,23 @@ class SimulationEngine:
             #     acs['len_%s' % t] + (acs['mnl_%s' % t] - acs['len_%s' % t]) * (rrp - acs['prop_pay'])/ (1-acs['prop_pay'])
 
             # assumption 1A: asssuming short max length of employer benefit, use state benefit if sq len >= 5/10 days regardless of rr value
-            # motivation: with leave need>=a week workers stop using employer benefit like PTO but take program benefit
-            # if rre < 1, interpolation of leave length is possible
+            # motivation: with leave need>=a week workers do not consider employer benefit like PTO but take program benefit
+            # if rre < rrp <=1, interpolation of leave length is possible
             # if rre = 1, cannot interpolate length using rre/length relationship. These workers are likely due to bad need
             # of leave length but no much of wage replacement. Assume cpl = mnl then apply max period cap.
+            # if rre >=rrp, workers make choice between get large rre over short period (say 5 days) VS
+            # get less rrp over longer period (mnl). To avoid underestimating cost, we assume all workers choose latter.
             # under assumptions 1A + 2:
             acs['cpl_%s' % t] = 0
-            acs.loc[(acs['len_%s' % t] >= 5) & (acs['prop_pay'] < 1), 'cpl_%s' % t] = \
+
+            # if rre < rrp <=1
+            acs.loc[acs['prop_pay'] < self.rrp, 'cpl_%s' % t] = \
                 acs['len_%s' % t] + (acs['mnl_%s' % t] - acs['len_%s' % t]) * (self.rrp - acs['prop_pay']) / (1 - acs['prop_pay'])
-            acs.loc[(acs['len_%s' % t] >= 5) & (acs['prop_pay'] == 1), 'cpl_%s' % t] = acs['mnl_%s' % t]
+            # if rre >=rrp and MNL > 5
+            acs.loc[(acs['prop_pay'] >= self.rrp) & (acs['mnl_%s' % t] > 5), 'cpl_%s' % t] = acs['mnl_%s' % t]
+            # finally no program use if cpl <= 5
+            acs.loc[acs['cpl_%s' % t] <= 5, 'cpl_%s' % t] = 0
+            # take integer cpl
             acs['cpl_%s' % t] = acs['cpl_%s' % t].apply(lambda x: math.ceil(x))
 
             # apply max number of covered weeks
@@ -350,7 +367,7 @@ class SimulationEngine:
         # apply take up rates and weekly benefit cap, and compute total cost, 6 types
         costs = {}
         for t in self.types:
-            v = (acs['cpl_%s' % t]/5) * (acs['wage12'] / acs['wkswork'] * self.rrp).apply(lambda x: min(x, self.wkbene_cap))
+            v = ((acs['cpl_%s' % t]/5) * (acs['wage12'] / acs['wkswork'] * self.rrp)).apply(lambda x: min(x, self.wkbene_cap))
             w = acs['PWGTP']*self.d_takeup[t]
             costs[t] = (v*w).sum()
         costs['total'] = sum(list(costs.values()))
@@ -381,6 +398,11 @@ class SimulationEngine:
         out_ci.columns = ['type', 'ci_lower', 'ci_upper']
 
         out = pd.merge(out_costs, out_ci, how='left', on='type')
+
+        d_tix = {'own':1, 'matdis':2, 'bond':3, 'illchild':4, 'illspouse':5, 'illparent':6, 'total':7}
+        out['tix'] = out['type'].apply(lambda x: d_tix[x])
+        out = out.sort_values(by='tix')
+        del out['tix']
 
         out.to_csv('./output/output_%s/program_cost_%s_%s.csv' % (self.out_id, self.st, self.out_id), index=False)
 
