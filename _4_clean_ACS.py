@@ -329,8 +329,9 @@ class DataCleanerACS:
         dout.to_csv(self.fp_out + "ACS_cleaned_forsimulation_20%s_%s.csv" % (self.yr, self.st), index=False, header=True)
 
         t1 = time()
-        print('ACS data cleaning finished for state %s. Time elapsed = %s seconds' % (self.st.upper(), round((t1 - t0), 0)))
-        return None
+        message = 'ACS data cleaning finished for state %s. Time elapsed = %s seconds' % (self.st.upper(), round((t1 - t0), 0))
+        print()
+        return message
 
 # # -------------------------- #
 # # ACS Household File

@@ -941,10 +941,10 @@ class DataCleanerFMLA:
         # Save files
         d.to_csv(self.fp_fmla_out, index=False)
         cps.to_csv(fp_cps_out, index=False)
-
-        print('CPS cleaned and CPS variable imputation done for FMLA. Time elapsed = %s seconds' % (round(time() - t0, 2)))
+        progress = 'CPS cleaned and CPS variable imputation done for FMLA. Time elapsed = %s seconds' % (round(time() - t0, 2))
+        print(progress)
         print('File saved: clean FMLA data file after CPS imputation.')
-        return None
+        return progress
 
     def get_length_distribution(self, fp_length_distribution_out):
         '''

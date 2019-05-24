@@ -2,6 +2,8 @@ from tkinter import *
 from tkinter import ttk, filedialog, messagebox
 import os
 import sys
+import threading
+import time
 import numpy as np
 from _5_simulation import SimulationEngine
 from Utils import Settings, as_currency
@@ -563,6 +565,7 @@ class MicrosimGUI(Tk):
             return
 
         settings = self.create_settings()
+        self.settings = settings
 
         # run simulation
         # initiate a SimulationEngine instance
@@ -620,14 +623,21 @@ class MicrosimGUI(Tk):
                      incl_empgov_fed, incl_empgov_st, incl_empgov_loc, incl_empself, sim_method]
 
         se = SimulationEngine(st, yr, fps_in, fps_out, clf_name, prog_para)
-
+        self.run_button.config(state=DISABLED, bg='#99d6ff')
+        self.progress_window = ProgressWindow(self, se)
         # Run model
-        se.save_program_parameters()
-        se.prepare_data()
-        acs = se.get_acs_simulated()
-        costs = se.get_cost()
-        fig = se.create_chart(costs)
+        thread_se = threading.Thread(target=se.run)
+        thread_se.start()
 
+        thread_progress = threading.Thread(target=self.progress_window.update_progress)
+        thread_progress.start()
+
+        # thread_se.join()
+        # thread_progress.join()
+        # acs, costs, fig = se.get_results()
+        # self.show_results(acs, costs, fig)
+
+    def show_results(self, acs, costs, fig):
         # compute program costs
         d_bars = {'Own Health': list(costs.loc[costs['type'] == 'own', 'cost'])[0],
                   'Maternity': list(costs.loc[costs['type'] == 'matdis', 'cost'])[0],
@@ -640,10 +650,11 @@ class MicrosimGUI(Tk):
         od_bars = collections.OrderedDict((k, d_bars[k]) for k in ks)
 
         total_benefits = list(costs.loc[costs['type'] == 'total', 'cost'])[0]
-        self.abf_module = ABF(acs, settings, total_benefits)
+        self.abf_module = ABF(acs, self.settings, total_benefits)
         abf_output, pivot_tables = self.abf_module.run()
 
         self.results_window = ResultsWindow(self, od_bars, fig, abf_output, pivot_tables)
+        self.run_button.config(state=NORMAL, bg=self.theme_color)
 
     def run_abf(self):
         settings = self.create_settings()
@@ -862,6 +873,8 @@ class ResultsWindow(Toplevel):
     def __init__(self, parent, simulation_output, simulation_chart, abf_output, pivot_tables):
         super().__init__(parent)
         self.protocol("WM_DELETE_WINDOW", self.on_close)
+        self.icon = PhotoImage(file='impaq_logo.gif')
+        self.tk.call('wm', 'iconphoto', self._w, self.icon)
 
         self.parent = parent
         self.dark_bg = parent.dark_bg
@@ -1140,6 +1153,86 @@ class ABFResultsSummary(Frame):
         self.income_value.config(text=income)
         self.tax_revenue_value.config(text=tax)
         self.benefits_recouped_value.config(text=benefits_recouped)
+
+
+class ProgressWindow(Toplevel):
+    def __init__(self, parent, se):
+        super().__init__(parent)
+        self.icon = PhotoImage(file='impaq_logo.gif')
+        self.tk.call('wm', 'iconphoto', self._w, self.icon)
+
+        self.parent = parent
+        self.se = se
+        self.content = Frame(self, width=100)
+        self.content.pack(fill=BOTH, expand=True)
+        self.progress = DoubleVar(0)
+        self.progress_bar = ttk.Progressbar(self.content, orient=HORIZONTAL, length=100, variable=self.progress,
+                                            max=100)
+        self.progress_bar.pack(fill=X, padx=10, pady=5)
+        self.updates_container = Frame(self.content, height=30, bg=parent.notebook_bg)
+        self.updates_canvas = Canvas(self.updates_container, bg=parent.notebook_bg)
+        self.updates = Frame(self.updates_container, bg=parent.notebook_bg)
+        self.updates_canvas.create_window((0, 0), window=self.updates, anchor='nw')  # Add frame to canvas
+        self.updates_info_scroll = ttk.Scrollbar(self.updates_container, orient=VERTICAL,
+                                                 command=self.updates_canvas.yview)
+        self.updates_canvas.configure(yscrollcommand=self.updates_info_scroll.set)
+        # self.abf_info_container.pack(side=TOP, fill=BOTH, expand=True)
+        self.updates_container.pack(fill=BOTH, expand=True)
+        self.updates_canvas.pack(side=LEFT, fill=BOTH, expand=True)
+        self.updates_info_scroll.pack(side=RIGHT, fill=Y)
+
+        self.bind("<MouseWheel>", self.scroll)
+        self.position_window()
+
+    def update_progress(self):
+        while self.se.progress < 101:
+            progress, updates = self.se.get_progress()
+            time.sleep(0.5)
+            self.update_idletasks()
+            if len(updates) > 0:
+                self.progress.set(progress)
+                self.add_updates(updates)
+
+            if progress == 100:
+                break
+
+        print('Done! Showing results')
+        acs, costs, fig = self.se.get_results()
+        self.parent.show_results(acs, costs, fig)
+
+    def add_updates(self, updates):
+        for update in updates:
+            label = Message(self.updates, text=update, bg=self.parent.notebook_bg, fg='#006600', anchor='w', width=350)
+            label.pack(padx=3, fill=X)
+            self.update()
+            self.updates_canvas.configure(scrollregion=(0, 0, 0, self.updates.winfo_height()))
+
+    def scroll(self, event):
+        move_unit = 0
+        if event.num == 5 or event.delta > 0:
+            move_unit = -1
+        elif event.num == 4 or event.delta < 0:
+            move_unit = 1
+
+        self.updates_canvas.yview_scroll(move_unit, 'units')
+
+    def position_window(self):
+        self.update()  # Update changes to root first
+
+        # Get the width and height of both the window and the user's screen
+        ww = self.winfo_width()
+        wh = self.winfo_height()
+        sw = self.winfo_screenwidth()
+        sh = self.winfo_screenheight()
+
+        # Formula for calculating the center
+        x = (sw / 2) - (ww / 2)
+        y = (sh / 2) - (wh / 2) - 50
+
+        # Set window minimum size
+        self.minsize(ww, wh)
+
+        self.geometry('%dx%d+%d+%d' % (ww, wh, x, y))
 
 
 # From StackOverflow: https://stackoverflow.com/questions/3221956/how-do-i-display-tooltips-in-tkinter

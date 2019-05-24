@@ -71,6 +71,9 @@ class SimulationEngine:
 
         # out id for creating unique out folder to store all model outputs
         self.out_id = datetime.now().strftime('%Y%m%d_%H%M%S')
+        self.updates = []
+        self.progress = 0
+        self.figure = None
 
     def save_program_parameters(self):
 
@@ -111,12 +114,20 @@ class SimulationEngine:
     def prepare_data(self):
         dcf = DataCleanerFMLA(self.fp_fmla_in, self.fp_fmla_out)
         dcf.clean_data()
-        dcf.impute_fmla_cps(self.fp_cps_in, self.fp_cps_out)
+        self.updates.append('File saved: clean FMLA data file before CPS imputation.')
+        message = dcf.impute_fmla_cps(self.fp_cps_in, self.fp_cps_out)
+        self.updates.append(message)
+        self.updates.append('File saved: clean FMLA data file after CPS imputation.')
         dcf.get_length_distribution(self.fp_length_distribution_out)
+        self.updates.append('File saved: leave distribution estimated from FMLA data.')
+        self.progress = 25
 
+        self.updates.append('Cleaning ACS data. State chosen = RI. Chunk size = 100000 ACS rows')
         dca = DataCleanerACS(self.st, self.yr, self.fp_acsh_in, self.fp_acsp_in, self.fp_acs_out)
         dca.load_data()
-        dca.clean_person_data()
+        message = dca.clean_person_data()
+        self.updates.append(message)
+        self.progress = 60
         return None
 
     def get_acs_simulated(self):
@@ -358,7 +369,10 @@ class SimulationEngine:
 
         # Save ACS data after finishing simulation
         acs.to_csv('./output/output_%s/acs_sim_%s.csv' % (self.out_id, self.out_id), index=False)
-        print('Leaves simulated for 5-year ACS 20%s-20%s in state %s. Time needed = %s seconds' % ((self.yr-4), self.yr, self.st.upper(), round(time()-tsim, 0)))
+        message = 'Leaves simulated for 5-year ACS 20%s-20%s in state %s. Time needed = %s seconds' % ((self.yr-4), self.yr, self.st.upper(), round(time()-tsim, 0))
+        print(message)
+        self.updates.append(message)
+        self.progress = 95
         return acs
 
     def get_cost(self):
@@ -406,7 +420,10 @@ class SimulationEngine:
 
         out.to_csv('./output/output_%s/program_cost_%s_%s.csv' % (self.out_id, self.st, self.out_id), index=False)
 
-        print('Output saved. Total cost = $%s million 2012 dollars' % (round(costs['total']/1000000, 1)))
+        message = 'Output saved. Total cost = $%s million 2012 dollars' % (round(costs['total']/1000000, 1))
+        print(message)
+        self.updates.append(message)
+        self.progress = 100
         return out  # df of leave type specific costs and total cost, along with ci's
 
     def create_chart(self, out):
@@ -428,7 +445,26 @@ class SimulationEngine:
         ax.yaxis.grid(False)
 
         plt.savefig('./output/output_%s/total_cost_%s_%s_%s' % (self.out_id, self.yr, self.st, self.out_id))
+        self.figure = fig
         return fig
+
+    def run(self):
+        self.save_program_parameters()
+        self.prepare_data()
+        self.get_acs_simulated()
+        self.get_cost()
+
+    def get_progress(self):
+        result = self.progress, self.updates
+        self.updates = []
+        return result
+
+    def get_results(self):
+        acs = pd.read_csv(self.fp_acs_out + 'ACS_cleaned_forsimulation_20%s_%s.csv' % (self.yr, self.st))
+        costs = pd.read_csv('./output/output_%s/program_cost_%s_%s.csv' % (self.out_id, self.st, self.out_id))
+        fig = self.create_chart(costs)
+
+        return acs, costs, fig
 
 ## Other factors
 # Leave prob factors, 6 types - TODO: code in wof in get_sim_col(), bound phat by max = 1
