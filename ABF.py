@@ -274,8 +274,8 @@ class ABF:
         revenue_by_gender = pd.pivot_table(self.df, index=["GENDER_CAT"], values=["income_w", "ptax_rev_w"],
                                            aggfunc=[np.sum])
 
-        pivot_tables = {'Revenue by Employment Type': revenue_by_class, 'Revenue by Age': revenue_by_age,
-                        'Revenue by Gender': revenue_by_gender}
+        pivot_tables = {'Employment Type': revenue_by_class, 'Age': revenue_by_age,
+                        'Gender': revenue_by_gender}
 
         return abf_output, pivot_tables
 

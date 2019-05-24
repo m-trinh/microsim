@@ -406,14 +406,18 @@ class SimulationEngine:
 
         out.to_csv('./output/output_%s/program_cost_%s_%s.csv' % (self.out_id, self.st, self.out_id), index=False)
 
+        print('Output saved. Total cost = $%s million 2012 dollars' % (round(costs['total']/1000000, 1)))
+        return out  # df of leave type specific costs and total cost, along with ci's
+
+    def create_chart(self, out):
         # Plot costs and ci
-        total_cost = round(list(out.loc[out['type']=='total', 'cost'])[0]/10**6, 1)
+        total_cost = round(list(out.loc[out['type'] == 'total', 'cost'])[0] / 10 ** 6, 1)
         spread = round((list(out.loc[out['type'] == 'total', 'ci_upper'])[0] -
-                        list(out.loc[out['type'] == 'total', 'ci_lower'])[0])/10**6, 1)
-        title = 'State: %s. Total Program Cost = %s $ million (\u00B1%s).' % (self.st.upper(), total_cost, spread)
+                        list(out.loc[out['type'] == 'total', 'ci_lower'])[0]) / 10 ** 6, 1)
+        title = 'State: %s. Total Program Cost = $%s million (\u00B1%s).' % (self.st.upper(), total_cost, spread)
         fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
         ind = np.arange(6)
-        ys = out[:-1]['cost'] / 10**6
+        ys = out[:-1]['cost'] / 10 ** 6
         es = 0.5 * (out[:-1]['ci_upper'] - out[:-1]['ci_lower']) / 10 ** 6
         width = 0.5
         ax.bar(ind, ys, width, yerr=es, align='center', capsize=5, color='khaki')
@@ -424,10 +428,7 @@ class SimulationEngine:
         ax.yaxis.grid(False)
 
         plt.savefig('./output/output_%s/total_cost_%s_%s_%s' % (self.out_id, self.yr, self.st, self.out_id))
-        # plt.show()
-
-        print('Output saved. Total cost = $%s million 2012 dollars' % (round(costs['total']/1000000, 1)))
-        return out, fig  # df of leave type specific costs and total cost, along with ci's
+        return fig
 
 ## Other factors
 # Leave prob factors, 6 types - TODO: code in wof in get_sim_col(), bound phat by max = 1

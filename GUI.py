@@ -2,12 +2,14 @@ from tkinter import *
 from tkinter import ttk, filedialog, messagebox
 import os
 import sys
+import numpy as np
 from _5_simulation import SimulationEngine
 from Utils import Settings, as_currency
 import collections
 import matplotlib
 
 matplotlib.use("TkAgg")
+import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from ABF import ABF
@@ -196,7 +198,7 @@ class MicrosimGUI(Tk):
                                              bg=self.dark_bg, fg=self.light_font)
         self.simulation_method_input = ttk.Combobox(self.main_frame, textvariable=self.simulation_method,
                                                     state="readonly", width=21, values=self.simulation_methods)
-        self.simulation_method_input.current(self.simulation_methods.index('K Nearest Neighbor'))
+        self.simulation_method_input.current(0)
         CreateToolTip(self.simulation_method_label, 'The method used to train model.')
 
         # ------------------------------------------ Program Settings ------------------------------------------------
@@ -623,7 +625,8 @@ class MicrosimGUI(Tk):
         se.save_program_parameters()
         se.prepare_data()
         acs = se.get_acs_simulated()
-        costs, fig = se.get_cost()
+        costs = se.get_cost()
+        fig = se.create_chart(costs)
 
         # compute program costs
         d_bars = {'Own Health': list(costs.loc[costs['type'] == 'own', 'cost'])[0],
@@ -647,8 +650,9 @@ class MicrosimGUI(Tk):
         print(vars(settings))
 
         abf_output, pivot_tables = self.abf_module.rerun(settings)
-        self.results_window.update_abf_output(abf_output)
-        self.results_window.update_pivot_tables(pivot_tables)
+        # self.results_window.update_abf_output(abf_output)
+        # self.results_window.update_pivot_tables(pivot_tables)
+        self.results_window.update_abf_output(abf_output, pivot_tables)
 
     # def test_result_output(self):
     #     # This code currently generates a mock up of a results window
@@ -857,6 +861,9 @@ class MicrosimGUI(Tk):
 class ResultsWindow(Toplevel):
     def __init__(self, parent, simulation_output, simulation_chart, abf_output, pivot_tables):
         super().__init__(parent)
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
+
+        self.parent = parent
         self.dark_bg = parent.dark_bg
         self.notebook_bg = parent.notebook_bg
         self.light_font = parent.light_font
@@ -868,51 +875,58 @@ class ResultsWindow(Toplevel):
         self.notebook.add(self.summary_frame, text='Summary')
 
         self.abf = Frame(self.notebook, bg=self.notebook_bg)
-        self.abf_info_container = Frame(self.abf, bg=self.dark_bg)
-        self.abf_canvas = Canvas(self.abf_info_container, bg=self.dark_bg)
-        self.abf_info = Frame(self.abf_info_container, bg=self.dark_bg)
-        self.abf_canvas.create_window((2, 2), window=self.abf_info, anchor='nw')  # Add frame to canvas
-        self.abf_info_scroll = ttk.Scrollbar(self.abf_info_container, orient=VERTICAL,
+        # self.abf_info_container = Frame(self.abf, bg=self.dark_bg)
+        self.abf_canvas = Canvas(self.abf, bg=self.dark_bg)
+        self.abf_info = Frame(self.abf, bg=self.dark_bg)
+        self.abf_canvas.create_window((0, 0), window=self.abf_info, anchor='nw')  # Add frame to canvas
+        self.abf_info_scroll = ttk.Scrollbar(self.abf, orient=VERTICAL,
                                              command=self.abf_canvas.yview)
         self.abf_canvas.configure(yscrollcommand=self.abf_info_scroll.set)
-        self.abf_info_container.pack(side=TOP, fill=BOTH, expand=True)
+        # self.abf_info_container.pack(side=TOP, fill=BOTH, expand=True)
         self.abf_canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
         self.abf_info_scroll.pack(side=RIGHT, fill=Y)
         self.abf_summary = ABFResultsSummary(self.abf_info, abf_output, self.dark_bg, self.light_font)
-        self.abf_summary.pack(fill=X)
+        self.abf_summary.pack(padx=10, pady=10)
         self.abf_pivot_tables = Frame(self.abf_info, bg=self.dark_bg)
-        self.abf_pivot_tables.pack(fill=X)
-        self.abf_params = Frame(self.abf, bg=self.notebook_bg, borderwidth=1, relief='solid')
-        self.abf_params.pack(fill=X, side=BOTTOM, padx=2, pady=2)
+        self.abf_pivot_tables.pack(fill=X, expand=True)
+        self.abf_params_reveal = MSButton(self.abf, text='ABF Parameters', padx=4, command=self.show_params, width=16,
+                                          background='#00e600')
+        self.abf_params_reveal.pack(side=BOTTOM, anchor='se', padx=3, pady=2)
+        self.abf_params = Frame(self.abf, bg=self.notebook_bg, borderwidth=1, relief='solid', padx=3, pady=3)
+        # self.abf_params.pack(side=BOTTOM, anchor='se', padx=1)
         self.abf_params_inputs = Frame(self.abf_params, bg=self.notebook_bg, pady=4)
         self.abf_params_inputs.pack(fill=X, side=TOP)
-        self.run_button = MSButton(self.abf_params, text="Run ABF", command=parent.run_abf, padx=4)
-        self.run_button.pack(side=BOTTOM, anchor='center', pady=(5, 2))
+        self.abf_params_buttons = Frame(self.abf_params, bg=self.notebook_bg, pady=4)
+        self.abf_params_buttons.pack(side=BOTTOM, fill=X, expand=True)
+        self.abf_params_hide = MSButton(self.abf_params_buttons, text='Hide', padx=4, command=self.hide_params,
+                                        background='#00e600')
+        self.abf_params_hide.pack(side=LEFT, pady=3, padx=5)
+        self.run_button = MSButton(self.abf_params_buttons, font='-size 12 -weight bold', text="Run ABF",
+                                   command=parent.run_abf, padx=4)
+        self.run_button.pack(side=RIGHT, pady=3, padx=5)
         self.notebook.add(self.abf, text="Benefits Financing")
 
-        self.cost_result_label = Label(self.summary_frame,
-                                       text="Cost: ${} Million".format(
-                                           round(sum(simulation_output.values()) / 10 ** 6, 1)),
-                                       font='-size 14', bg=self.dark_bg, fg=self.light_font, justify=LEFT)
-        self.state_result_label = Label(self.summary_frame, text="State: {}".format(parent.state.get()),
-                                        font='-size 12', bg=self.dark_bg, fg=self.light_font)
+        # self.cost_result_label = Label(self.summary_frame,
+        #                                text="Cost: ${} Million".format(
+        #                                    round(sum(simulation_output.values()) / 10 ** 6, 1)),
+        #                                font='-size 14', bg=self.dark_bg, fg=self.light_font, justify=LEFT)
+        # self.state_result_label = Label(self.summary_frame, text="State: {}".format(parent.state.get()),
+        #                                 font='-size 12', bg=self.dark_bg, fg=self.light_font)
         self.result_graph = Frame(self.summary_frame)
 
-        self.content.pack(fill=BOTH)
+        self.content.pack(expand=True, fill=BOTH)
         self.notebook.pack(expand=True, fill=BOTH)
         self.notebook.select(self.summary_frame)
         self.notebook.enable_traversal()
 
-        self.cost_result_label.pack(fill=X, pady=(10, 5))
-        self.state_result_label.pack(fill=X)
+        # self.cost_result_label.pack(fill=X, pady=(10, 5))
+        # self.state_result_label.pack(fill=X)
         self.result_graph.pack(fill=X, padx=15, pady=15)
 
-        self.display_bar_graph(simulation_chart, self.result_graph)
+        self.display_sim_bar_graph(simulation_chart, self.result_graph)
+        self.display_abf_bar_graphs(pivot_tables)
 
-        self.display_abf_pivot_table(pivot_tables)
-
-        self.abf_canvas.configure(scrollregion=(0, 0, 0, 940))
-        self.abf_canvas.bind("<MouseWheel>", self.scroll_abf)
+        self.bind("<MouseWheel>", self.scroll_abf)
 
         self.payroll_tax_label = Label(self.abf_params_inputs, text='Payroll Tax (%):', bg=self.notebook_bg)
         self.payroll_tax_input = Entry(self.abf_params_inputs, textvariable=parent.payroll_tax)
@@ -951,7 +965,18 @@ class ResultsWindow(Toplevel):
         self.total_taxable_earnings_label.grid(column=0, row=4, sticky=W, padx=(8, 0))
         self.total_taxable_earnings_input.grid(column=1, row=4, sticky=W)
 
-    def display_bar_graph(self, simulation_chart, frame):
+        self.update()
+        self.abf_canvas.configure(scrollregion=(0, 0, 0, self.abf_info.winfo_height()))
+
+    def show_params(self):
+        self.abf_params_reveal.pack_forget()
+        self.abf_params.pack(side=BOTTOM, anchor='se', padx=1)
+
+    def hide_params(self):
+        self.abf_params.pack_forget()
+        self.abf_params_reveal.pack(side=BOTTOM, anchor='se', padx=3, pady=2)
+
+    def display_sim_bar_graph(self, simulation_chart, frame):
         canvas = FigureCanvasTkAgg(simulation_chart, frame)
         canvas.draw()
         canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True)
@@ -959,6 +984,60 @@ class ResultsWindow(Toplevel):
         save_button = MSButton(frame, text='Save Figure', command=lambda: self.save_file(simulation_chart))
         save_button.config(width=0)
         save_button.pack(side=RIGHT, padx=10, pady=10)
+
+    def display_abf_bar_graphs(self, pivot_tables):
+        graphs = self.create_abf_bar_graphs(pivot_tables)
+        for graph in graphs:
+            canvas = FigureCanvasTkAgg(graph, self.abf_pivot_tables)
+            canvas.draw()
+            canvas.get_tk_widget().config(height=300)
+            canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True, padx=5, pady=10)
+
+    def create_abf_bar_graphs(self, pivot_tables):
+        graphs = []
+        fg_color = 'white'
+        bg_color = self.dark_bg
+        # bg_color = '#1a1a1a'
+
+        for pivot_table_category, pivot_table in pivot_tables.items():
+            fig_pivot = Figure(figsize=(8, 4))
+            ax_pivot = fig_pivot.add_subplot(111)
+            fig_pivot.patch.set_facecolor(bg_color)
+            ax_pivot.set_facecolor(bg_color)
+
+            categories = pivot_table.index.tolist()
+            ind_pivot = np.arange(len(categories))
+            width_pivot = 0.5
+            ys_pivot = pivot_table[('sum', 'ptax_rev_w')].values / 10 ** 6
+            title_pivot = 'State: {}. {} by {}'.format(self.parent.state.get(), 'Total Tax Revenue',
+                                                       pivot_table_category)
+            if len(categories) > 3:
+                ax_pivot.bar(ind_pivot, ys_pivot, width_pivot, align='center', color='#1aff8c')
+                ax_pivot.set_ylabel('$ millions', fontsize=9)
+                ax_pivot.set_xticks(ind_pivot)
+                ax_pivot.set_xticklabels(categories)
+                ax_pivot.yaxis.grid(False)
+            else:
+                ax_pivot.barh(ind_pivot, ys_pivot, width_pivot, align='center', color='#1aff8c')
+                ax_pivot.set_xlabel('$ millions', fontsize=9)
+                ax_pivot.set_yticks(ind_pivot)
+                ax_pivot.set_yticklabels(categories)
+                ax_pivot.xaxis.grid(False)
+
+            ax_pivot.set_title(title_pivot, fontsize=10, color=fg_color)
+            ax_pivot.tick_params(axis='x', labelsize=8, colors=fg_color)
+            ax_pivot.tick_params(axis='y', labelsize=8, colors=fg_color)
+            ax_pivot.spines['bottom'].set_color(fg_color)
+            ax_pivot.spines['top'].set_color(fg_color)
+            ax_pivot.spines['right'].set_color(fg_color)
+            ax_pivot.spines['left'].set_color(fg_color)
+            ax_pivot.yaxis.label.set_color(fg_color)
+            ax_pivot.xaxis.label.set_color(fg_color)
+            fig_pivot.tight_layout()
+
+            graphs.append(fig_pivot)
+
+        return graphs
 
     def save_file(self, figure):
         filename = filedialog.asksaveasfilename(defaultextension='.png', initialdir=os.getcwd(),
@@ -970,37 +1049,44 @@ class ResultsWindow(Toplevel):
 
         figure.savefig(filename)
 
-    def display_abf_pivot_table(self, pivot_tables):
-        for pivot_table in pivot_tables.values():
-            pt_frame = Frame(self.abf_pivot_tables, bg=self.light_font, padx=5, pady=2)
-            income_w_label = Label(pt_frame, text="Income (Weighted)", bg=self.light_font, fg=self.dark_bg,
-                                   font='-weight bold')
-            tax_rev_w_label = Label(pt_frame, text="Tax Revenue (Weighted)", bg=self.light_font, fg=self.dark_bg,
-                                    font='-weight bold')
-            income_w_label.grid(column=1, row=0, sticky='we', padx=4, pady=2)
-            tax_rev_w_label.grid(column=2, row=0, sticky='we', padx=4, pady=2)
-            index_values = list(pivot_table.index.values)
-            for i, index in enumerate(index_values):
-                index_label = Label(pt_frame, text=index, bg=self.light_font, fg=self.dark_bg)
-                cat_income_w_label = Label(pt_frame, text=as_currency(pivot_table.loc[index, ('sum', 'income_w')]),
-                                           bg=self.light_font, fg=self.dark_bg, borderwidth=1, relief='solid',
-                                           justify=RIGHT, padx=4, pady=2, width=20, anchor=E)
-                cat_tax_rev_w_label = Label(pt_frame, text=as_currency(pivot_table.loc[index, ('sum', 'ptax_rev_w')]),
-                                            bg=self.light_font, fg=self.dark_bg, borderwidth=1, relief='solid',
-                                            justify=RIGHT, padx=4, pady=2, width=20, anchor=E)
-                index_label.grid(column=0, row=i + 1, sticky='w', padx=4, pady=2)
-                cat_income_w_label.grid(column=1, row=i + 1)
-                cat_tax_rev_w_label.grid(column=2, row=i + 1)
-            pt_frame.pack(side=BOTTOM, anchor='w', padx=8, pady=5)
+    # def display_abf_pivot_table(self, pivot_tables):
+    #     for pivot_table in pivot_tables.values():
+    #         pt_frame = Frame(self.abf_pivot_tables, bg=self.light_font, padx=5, pady=2)
+    #         income_w_label = Label(pt_frame, text="Income (Weighted)", bg=self.light_font, fg=self.dark_bg,
+    #                                font='-weight bold')
+    #         tax_rev_w_label = Label(pt_frame, text="Tax Revenue (Weighted)", bg=self.light_font, fg=self.dark_bg,
+    #                                 font='-weight bold')
+    #         income_w_label.grid(column=1, row=0, sticky='we', padx=4, pady=2)
+    #         tax_rev_w_label.grid(column=2, row=0, sticky='we', padx=4, pady=2)
+    #         index_values = list(pivot_table.index.values)
+    #         for i, index in enumerate(index_values):
+    #             index_label = Label(pt_frame, text=index, bg=self.light_font, fg=self.dark_bg)
+    #             cat_income_w_label = Label(pt_frame, text=as_currency(pivot_table.loc[index, ('sum', 'income_w')]),
+    #                                        bg=self.light_font, fg=self.dark_bg, borderwidth=1, relief='solid',
+    #                                        justify=RIGHT, padx=4, pady=2, width=20, anchor=E)
+    #             cat_tax_rev_w_label = Label(pt_frame, text=as_currency(pivot_table.loc[index, ('sum', 'ptax_rev_w')]),
+    #                                         bg=self.light_font, fg=self.dark_bg, borderwidth=1, relief='solid',
+    #                                         justify=RIGHT, padx=4, pady=2, width=20, anchor=E)
+    #             index_label.grid(column=0, row=i + 1, sticky='w', padx=4, pady=2)
+    #             cat_income_w_label.grid(column=1, row=i + 1)
+    #             cat_tax_rev_w_label.grid(column=2, row=i + 1)
+    #         pt_frame.pack(side=BOTTOM, anchor='w', padx=8, pady=5)
 
-    def update_abf_output(self, abf_output):
+    def update_abf_output(self, abf_output, pivot_tables):
+        for graph in self.abf_pivot_tables.winfo_children():
+            graph.destroy()
+
+        self.display_abf_bar_graphs(pivot_tables)
         self.abf_summary.update_results(abf_output)
 
-    def update_pivot_tables(self, pivot_tables):
-        for pivot_table in self.abf_pivot_tables.winfo_children():
-            pivot_table.destroy()
-
-        self.display_abf_pivot_table(pivot_tables)
+    # def update_abf_output(self, abf_output):
+    #     self.abf_summary.update_results(abf_output)
+    #
+    # def update_pivot_tables(self, pivot_tables):
+    #     for pivot_table in self.abf_pivot_tables.winfo_children():
+    #         pivot_table.destroy()
+    #
+    #     self.display_abf_pivot_table(pivot_tables)
 
     def scroll_abf(self, event):
         move_unit = 0
@@ -1011,26 +1097,49 @@ class ResultsWindow(Toplevel):
 
         self.abf_canvas.yview_scroll(move_unit, 'units')
 
+    def on_close(self):
+        self.destroy()
+
 
 class ABFResultsSummary(Frame):
     def __init__(self, parent, output, dark_bg, light_font):
-        super().__init__(parent, bg=dark_bg)
+        super().__init__(parent, bg=dark_bg, highlightcolor='white', highlightthickness=1, pady=8, padx=10)
 
-        self.components = {}
-        idx = 0
-        for key, value in output.items():
-            component_label = Label(self, text=key + ':', bg=dark_bg, fg=light_font, anchor='e')
-            component_value = Label(self, text=as_currency(value), bg=light_font, fg=dark_bg, anchor='e', padx=5)
+        self.income_label = Label(self, text='Total Income:', bg=dark_bg, fg=light_font, anchor='e',
+                                  font='-size 12 -weight bold')
+        self.tax_revenue_label = Label(self, text='Total Tax Revenue:', bg=dark_bg, fg=light_font, anchor='e',
+                                       font='-size 12 -weight bold')
+        self.benefits_recouped_label = Label(self, text='Tax Revenue Recouped from Benefits:', bg=dark_bg,
+                                             fg=light_font, anchor='e', font='-size 12 -weight bold')
 
-            self.components[key] = {'label': component_label, 'value': component_value}
+        self.income_value = Label(self, bg=light_font, fg=dark_bg, anchor='e', padx=5, font='-size 12')
+        self.tax_revenue_value = Label(self, bg=light_font, fg=dark_bg, anchor='e', padx=5, font='-size 12')
+        self.benefits_recouped_value = Label(self, bg=light_font, fg=dark_bg, anchor='e', padx=5, font='-size 12')
 
-            component_label.grid(column=0, row=idx, sticky='we', padx=3, pady=2)
-            component_value.grid(column=1, row=idx, sticky='we', padx=3, pady=2)
-            idx += 1
+        self.update_results(output)
+
+        self.income_label.grid(row=0, column=0, sticky='we', padx=3, pady=2)
+        self.tax_revenue_label.grid(row=1, column=0, sticky='we', padx=3, pady=2)
+        self.benefits_recouped_label.grid(row=2, column=0, sticky='we', padx=3, pady=2)
+        self.income_value.grid(row=0, column=1, sticky='we', padx=3, pady=2)
+        self.tax_revenue_value.grid(row=1, column=1, sticky='we', padx=3, pady=2)
+        self.benefits_recouped_value.grid(row=2, column=1, sticky='we', padx=3, pady=2)
 
     def update_results(self, output):
-        for key, value in output.items():
-            self.components[key]['value'].config(text=as_currency(value))
+        income = '{} (\u00B1{:,.1f}) million'.format(as_currency(output['Total Income (Weighted)'] / 10 ** 6),
+                                                     0.5 * (output['Total Income Upper Confidence Interval'] -
+                                                            output['Total Income Lower Confidence Interval']) / 10 ** 6)
+
+        tax = '{} (\u00B1{:,.1f}) million'.format(as_currency(output['Total Tax Revenue (Weighted)'] / 10 ** 6),
+                                                  0.5 * (output['Total Tax Revenue Upper Confidence Interval'] -
+                                                         output[
+                                                             'Total Tax Revenue Lower Confidence Interval']) / 10 ** 6)
+
+        benefits_recouped = '{} million'.format(as_currency(output['Tax Revenue Recouped from Benefits'] / 10 ** 6))
+
+        self.income_value.config(text=income)
+        self.tax_revenue_value.config(text=tax)
+        self.benefits_recouped_value.config(text=benefits_recouped)
 
 
 # From StackOverflow: https://stackoverflow.com/questions/3221956/how-do-i-display-tooltips-in-tkinter
@@ -1087,8 +1196,8 @@ class CreateToolTip(object):
 # The following classes are used so that style options don't have to be reentered for each widget that should be styled
 # a certain way.
 class MSButton(Button):
-    def __init__(self, parent=None, **kwargs):
-        super().__init__(parent, foreground='#FFFFFF', background='#0074BF', font='-size 12', width=8,
+    def __init__(self, parent=None, background='#0074BF', font='-size 12', width=8, **kwargs):
+        super().__init__(parent, foreground='#FFFFFF', background=background, font=font, width=width,
                          relief='flat', activebackground='#FFFFFF', pady=0, bd=0, **kwargs)
 
 
