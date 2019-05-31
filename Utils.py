@@ -1,3 +1,6 @@
+import copy
+
+
 class Settings:
     def __init__(self, fmla_file=None, acs_directory=None, output_directory=None, detail=None, state=None,
                  simulation_method=None, benefit_effect=False, calibrate=True, clone_factor=1, se_analysis=False,
@@ -7,7 +10,7 @@ class Settings:
                  eligible_earnings=11520, eligible_weeks=1, eligible_hours=1, eligible_size=1, max_weeks=None,
                  take_up_rates=None, leave_probability_factors=None, payroll_tax=1, benefits_tax=False,
                  average_state_tax=5, max_taxable_earnings_per_person=100000, total_taxable_earnings=10000000000,
-                 fed_employees=True, state_employees=True, local_employees=True):
+                 fed_employees=True, state_employees=True, local_employees=True, counterfactual='', policy_sim=False):
         self.fmla_file = fmla_file
         self.acs_directory = acs_directory
         self.output_directory = output_directory
@@ -42,6 +45,8 @@ class Settings:
         self.average_state_tax = average_state_tax
         self.max_taxable_earnings_per_person = max_taxable_earnings_per_person
         self.total_taxable_earnings = total_taxable_earnings
+        self.counterfactual = counterfactual
+        self.policy_sim = policy_sim
         if max_weeks is None:
             self.max_weeks = {'Own Health': 30, 'Maternity': 30, 'New Child': 4, 'Ill Child': 4, 'Ill Spouse': 4,
                               'Ill Parent': 4}
@@ -58,6 +63,18 @@ class Settings:
         else:
             self.leave_probability_factors = leave_probability_factors
 
+    def copy(self):
+        # return Settings(fmla_file=self.fmla_file, acs_directory=self.acs_directory, output_directory=self.output_directory, detail=self.detail, state=self.state,
+        #          simulation_method=self.simulation_method, benefit_effect=self.benefit_effect, calibrate=self.calibrate, clone_factor=self.clone_factor, se_analysis=self.se_analysis,
+        #          extend=self.extend, fmla_protection_constraint=self.fmla_protection_constraint, replacement_ratio=self.replacement_ratio, government_employees=self.government_employees,
+        #          needers_fully_participate=self.needers_fully_participate, random_seed=self.random_seed, self_employed=self.self_employed, state_of_work=self.state_of_work,
+        #          top_off_rate=0, top_off_min_length=0, weekly_ben_cap=99999999, weight_factor=1,
+        #          eligible_earnings=11520, eligible_weeks=1, eligible_hours=1, eligible_size=1, max_weeks=None,
+        #          take_up_rates=None, leave_probability_factors=None, payroll_tax=1, benefits_tax=False,
+        #          average_state_tax=5, max_taxable_earnings_per_person=100000, total_taxable_earnings=10000000000,
+        #          fed_employees=True, state_employees=True, local_employees=True)
+        return copy.deepcopy(self)
+
 
 # From https://stackoverflow.com/questions/21208376/converting-float-to-dollars-and-cents
 def as_currency(amount):
@@ -65,3 +82,87 @@ def as_currency(amount):
         return '${:,.2f}'.format(amount)
     else:
         return '-${:,.2f}'.format(-amount)
+
+
+def generate_default_state_params(settings, state='CA'):
+    state_params = settings.copy()
+    if state.lower() == 'ca':
+        state_params.replacement_ratio = 0.55
+        state_params.benefit_effect = True
+        state_params.top_off_rate = 0.01
+        state_params.top_off_min_length = 10
+        # dependent allowance not implemented
+        # state_params.take_up_rates = {'Own Health': 0.25, 'Maternity': 0.25, 'New Child': 0.25, 'Ill Child': 0.25,
+        #                           'Ill Spouse': 0.25, 'Ill Parent': 0.25}
+        # waiting period not implemented
+        # state_params.extend = True
+        # extend days and proportion not implemented
+        state_params.max_weeks = {'Own Health': 52, 'Maternity': 52, 'New Child': 6, 'Ill Child': 6, 'Ill Spouse': 6,
+                              'Ill Parent': 6}
+        state_params.weekly_ben_cap = 1216
+        state_params.fmla_protection_constraint = True
+        state_params.eligible_earnings = 300
+        state_params.government_employees = False
+        state_params.fed_employees = False
+        state_params.state_employees = False
+        state_params.local_employees = False
+        state_params.self_employed = False
+    elif state.lower() == 'nj':
+        state_params.replacement_ratio = 0.66
+        state_params.benefit_effect = True
+        state_params.top_off_rate = 0.01
+        state_params.top_off_min_length = 10
+        # dependent allowance not implemented
+        # state_params.take_up_rates = {'Own Health': 0.25, 'Maternity': 0.25, 'New Child': 0.25, 'Ill Child': 0.25,
+        #                           'Ill Spouse': 0.25, 'Ill Parent': 0.25}
+        # waiting period not implemented
+        # state_params.extend = True
+        # extend days and proportion not implemented
+        state_params.max_weeks = {'Own Health': 26, 'Maternity': 26, 'New Child': 6, 'Ill Child': 6, 'Ill Spouse': 6,
+                              'Ill Parent': 6}
+        state_params.weekly_ben_cap = 594
+        state_params.fmla_protection_constraint = True
+        state_params.eligible_earnings = 8400
+        state_params.government_employees = False
+        state_params.fed_employees = False
+        state_params.state_employees = False
+        state_params.local_employees = False
+        state_params.self_employed = False
+    elif state.lower() == 'ri':
+        state_params.replacement_ratio = 0.6
+        state_params.benefit_effect = True
+        state_params.top_off_rate = 0.01
+        state_params.top_off_min_length = 10
+        # dependent allowance not implemented
+        # state_params.take_up_rates = {'Own Health': 0.25, 'Maternity': 0.25, 'New Child': 0.25, 'Ill Child': 0.25,
+        #                           'Ill Spouse': 0.25, 'Ill Parent': 0.25}
+        # waiting period not implemented
+        # state_params.extend = True
+        # extend days and proportion not implemented
+        state_params.max_weeks = {'Own Health': 30, 'Maternity': 30, 'New Child': 4, 'Ill Child': 4, 'Ill Spouse': 4,
+                              'Ill Parent': 4}
+        # weekly benefit cap proportion not implemented
+        state_params.fmla_protection_constraint = True
+        state_params.eligible_earnings = 11520
+        state_params.government_employees = False
+        state_params.fed_employees = False
+        state_params.state_employees = False
+        state_params.local_employees = False
+        state_params.self_employed = False
+
+    return state_params
+
+
+def generate_generous_params(settings):
+    generous_params = settings.copy()
+    generous_params.eligible_earnings = 0
+    generous_params.eligible_size = 0
+    generous_params.eligible_hours = 0
+    generous_params.eligible_weeks = 0
+    generous_params.replacement_ratio = 1
+    generous_params.fed_employees = True
+    generous_params.state_employees = True
+    generous_params.local_employees = True
+    generous_params.self_employed = True
+
+    return generous_params

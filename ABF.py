@@ -274,7 +274,7 @@ class ABF:
         revenue_by_gender = pd.pivot_table(self.df, index=["GENDER_CAT"], values=["income_w", "ptax_rev_w"],
                                            aggfunc=[np.sum])
 
-        pivot_tables = {'Employment Type': revenue_by_class, 'Age': revenue_by_age,
+        pivot_tables = {'Class of Worker': revenue_by_class, 'Age': revenue_by_age,
                         'Gender': revenue_by_gender}
 
         return abf_output, pivot_tables
@@ -282,8 +282,8 @@ class ABF:
     def run(self):
         # Create Class variable to aggregate the COW variable for display purposes
         self.df['class'] = ''
-        cleanup = {1: "Private", 2: "Private", 3: "Local", 4: "State", 5: "Federal", 6: "Self-Employed",
-                   7: "Self-Employed", 8: "Other", 9: "Other"}
+        cleanup = {1: "Private", 2: "Private", 3: "Local Govt.", 4: "State Govt.", 5: "Federal Govt.",
+                   6: "Self-Employed", 7: "Self-Employed", 8: "Other", 9: "Other"}
         for i in self.df.index.values:
             if not pd.isnull(self.df.at[i, 'COW']):
                 self.df.at[i, 'class'] = cleanup[int(float(self.df.at[i, 'COW']))]

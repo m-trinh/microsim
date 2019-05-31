@@ -21,7 +21,7 @@ from _4_clean_ACS import DataCleanerACS
 
 class SimulationEngine:
 
-    def __init__(self, st, yr, fps_in, fps_out, clf_name, prog_para):
+    def __init__(self, st, yr, fps_in, fps_out, clf_name, prog_para, engine_type='main'):
         '''
         :param st: state name, 'ca', 'ma', etc.
         :param yr: end year of 5-year ACS
@@ -74,11 +74,16 @@ class SimulationEngine:
         self.updates = []
         self.progress = 0
         self.figure = None
+        self.type = engine_type
+        if self.type == 'main':
+            self.output_directory = './output/output_%s' % self.out_id
+        else:
+            self.output_directory = './output/output_%s_%s' % (self.out_id, self.type)
 
     def save_program_parameters(self):
 
         # create output folder
-        os.makedirs('./output/output_%s/' % self.out_id)
+        os.makedirs(self.output_directory)
 
         # save meta file of program parameters
         para_labels = ['State', 'Year',
@@ -101,7 +106,7 @@ class SimulationEngine:
         dm = pd.DataFrame.from_dict(para_values_m)
         dm = dm.rename(index=dict(zip(dm.index, para_labels_m)))
 
-        with open('./output/output_%s/prog_para_%s.csv' % (self.out_id, self.out_id), 'w', newline='') as f:
+        with open('%s/prog_para_%s.csv' % (self.output_directory, self.out_id), 'w', newline='') as f:
             writer = csv.writer(f)
             for idx, row in d.iterrows():
                 writer.writerow((idx, row[0]))
@@ -368,7 +373,7 @@ class SimulationEngine:
             # acs.loc[(acs['cpl_%s' % t] * rrp <= acs['len_%s' % t] * acs['prop_pay']), 'cpl_%s' % t] = 0
 
         # Save ACS data after finishing simulation
-        acs.to_csv('./output/output_%s/acs_sim_%s.csv' % (self.out_id, self.out_id), index=False)
+        acs.to_csv('%s/acs_sim_%s.csv' % (self.output_directory, self.out_id), index=False)
         message = 'Leaves simulated for 5-year ACS 20%s-20%s in state %s. Time needed = %s seconds' % ((self.yr-4), self.yr, self.st.upper(), round(time()-tsim, 0))
         print(message)
         self.updates.append(message)
@@ -377,7 +382,7 @@ class SimulationEngine:
 
     def get_cost(self):
         # read simulated ACS
-        acs = pd.read_csv('./output/output_%s/acs_sim_%s.csv' % (self.out_id, self.out_id))
+        acs = pd.read_csv('%s/acs_sim_%s.csv' % (self.output_directory, self.out_id))
         # apply take up rates and weekly benefit cap, and compute total cost, 6 types
         costs = {}
         for t in self.types:
@@ -418,7 +423,7 @@ class SimulationEngine:
         out = out.sort_values(by='tix')
         del out['tix']
 
-        out.to_csv('./output/output_%s/program_cost_%s_%s.csv' % (self.out_id, self.st, self.out_id), index=False)
+        out.to_csv('%s/program_cost_%s_%s.csv' % (self.output_directory, self.st, self.out_id), index=False)
 
         message = 'Output saved. Total cost = $%s million 2012 dollars' % (round(costs['total']/1000000, 1))
         print(message)
@@ -431,7 +436,7 @@ class SimulationEngine:
         total_cost = round(list(out.loc[out['type'] == 'total', 'cost'])[0] / 10 ** 6, 1)
         spread = round((list(out.loc[out['type'] == 'total', 'ci_upper'])[0] -
                         list(out.loc[out['type'] == 'total', 'ci_lower'])[0]) / 10 ** 6, 1)
-        title = 'State: %s. Total Program Cost = $%s million (\u00B1%s).' % (self.st.upper(), total_cost, spread)
+        title = 'State: %s. Total Benefits Cost = $%s million (\u00B1%s).' % (self.st.upper(), total_cost, spread)
         fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
         ind = np.arange(6)
         ys = out[:-1]['cost'] / 10 ** 6
@@ -444,7 +449,7 @@ class SimulationEngine:
         ax.set_title(title)
         ax.yaxis.grid(False)
 
-        plt.savefig('./output/output_%s/total_cost_%s_%s_%s' % (self.out_id, self.yr, self.st, self.out_id))
+        plt.savefig('%s/total_cost_%s_%s_%s' % (self.output_directory, self.yr, self.st, self.out_id))
         self.figure = fig
         return fig
 
@@ -460,11 +465,19 @@ class SimulationEngine:
         return result
 
     def get_results(self):
-        acs = pd.read_csv(self.fp_acs_out + 'ACS_cleaned_forsimulation_20%s_%s.csv' % (self.yr, self.st))
-        costs = pd.read_csv('./output/output_%s/program_cost_%s_%s.csv' % (self.out_id, self.st, self.out_id))
-        fig = self.create_chart(costs)
+        return pd.read_csv('%s/acs_sim_%s.csv' % (self.output_directory, self.out_id))
 
-        return acs, costs, fig
+    def get_cost_df(self):
+        return pd.read_csv('%s/program_cost_%s_%s.csv' % (self.output_directory, self.st, self.out_id))
+
+    def get_population_analysis_results(self):
+        # read in simulated acs, this is just df returned from get_acs_simulated()
+        d = pd.read_csv('%s/acs_sim_%s.csv' % (self.output_directory, self.out_id))
+        # total covered-by-program length
+        d['cpl'] = d[['cpl_%s' % t for t in self.types]].apply(lambda x: sum(x), axis=1)
+        # keep needed vars for population analysis plots
+        d = d[['PWGTP', 'cpl', 'female', 'age']]
+        return d
 
 ## Other factors
 # Leave prob factors, 6 types - TODO: code in wof in get_sim_col(), bound phat by max = 1

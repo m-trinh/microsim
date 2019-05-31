@@ -12,7 +12,7 @@ chris zhang 2/28/2019
 
 import pandas as pd
 import numpy as np
-from _5a_aux_functions import fillna_binary, fillna_df
+from _5a_aux_functions import fillna_df
 import sklearn.linear_model
 import mord
 from time import time

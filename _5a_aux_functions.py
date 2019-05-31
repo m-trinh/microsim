@@ -6,7 +6,6 @@ Chris Zhang 10/30/2018
 
 import numpy as np
 import pandas as pd
-import bisect
 import sklearn.linear_model, sklearn.naive_bayes, sklearn.neighbors, sklearn.tree, sklearn.ensemble, \
     sklearn.gaussian_process, sklearn.svm
 pd.options.mode.chained_assignment = None

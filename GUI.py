@@ -6,7 +6,7 @@ import threading
 import time
 import numpy as np
 from _5_simulation import SimulationEngine
-from Utils import Settings, as_currency
+from Utils import Settings, as_currency, generate_default_state_params, generate_generous_params
 import collections
 import matplotlib
 
@@ -38,6 +38,7 @@ class MicrosimGUI(Tk):
         self.notebook_bg = '#fcfcfc'
         self.theme_color = '#0074BF'
         self.default_settings = Settings()
+        self.settings = self.default_settings
         self.error_tooltips = []
         self.cwd = os.getcwd()
 
@@ -141,6 +142,8 @@ class MicrosimGUI(Tk):
         self.average_state_tax = DoubleVar(value=self.default_settings.average_state_tax)
         self.max_taxable_earnings_per_person = IntVar(value=self.default_settings.max_taxable_earnings_per_person)
         self.total_taxable_earnings = IntVar(value=self.default_settings.total_taxable_earnings)
+        self.counterfactual = StringVar()
+        self.policy_sim = BooleanVar(value=self.default_settings.policy_sim)
 
         # When the file location entries are modified, check to see if they all have some value
         # If they do, enable the run button
@@ -404,6 +407,19 @@ class MicrosimGUI(Tk):
         CreateToolTip(self.random_seed_input,
                       'Whether or not a seed will be created using a random number generator.')
 
+        self.counterfactual_label = Label(self.simulation_frame, text='Compare Against Existing:', bg=self.notebook_bg)
+        self.counterfactual_input = ttk.Combobox(self.simulation_frame, textvariable=self.counterfactual,
+                                                 state="readonly", width=21, values=['', 'CA', 'NJ', 'RI'])
+        self.counterfactual_input.current(0)
+        CreateToolTip(self.counterfactual_label, 'Simulate a counterfactual scenario to compare user parameters '
+                                                 'against a real paid leave program.')
+
+        self.policy_sim_input = ttk.Checkbutton(self.simulation_frame, text="Compare Against Generous", onvalue=True,
+                                                offvalue=False, variable=self.policy_sim,
+                                                style='MSCheckbutton.TCheckbutton')
+        CreateToolTip(self.counterfactual_label, 'Simulate a policy scenario to compare user parameters against a '
+                                                 'generous paid leave program.')
+
         # ----------------------------------------- Add Widgets to Window --------------------------------------------
 
         self.content.pack(expand=True, fill=BOTH)
@@ -486,6 +502,9 @@ class MicrosimGUI(Tk):
         self.fmla_protection_constraint_input.grid(column=0, row=3, columnspan=2, sticky=W)
         self.calibrate_input.grid(column=0, row=4, columnspan=2, sticky=W)
         self.random_seed_input.grid(column=0, row=5, columnspan=2, sticky=W)
+        self.counterfactual_label.grid(column=0, row=6, sticky=W)
+        self.counterfactual_input.grid(column=1, row=6)
+        self.policy_sim_input.grid(column=0, row=7, columnspan=2, sticky=W)
 
         # This code adds padding to each row. This is needed when using grid() to add widgets.
         self.row_padding = 8
@@ -495,7 +514,7 @@ class MicrosimGUI(Tk):
             self.program_frame.rowconfigure(i, pad=self.row_padding)
         for i in range(7):
             self.population_frame.rowconfigure(i, pad=self.row_padding)
-        for i in range(6):
+        for i in range(8):
             self.simulation_frame.rowconfigure(i, pad=self.row_padding)
         for i in range(5):
             self.benefit_financing_frame.rowconfigure(i, pad=self.row_padding)
@@ -517,9 +536,9 @@ class MicrosimGUI(Tk):
 
         # TODO: Remove
         # --------- TEST ONLY -------------
-        self.fmla_file.set('C:/Users/mtrinh/PycharmProjects/MicrosimGUI/data/fmla_2012/fmla_2012_employee_restrict_puf.csv')
-        self.acs_directory.set('C:/Users/mtrinh/PycharmProjects/MicrosimGUI/data/acs')
-        self.output_directory.set('C:/Users/mtrinh/PycharmProjects/MicrosimGUI/output')
+        self.fmla_file.set('./data/fmla_2012/fmla_2012_employee_restrict_puf.csv')
+        self.acs_directory.set('./data/acs')
+        self.output_directory.set('./output')
         # self.test_result_output()
 
     def check_all_gov_employees(self, event=None):
@@ -565,10 +584,102 @@ class MicrosimGUI(Tk):
             return
 
         settings = self.create_settings()
-        self.settings = settings
 
         # run simulation
         # initiate a SimulationEngine instance
+
+        se = self.create_simulation_engine(settings)
+        self.se = se
+        counterfactual_se = None
+        counterfactual = self.counterfactual.get()
+        if counterfactual != '':
+            counterfactual_se = self.create_simulation_engine(generate_default_state_params(settings),
+                                                              engine_type='counterfactual')
+
+        policy_se = None
+        if settings.policy_sim:
+            policy_se = self.create_simulation_engine(generate_generous_params(settings), engine_type='policy_sim')
+        self.policy_se = policy_se
+
+        self.counterfactual_se = counterfactual_se
+        self.run_button.config(state=DISABLED, bg='#99d6ff')
+        self.progress_window = ProgressWindow(self, se, counterfactual_se, policy_se)
+        # Run model
+        thread_se = threading.Thread(target=se.run)
+        thread_se.start()
+
+        thread_progress = threading.Thread(target=self.progress_window.update_progress)
+        thread_progress.start()
+
+    def show_results(self):
+        # compute program costs
+        costs = self.se.get_cost_df()
+        # d_bars = {'Own Health': list(costs.loc[costs['type'] == 'own', 'cost'])[0],
+        #           'Maternity': list(costs.loc[costs['type'] == 'matdis', 'cost'])[0],
+        #           'New Child': list(costs.loc[costs['type'] == 'bond', 'cost'])[0],
+        #           'Ill Child': list(costs.loc[costs['type'] == 'illchild', 'cost'])[0],
+        #           'Ill Spouse': list(costs.loc[costs['type'] == 'illspouse', 'cost'])[0],
+        #           'Ill Parent': list(costs.loc[costs['type'] == 'illparent', 'cost'])[0]}
+        #
+        # ks = ['Own Health', 'Maternity', 'New Child', 'Ill Child', 'Ill Spouse', 'Ill Parent']
+        # od_bars = collections.OrderedDict((k, d_bars[k]) for k in ks)
+
+        total_benefits = list(costs.loc[costs['type'] == 'total', 'cost'])[0]
+        self.abf_module = ABF(self.se.get_results(), self.settings, total_benefits)
+        abf_output, pivot_tables = self.abf_module.run()
+
+        self.results_window = ResultsWindow(self, self.se, abf_output, pivot_tables,
+                                            counterfactual_engine=self.counterfactual_se, policy_engine=self.policy_se)
+        self.run_button.config(state=NORMAL, bg=self.theme_color)
+
+    def run_abf(self):
+        abf_output, pivot_tables = self.abf_module.rerun(self.settings)
+        # self.results_window.update_abf_output(abf_output)
+        # self.results_window.update_pivot_tables(pivot_tables)
+        self.results_window.update_abf_output(abf_output, pivot_tables)
+
+    # def test_result_output(self):
+    #     # This code currently generates a mock up of a results window
+    #     simulation_results = {'Own Health': 10, 'Maternity': 200, 'New Child': 10, 'Ill Child': 8,
+    #                           'Ill Spouse': 5, 'Ill Parent': 0}
+    #     abf_output = {'Total Income (Weighted)': 0, 'Total Income': 0,
+    #                   'Income Standard Error': 0, 'Total Income Upper Confidence Interval': 0,
+    #                   'Total Income Lower Confidence Interval': 0,
+    #                   'Total Tax Revenue': 0,
+    #                   'Tax Standard Error': 0, 'Total Tax Revenue Upper Confidence Interval': 0,
+    #                   'Total Tax Revenue Lower Confidence Interval': 0, 'Tax Revenue Recouped from Benefits': 0}
+    #
+    #     pivot_table = pd.DataFrame({('sum', 'income_w'): 0, ('sum', 'ptax_rev_w'): 0},
+    #                                index=['Private', 'Federal', 'State', 'Local'])
+    #
+    #     pivot_tables = {'class': pivot_table, 'age': pivot_table, 'gender': pivot_table}
+    #
+    #     self.results_window = ResultsWindow(self, simulation_results, abf_output, pivot_tables)
+
+    # Create an object with all of the setting values
+    def create_settings(self):
+        # The inputs are linked to a tkinter variable. Those values will have to be retrieved from each variable
+        # and passed on to the settings objects
+        self.settings = Settings(self.fmla_file.get(), self.acs_directory.get(), self.output_directory.get(), self.detail.get(),
+                        self.state.get(), self.simulation_method.get(), self.benefit_effect.get(), self.calibrate.get(),
+                        self.clone_factor.get(), self.se_analysis.get(), self.extend.get(),
+                        self.fmla_protection_constraint.get(), self.replacement_ratio.get(),
+                        self.government_employees.get(), self.needers_fully_participate.get(),
+                        self.random_seed.get(), self.self_employed.get(), self.state_of_work.get(),
+                        self.top_off_rate.get(), self.top_off_min_length.get(), self.weekly_ben_cap.get(),
+                        self.weight_factor.get(), self.eligible_earnings.get(), self.eligible_weeks.get(),
+                        self.eligible_hours.get(), self.eligible_size.get(),
+                        {key: value.get() for key, value in self.max_weeks.items()},
+                        {key: value.get() for key, value in self.take_up_rates.items()},
+                        {key: value.get() for key, value in self.leave_probability_factors.items()},
+                        self.payroll_tax.get(), self.benefits_tax.get(), self.average_state_tax.get(),
+                        self.max_taxable_earnings_per_person.get(), self.total_taxable_earnings_input.get(),
+                        self.fed_employees.get(), self.state_employees.get(), self.local_employees.get(),
+                        self.counterfactual.get(), self.policy_sim.get())
+
+        return self.settings
+
+    def create_simulation_engine(self, settings, engine_type='main'):
         st = settings.state.lower()
         yr = 16
         fp_fmla_in = settings.fmla_file
@@ -597,21 +708,23 @@ class MicrosimGUI(Tk):
         rrp = settings.replacement_ratio
         wkbene_cap = settings.weekly_ben_cap
 
-        d_maxwk = settings.max_weeks  # this returns a dict
-        d_maxwk['own'] = d_maxwk.pop('Own Health')
-        d_maxwk['matdis'] = d_maxwk.pop('Maternity')
-        d_maxwk['bond'] = d_maxwk.pop('New Child')
-        d_maxwk['illchild'] = d_maxwk.pop('Ill Child')
-        d_maxwk['illspouse'] = d_maxwk.pop('Ill Spouse')
-        d_maxwk['illparent'] = d_maxwk.pop('Ill Parent')
+        d_maxwk = {
+            'own': settings.max_weeks['Own Health'],
+            'matdis': settings.max_weeks['Maternity'],
+            'bond': settings.max_weeks['New Child'],
+            'illchild': settings.max_weeks['Ill Child'],
+            'illspouse': settings.max_weeks['Ill Spouse'],
+            'illparent': settings.max_weeks['Ill Parent']
+        }
 
-        d_takeup = settings.take_up_rates  # this returns a dict
-        d_takeup['own'] = d_takeup.pop('Own Health')
-        d_takeup['matdis'] = d_takeup.pop('Maternity')
-        d_takeup['bond'] = d_takeup.pop('New Child')
-        d_takeup['illchild'] = d_takeup.pop('Ill Child')
-        d_takeup['illspouse'] = d_takeup.pop('Ill Spouse')
-        d_takeup['illparent'] = d_takeup.pop('Ill Parent')
+        d_takeup = {
+            'own': settings.take_up_rates['Own Health'],
+            'matdis': settings.take_up_rates['Maternity'],
+            'bond': settings.take_up_rates['New Child'],
+            'illchild': settings.take_up_rates['Ill Child'],
+            'illspouse': settings.take_up_rates['Ill Spouse'],
+            'illparent': settings.take_up_rates['Ill Parent']
+        }
 
         incl_empgov_fed = settings.fed_employees
         incl_empgov_st = settings.state_employees
@@ -622,86 +735,11 @@ class MicrosimGUI(Tk):
         prog_para = [elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp, wkbene_cap, d_maxwk, d_takeup,
                      incl_empgov_fed, incl_empgov_st, incl_empgov_loc, incl_empself, sim_method]
 
-        se = SimulationEngine(st, yr, fps_in, fps_out, clf_name, prog_para)
-        self.run_button.config(state=DISABLED, bg='#99d6ff')
-        self.progress_window = ProgressWindow(self, se)
-        # Run model
-        thread_se = threading.Thread(target=se.run)
+        return SimulationEngine(st, yr, fps_in, fps_out, clf_name, prog_para, engine_type=engine_type)
+
+    def run_engine(self, engine):
+        thread_se = threading.Thread(target=engine.run)
         thread_se.start()
-
-        thread_progress = threading.Thread(target=self.progress_window.update_progress)
-        thread_progress.start()
-
-        # thread_se.join()
-        # thread_progress.join()
-        # acs, costs, fig = se.get_results()
-        # self.show_results(acs, costs, fig)
-
-    def show_results(self, acs, costs, fig):
-        # compute program costs
-        d_bars = {'Own Health': list(costs.loc[costs['type'] == 'own', 'cost'])[0],
-                  'Maternity': list(costs.loc[costs['type'] == 'matdis', 'cost'])[0],
-                  'New Child': list(costs.loc[costs['type'] == 'bond', 'cost'])[0],
-                  'Ill Child': list(costs.loc[costs['type'] == 'illchild', 'cost'])[0],
-                  'Ill Spouse': list(costs.loc[costs['type'] == 'illspouse', 'cost'])[0],
-                  'Ill Parent': list(costs.loc[costs['type'] == 'illparent', 'cost'])[0]}
-
-        ks = ['Own Health', 'Maternity', 'New Child', 'Ill Child', 'Ill Spouse', 'Ill Parent']
-        od_bars = collections.OrderedDict((k, d_bars[k]) for k in ks)
-
-        total_benefits = list(costs.loc[costs['type'] == 'total', 'cost'])[0]
-        self.abf_module = ABF(acs, self.settings, total_benefits)
-        abf_output, pivot_tables = self.abf_module.run()
-
-        self.results_window = ResultsWindow(self, od_bars, fig, abf_output, pivot_tables)
-        self.run_button.config(state=NORMAL, bg=self.theme_color)
-
-    def run_abf(self):
-        settings = self.create_settings()
-        print(vars(settings))
-
-        abf_output, pivot_tables = self.abf_module.rerun(settings)
-        # self.results_window.update_abf_output(abf_output)
-        # self.results_window.update_pivot_tables(pivot_tables)
-        self.results_window.update_abf_output(abf_output, pivot_tables)
-
-    # def test_result_output(self):
-    #     # This code currently generates a mock up of a results window
-    #     simulation_results = {'Own Health': 10, 'Maternity': 200, 'New Child': 10, 'Ill Child': 8,
-    #                           'Ill Spouse': 5, 'Ill Parent': 0}
-    #     abf_output = {'Total Income (Weighted)': 0, 'Total Income': 0,
-    #                   'Income Standard Error': 0, 'Total Income Upper Confidence Interval': 0,
-    #                   'Total Income Lower Confidence Interval': 0,
-    #                   'Total Tax Revenue': 0,
-    #                   'Tax Standard Error': 0, 'Total Tax Revenue Upper Confidence Interval': 0,
-    #                   'Total Tax Revenue Lower Confidence Interval': 0, 'Tax Revenue Recouped from Benefits': 0}
-    #
-    #     pivot_table = pd.DataFrame({('sum', 'income_w'): 0, ('sum', 'ptax_rev_w'): 0},
-    #                                index=['Private', 'Federal', 'State', 'Local'])
-    #
-    #     pivot_tables = {'class': pivot_table, 'age': pivot_table, 'gender': pivot_table}
-    #
-    #     self.results_window = ResultsWindow(self, simulation_results, abf_output, pivot_tables)
-
-    # Create an object with all of the setting values
-    def create_settings(self):
-        # The inputs are linked to a tkinter variable. Those values will have to be retrieved from each variable
-        # and passed on to the settings objects
-        return Settings(self.fmla_file.get(), self.acs_directory.get(), self.output_directory.get(), self.detail.get(),
-                        self.state.get(), self.simulation_method.get(), self.benefit_effect.get(), self.calibrate.get(),
-                        self.clone_factor.get(), self.se_analysis.get(), self.extend.get(),
-                        self.fmla_protection_constraint.get(), self.replacement_ratio.get(),
-                        self.government_employees.get(), self.needers_fully_participate.get(),
-                        self.random_seed.get(), self.self_employed.get(), self.state_of_work.get(),
-                        self.top_off_rate.get(), self.top_off_min_length.get(), self.weekly_ben_cap.get(),
-                        self.weight_factor.get(), self.eligible_earnings.get(), self.eligible_weeks.get(),
-                        self.eligible_hours.get(), self.eligible_size.get(),
-                        {key: value.get() for key, value in self.max_weeks.items()},
-                        {key: value.get() for key, value in self.take_up_rates.items()},
-                        {key: value.get() for key, value in self.leave_probability_factors.items()},
-                        self.payroll_tax.get(), self.benefits_tax.get(), self.average_state_tax.get(),
-                        self.max_taxable_earnings_per_person.get(), self.total_taxable_earnings_input.get(),
-                        self.fed_employees.get(), self.state_employees.get(), self.local_employees.get())
 
     def browse_file(self, file_input):
         # Open a file dialogue where user can choose a file. Possible options are limited to CSV and Excel files.
@@ -870,7 +908,8 @@ class MicrosimGUI(Tk):
 
 
 class ResultsWindow(Toplevel):
-    def __init__(self, parent, simulation_output, simulation_chart, abf_output, pivot_tables):
+    def __init__(self, parent, simulation_engine, abf_output, pivot_tables, counterfactual_engine=None,
+                 policy_engine=None):
         super().__init__(parent)
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.icon = PhotoImage(file='impaq_logo.gif')
@@ -883,8 +922,10 @@ class ResultsWindow(Toplevel):
 
         self.content = Frame(self, bg=self.dark_bg)
         self.notebook = ttk.Notebook(self.content, style='MSNotebook.TNotebook')
+        self.notebook.bind('<Button-1>', self.change_current_tab)
+        self.current_tab = 0
 
-        self.summary_frame = Frame(self.notebook, bg=self.dark_bg)
+        self.summary_frame = ResultsSummary(self, simulation_engine)
         self.notebook.add(self.summary_frame, text='Summary')
 
         self.abf = Frame(self.notebook, bg=self.notebook_bg)
@@ -917,26 +958,54 @@ class ResultsWindow(Toplevel):
         self.run_button = MSButton(self.abf_params_buttons, font='-size 12 -weight bold', text="Run ABF",
                                    command=parent.run_abf, padx=4)
         self.run_button.pack(side=RIGHT, pady=3, padx=5)
-        self.notebook.add(self.abf, text="Benefits Financing")
+        self.notebook.add(self.abf, text="Benefit Financing")
 
-        # self.cost_result_label = Label(self.summary_frame,
-        #                                text="Cost: ${} Million".format(
-        #                                    round(sum(simulation_output.values()) / 10 ** 6, 1)),
-        #                                font='-size 14', bg=self.dark_bg, fg=self.light_font, justify=LEFT)
-        # self.state_result_label = Label(self.summary_frame, text="State: {}".format(parent.state.get()),
-        #                                 font='-size 12', bg=self.dark_bg, fg=self.light_font)
-        self.result_graph = Frame(self.summary_frame)
+        simulation_data = simulation_engine.get_population_analysis_results()
+        self.population_analysis_container = Frame(self.notebook, bg=self.notebook_bg)
+        self.population_analysis_canvas = Canvas(self.population_analysis_container, bg=self.dark_bg)
+        self.population_analysis = Frame(self.population_analysis_container, bg=self.dark_bg)
+        self.population_analysis_canvas.create_window((0, 0), window=self.population_analysis, anchor='nw')
+        self.population_analysis_scroll = ttk.Scrollbar(self.population_analysis_container, orient=VERTICAL,
+                                                        command=self.population_analysis_canvas.yview)
+        self.population_analysis_canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
+        self.population_analysis_scroll.pack(side=RIGHT, fill=Y)
+        self.notebook.add(self.population_analysis_container, text='Population Analysis')
+        self.generate_population_analysis_histograms(simulation_data)
+
+        self.canvases = [(self.abf_canvas, self.abf_info), (self.population_analysis_canvas, self.population_analysis)]
+
+        if policy_engine is not None:
+            self.policy_sim_container = Frame(self.notebook, bg=self.dark_bg)
+            self.policy_sim_canvas = Canvas(self.policy_sim_container, bg=self.dark_bg)
+            self.policy_sim = Frame(self.policy_sim_container, bg=self.dark_bg)
+            self.policy_sim_canvas.create_window((0, 0), window=self.policy_sim, anchor='nw')
+            self.policy_sim_scroll = ttk.Scrollbar(self.policy_sim_container, orient=VERTICAL,
+                                                   command=self.policy_sim_canvas.yview)
+            self.policy_sim_canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
+            self.policy_sim_scroll.pack(side=RIGHT, fill=Y)
+            self.generate_policy_histograms(simulation_data, policy_engine.get_population_analysis_results())
+            self.notebook.add(self.policy_sim_container, text='Policy Simulation')
+            self.canvases.append((self.policy_sim_canvas, self.policy_sim))
+
+        if counterfactual_engine is not None:
+            # self.counterfactual_frame = ResultsSummary(self, counterfactual_engine)
+            self.counterfactual_container = Frame(self.notebook, bg=self.dark_bg)
+            self.counterfactual_canvas = Canvas(self.counterfactual_container, bg=self.dark_bg)
+            self.counterfactual = Frame(self.counterfactual_container, bg=self.dark_bg)
+            self.counterfactual_canvas.create_window((0, 0), window=self.counterfactual, anchor='nw')
+            self.counterfactual_scroll = ttk.Scrollbar(self.counterfactual_container, orient=VERTICAL,
+                                                       command=self.counterfactual_canvas.yview)
+            self.counterfactual_canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
+            self.counterfactual_scroll.pack(side=RIGHT, fill=Y)
+            self.generate_counterfactual_histograms(simulation_data,
+                                                    counterfactual_engine.get_population_analysis_results())
+            self.notebook.add(self.counterfactual_container, text='Counterfactual Simulation')
+            self.canvases.append((self.counterfactual_canvas, self.counterfactual))
 
         self.content.pack(expand=True, fill=BOTH)
         self.notebook.pack(expand=True, fill=BOTH)
         self.notebook.select(self.summary_frame)
         self.notebook.enable_traversal()
-
-        # self.cost_result_label.pack(fill=X, pady=(10, 5))
-        # self.state_result_label.pack(fill=X)
-        self.result_graph.pack(fill=X, padx=15, pady=15)
-
-        self.display_sim_bar_graph(simulation_chart, self.result_graph)
         self.display_abf_bar_graphs(pivot_tables)
 
         self.bind("<MouseWheel>", self.scroll_abf)
@@ -979,7 +1048,9 @@ class ResultsWindow(Toplevel):
         self.total_taxable_earnings_input.grid(column=1, row=4, sticky=W)
 
         self.update()
-        self.abf_canvas.configure(scrollregion=(0, 0, 0, self.abf_info.winfo_height()))
+        for canvas, frame in self.canvases:
+            canvas.configure(scrollregion=(0, 0, 0, frame.winfo_height()))
+        # self.abf_canvas.configure(scrollregion=(0, 0, 0, self.abf_info.winfo_height()))
 
     def show_params(self):
         self.abf_params_reveal.pack_forget()
@@ -1001,10 +1072,12 @@ class ResultsWindow(Toplevel):
     def display_abf_bar_graphs(self, pivot_tables):
         graphs = self.create_abf_bar_graphs(pivot_tables)
         for graph in graphs:
-            canvas = FigureCanvasTkAgg(graph, self.abf_pivot_tables)
-            canvas.draw()
-            canvas.get_tk_widget().config(height=300)
-            canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True, padx=5, pady=10)
+            chart_container = ChartContainer(self.abf_pivot_tables, graph, self.dark_bg)
+            chart_container.pack()
+            # canvas = FigureCanvasTkAgg(graph, self.abf_pivot_tables)
+            # canvas.draw()
+            # canvas.get_tk_widget().config(height=300)
+            # canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True, padx=5, pady=10)
 
     def create_abf_bar_graphs(self, pivot_tables):
         graphs = []
@@ -1015,8 +1088,6 @@ class ResultsWindow(Toplevel):
         for pivot_table_category, pivot_table in pivot_tables.items():
             fig_pivot = Figure(figsize=(8, 4))
             ax_pivot = fig_pivot.add_subplot(111)
-            fig_pivot.patch.set_facecolor(bg_color)
-            ax_pivot.set_facecolor(bg_color)
 
             categories = pivot_table.index.tolist()
             ind_pivot = np.arange(len(categories))
@@ -1037,20 +1108,25 @@ class ResultsWindow(Toplevel):
                 ax_pivot.set_yticklabels(categories)
                 ax_pivot.xaxis.grid(False)
 
-            ax_pivot.set_title(title_pivot, fontsize=10, color=fg_color)
-            ax_pivot.tick_params(axis='x', labelsize=8, colors=fg_color)
-            ax_pivot.tick_params(axis='y', labelsize=8, colors=fg_color)
-            ax_pivot.spines['bottom'].set_color(fg_color)
-            ax_pivot.spines['top'].set_color(fg_color)
-            ax_pivot.spines['right'].set_color(fg_color)
-            ax_pivot.spines['left'].set_color(fg_color)
-            ax_pivot.yaxis.label.set_color(fg_color)
-            ax_pivot.xaxis.label.set_color(fg_color)
-            fig_pivot.tight_layout()
+            self.format_chart(fig_pivot, ax_pivot, title_pivot, bg_color, fg_color)
 
             graphs.append(fig_pivot)
 
         return graphs
+
+    def format_chart(self, fig, ax, title, bg_color, fg_color):
+        fig.patch.set_facecolor(bg_color)
+        ax.set_facecolor(bg_color)
+        ax.set_title(title, fontsize=10, color=fg_color)
+        ax.tick_params(axis='x', labelsize=8, colors=fg_color)
+        ax.tick_params(axis='y', labelsize=8, colors=fg_color)
+        ax.spines['bottom'].set_color(fg_color)
+        ax.spines['top'].set_color(fg_color)
+        ax.spines['right'].set_color(fg_color)
+        ax.spines['left'].set_color(fg_color)
+        ax.yaxis.label.set_color(fg_color)
+        ax.xaxis.label.set_color(fg_color)
+        fig.tight_layout()
 
     def save_file(self, figure):
         filename = filedialog.asksaveasfilename(defaultextension='.png', initialdir=os.getcwd(),
@@ -1062,28 +1138,47 @@ class ResultsWindow(Toplevel):
 
         figure.savefig(filename)
 
-    # def display_abf_pivot_table(self, pivot_tables):
-    #     for pivot_table in pivot_tables.values():
-    #         pt_frame = Frame(self.abf_pivot_tables, bg=self.light_font, padx=5, pady=2)
-    #         income_w_label = Label(pt_frame, text="Income (Weighted)", bg=self.light_font, fg=self.dark_bg,
-    #                                font='-weight bold')
-    #         tax_rev_w_label = Label(pt_frame, text="Tax Revenue (Weighted)", bg=self.light_font, fg=self.dark_bg,
-    #                                 font='-weight bold')
-    #         income_w_label.grid(column=1, row=0, sticky='we', padx=4, pady=2)
-    #         tax_rev_w_label.grid(column=2, row=0, sticky='we', padx=4, pady=2)
-    #         index_values = list(pivot_table.index.values)
-    #         for i, index in enumerate(index_values):
-    #             index_label = Label(pt_frame, text=index, bg=self.light_font, fg=self.dark_bg)
-    #             cat_income_w_label = Label(pt_frame, text=as_currency(pivot_table.loc[index, ('sum', 'income_w')]),
-    #                                        bg=self.light_font, fg=self.dark_bg, borderwidth=1, relief='solid',
-    #                                        justify=RIGHT, padx=4, pady=2, width=20, anchor=E)
-    #             cat_tax_rev_w_label = Label(pt_frame, text=as_currency(pivot_table.loc[index, ('sum', 'ptax_rev_w')]),
-    #                                         bg=self.light_font, fg=self.dark_bg, borderwidth=1, relief='solid',
-    #                                         justify=RIGHT, padx=4, pady=2, width=20, anchor=E)
-    #             index_label.grid(column=0, row=i + 1, sticky='w', padx=4, pady=2)
-    #             cat_income_w_label.grid(column=1, row=i + 1)
-    #             cat_tax_rev_w_label.grid(column=2, row=i + 1)
-    #         pt_frame.pack(side=BOTTOM, anchor='w', padx=8, pady=5)
+    def generate_population_analysis_histograms(self, population_analysis_data):
+        fg_color = 'white'
+        bg_color = self.dark_bg
+
+        self.create_histogram(self.population_analysis, population_analysis_data['cpl'], 20,
+                              population_analysis_data['PWGTP'], bg_color, fg_color, 'All Workers')
+
+        female_data = population_analysis_data[population_analysis_data['female'] == 1]
+        self.create_histogram(self.population_analysis, female_data['cpl'], 20,
+                              female_data['PWGTP'], bg_color, fg_color, 'Female Workers')
+
+        child_bearing_data = female_data[(female_data['age'] >= 25) & (female_data['age'] <= 40)]
+        self.create_histogram(self.population_analysis, child_bearing_data['cpl'], 20,
+                              child_bearing_data['PWGTP'], bg_color, fg_color, 'Female Child Bearing Age')
+
+    def generate_counterfactual_histograms(self, simulation_data, counterfactual_data):
+        fg_color = 'white'
+        bg_color = self.dark_bg
+        self.create_histogram(self.counterfactual, simulation_data['cpl'], 20,
+                              simulation_data['PWGTP'], bg_color, fg_color, 'Current Program')
+        self.create_histogram(self.counterfactual, counterfactual_data['cpl'], 20,
+                              counterfactual_data['PWGTP'], bg_color, fg_color,
+                              'Counterfactual Program ({})'.format(self.parent.settings.counterfactual))
+
+    def generate_policy_histograms(self, simulation_data, policy_sim_data):
+        fg_color = 'white'
+        bg_color = self.dark_bg
+        self.create_histogram(self.policy_sim, simulation_data['cpl'], 20,
+                              simulation_data['PWGTP'], bg_color, fg_color, 'Current Program')
+        self.create_histogram(self.policy_sim, policy_sim_data['cpl'], 20,
+                              policy_sim_data['PWGTP'], bg_color, fg_color,
+                              'Most Generous Program')
+
+    def create_histogram(self, parent, data, bins, weights, bg_color, fg_color, title_str):
+        fig = Figure(figsize=(8, 4))
+        ax = fig.add_subplot(111)
+        ax.hist(data, bins, weights=weights, color='#1aff8c')
+        title = 'State: {}. {}'.format(self.parent.state.get(), title_str)
+        self.format_chart(fig, ax, title, bg_color, fg_color)
+        chart_container = ChartContainer(parent, fig, self.dark_bg)
+        chart_container.pack()
 
     def update_abf_output(self, abf_output, pivot_tables):
         for graph in self.abf_pivot_tables.winfo_children():
@@ -1092,15 +1187,6 @@ class ResultsWindow(Toplevel):
         self.display_abf_bar_graphs(pivot_tables)
         self.abf_summary.update_results(abf_output)
 
-    # def update_abf_output(self, abf_output):
-    #     self.abf_summary.update_results(abf_output)
-    #
-    # def update_pivot_tables(self, pivot_tables):
-    #     for pivot_table in self.abf_pivot_tables.winfo_children():
-    #         pivot_table.destroy()
-    #
-    #     self.display_abf_pivot_table(pivot_tables)
-
     def scroll_abf(self, event):
         move_unit = 0
         if event.num == 5 or event.delta > 0:
@@ -1108,11 +1194,63 @@ class ResultsWindow(Toplevel):
         elif event.num == 4 or event.delta < 0:
             move_unit = 1
 
-        self.abf_canvas.yview_scroll(move_unit, 'units')
+        if self.current_tab > 0:
+            self.canvases[self.current_tab - 1][0].yview_scroll(move_unit, 'units')
+        # self.abf_canvas.yview_scroll(move_unit, 'units')
+
+    def change_current_tab(self, event):
+        self.current_tab = self.notebook.tk.call(self.notebook._w, "identify", "tab", event.x, event.y)
 
     def on_close(self):
         self.destroy()
 
+
+class ResultsSummary(Frame):
+    def __init__(self, parent, engine):
+        super().__init__(parent)
+        self.chart = engine.create_chart(engine.get_cost_df())
+        self.chart_container = Frame(self)
+
+        self.chart_container.pack(fill=X, padx=15, pady=15)
+        canvas = FigureCanvasTkAgg(self.chart, self.chart_container)
+        canvas.draw()
+        canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True)
+
+        save_button = MSButton(self.chart_container, text='Save Figure', command=lambda: self.save_file())
+        save_button.config(width=0)
+        save_button.pack(side=RIGHT, padx=10, pady=10)
+
+    def save_file(self):
+        filename = filedialog.asksaveasfilename(defaultextension='.png', initialdir=os.getcwd(),
+                                                filetypes=[('PNG', '.png'), ('PDF', '*.pdf'), ('PGF', '*.pgf'),
+                                                           ('EPS', '*.eps'), ('PS', '*.ps'), ('Raw', '*.raw'),
+                                                           ('RGBA', '*.rgba'), ('SVG', '*.svg'), ('SVGZ', '*.svgz')])
+        if filename is None:
+            return
+        self.chart.savefig(filename)
+
+
+class ChartContainer(Frame):
+    def __init__(self, parent, chart, bg_color):
+        super().__init__(parent, bg=bg_color)
+        self.chart = chart
+        canvas = FigureCanvasTkAgg(chart, self)
+        canvas.draw()
+        canvas.get_tk_widget().config(height=300)
+        canvas.get_tk_widget().pack(side=TOP, fill=X)
+
+        save_button = MSButton(self, text='Save Figure', command=lambda: self.save_file())
+        save_button.config(width=0)
+        save_button.pack(side=LEFT, padx=10, pady=4)
+
+    def save_file(self):
+        filename = filedialog.asksaveasfilename(defaultextension='.png', initialdir=os.getcwd(),
+                                                filetypes=[('PNG', '.png'), ('PDF', '*.pdf'), ('PGF', '*.pgf'),
+                                                           ('EPS', '*.eps'), ('PS', '*.ps'), ('Raw', '*.raw'),
+                                                           ('RGBA', '*.rgba'), ('SVG', '*.svg'), ('SVGZ', '*.svgz')])
+        if filename is None:
+            return
+        self.chart.savefig(filename)
 
 class ABFResultsSummary(Frame):
     def __init__(self, parent, output, dark_bg, light_font):
@@ -1156,13 +1294,15 @@ class ABFResultsSummary(Frame):
 
 
 class ProgressWindow(Toplevel):
-    def __init__(self, parent, se):
+    def __init__(self, parent, se, counterfactual_se=None, policy_sim_se=None):
         super().__init__(parent)
         self.icon = PhotoImage(file='impaq_logo.gif')
         self.tk.call('wm', 'iconphoto', self._w, self.icon)
 
         self.parent = parent
         self.se = se
+        self.counterfactual_se = counterfactual_se
+        self.policy_sim_se = policy_sim_se
         self.content = Frame(self, width=100)
         self.content.pack(fill=BOTH, expand=True)
         self.progress = DoubleVar(0)
@@ -1185,24 +1325,60 @@ class ProgressWindow(Toplevel):
         self.position_window()
 
     def update_progress(self):
+        engines = 1
+        if self.counterfactual_se is not None:
+            engines += 1
+
+        if self.policy_sim_se is not None:
+            engines += 1
+
         while self.se.progress < 101:
             progress, updates = self.se.get_progress()
             time.sleep(0.5)
             self.update_idletasks()
             if len(updates) > 0:
-                self.progress.set(progress)
+                self.progress.set(progress / engines)
                 self.add_updates(updates)
 
             if progress == 100:
                 break
 
-        print('Done! Showing results')
-        acs, costs, fig = self.se.get_results()
-        self.parent.show_results(acs, costs, fig)
+        if self.policy_sim_se is not None:
+            last_progress = self.progress.get()
+            self.parent.run_engine(self.policy_sim_se)
 
-    def add_updates(self, updates):
+            while self.policy_sim_se.progress < 101:
+                progress, updates = self.policy_sim_se.get_progress()
+                time.sleep(0.5)
+                self.update_idletasks()
+                if len(updates) > 0:
+                    self.progress.set(last_progress + progress / engines)
+                    self.add_updates(updates, 'Policy Simulation')
+
+                if progress == 100:
+                    break
+
+        if self.counterfactual_se is not None:
+            last_progress = self.progress.get()
+            self.parent.run_engine(self.counterfactual_se)
+
+            while self.counterfactual_se.progress < 101:
+                progress, updates = self.counterfactual_se.get_progress()
+                time.sleep(0.5)
+                self.update_idletasks()
+                if len(updates) > 0:
+                    self.progress.set(last_progress + progress / engines)
+                    self.add_updates(updates, 'Counterfactual')
+
+                if progress == 100:
+                    break
+
+        self.parent.show_results()
+
+    def add_updates(self, updates, engine='Main'):
         for update in updates:
-            label = Message(self.updates, text=update, bg=self.parent.notebook_bg, fg='#006600', anchor='w', width=350)
+            label = Message(self.updates, text=engine + ': ' + update, bg=self.parent.notebook_bg, fg='#006600',
+                            anchor='w', width=350)
             label.pack(padx=3, fill=X)
             self.update()
             self.updates_canvas.configure(scrollregion=(0, 0, 0, self.updates.winfo_height()))

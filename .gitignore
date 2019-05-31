@@ -2,3 +2,7 @@
 __pycache__
 data/*
 output/*
+build/*
+dist/*
+hook-sklearn.py
+Microsimulator.spec
