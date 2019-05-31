@@ -967,6 +967,7 @@ class ResultsWindow(Toplevel):
         self.population_analysis_canvas.create_window((0, 0), window=self.population_analysis, anchor='nw')
         self.population_analysis_scroll = ttk.Scrollbar(self.population_analysis_container, orient=VERTICAL,
                                                         command=self.population_analysis_canvas.yview)
+        self.population_analysis_canvas.configure(yscrollcommand=self.population_analysis_scroll.set)
         self.population_analysis_canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
         self.population_analysis_scroll.pack(side=RIGHT, fill=Y)
         self.notebook.add(self.population_analysis_container, text='Population Analysis')
@@ -981,6 +982,7 @@ class ResultsWindow(Toplevel):
             self.policy_sim_canvas.create_window((0, 0), window=self.policy_sim, anchor='nw')
             self.policy_sim_scroll = ttk.Scrollbar(self.policy_sim_container, orient=VERTICAL,
                                                    command=self.policy_sim_canvas.yview)
+            self.policy_sim_canvas.configure(yscrollcommand=self.policy_sim_scroll.set)
             self.policy_sim_canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
             self.policy_sim_scroll.pack(side=RIGHT, fill=Y)
             self.generate_policy_histograms(simulation_data, policy_engine.get_population_analysis_results())
@@ -995,6 +997,7 @@ class ResultsWindow(Toplevel):
             self.counterfactual_canvas.create_window((0, 0), window=self.counterfactual, anchor='nw')
             self.counterfactual_scroll = ttk.Scrollbar(self.counterfactual_container, orient=VERTICAL,
                                                        command=self.counterfactual_canvas.yview)
+            self.counterfactual_canvas.configure(yscrollcommand=self.counterfactual_scroll.set)
             self.counterfactual_canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
             self.counterfactual_scroll.pack(side=RIGHT, fill=Y)
             self.generate_counterfactual_histograms(simulation_data,
@@ -1049,6 +1052,7 @@ class ResultsWindow(Toplevel):
 
         self.update()
         for canvas, frame in self.canvases:
+            print(frame.winfo_height())
             canvas.configure(scrollregion=(0, 0, 0, frame.winfo_height()))
         # self.abf_canvas.configure(scrollregion=(0, 0, 0, self.abf_info.winfo_height()))
 
