@@ -6,7 +6,7 @@ import threading
 import time
 import numpy as np
 from _5_simulation import SimulationEngine
-from Utils import Settings, as_currency, generate_default_state_params, generate_generous_params
+from Utils import Settings, as_currency, generate_default_state_params, generate_generous_params, format_chart
 import collections
 import matplotlib
 
@@ -486,25 +486,25 @@ class MicrosimGUI(Tk):
         self.display_leave_objects(self.take_up_rates_labels, self.take_up_rates_inputs)
         self.leave_probability_factors_frame.grid(column=0, row=1, columnspan=2, sticky=(N, E, W))
         self.display_leave_objects(self.leave_probability_factors_labels, self.leave_probability_factors_inputs)
-        self.benefit_effect_input.grid(column=0, row=2, columnspan=2, sticky=W)
-        self.extend_input.grid(column=0, row=3, columnspan=3, sticky=W)
+        # self.benefit_effect_input.grid(column=0, row=2, columnspan=2, sticky=W)
+        # self.extend_input.grid(column=0, row=3, columnspan=3, sticky=W)
         self.needers_fully_participate_input.grid(column=0, row=4, columnspan=2, sticky=W)
         self.top_off_rate_label.grid(column=0, row=5, sticky=W)
         self.top_off_rate_input.grid(column=1, row=5, sticky=W)
         self.top_off_min_length_label.grid(column=0, row=6, sticky=W)
         self.top_off_min_length_input.grid(column=1, row=6, sticky=W)
 
-        self.clone_factor_label.grid(column=0, row=0, sticky=W)
-        self.clone_factor_input.grid(column=1, row=0)
-        self.se_analysis_input.grid(column=0, row=1, columnspan=2, sticky=W)
+        self.counterfactual_label.grid(column=0, row=0, sticky=W)
+        self.counterfactual_input.grid(column=1, row=0)
+        self.policy_sim_input.grid(column=0, row=1, columnspan=2, sticky=W)
+        # self.clone_factor_label.grid(column=0, row=0, sticky=W)
+        # self.clone_factor_input.grid(column=1, row=0)
+        # self.se_analysis_input.grid(column=0, row=1, columnspan=2, sticky=W)
         self.weight_factor_label.grid(column=0, row=2, sticky=W)
         self.weight_factor_input.grid(column=1, row=2)
         self.fmla_protection_constraint_input.grid(column=0, row=3, columnspan=2, sticky=W)
-        self.calibrate_input.grid(column=0, row=4, columnspan=2, sticky=W)
+        # self.calibrate_input.grid(column=0, row=4, columnspan=2, sticky=W)
         self.random_seed_input.grid(column=0, row=5, columnspan=2, sticky=W)
-        self.counterfactual_label.grid(column=0, row=6, sticky=W)
-        self.counterfactual_input.grid(column=1, row=6)
-        self.policy_sim_input.grid(column=0, row=7, columnspan=2, sticky=W)
 
         # This code adds padding to each row. This is needed when using grid() to add widgets.
         self.row_padding = 8
@@ -1112,25 +1112,11 @@ class ResultsWindow(Toplevel):
                 ax_pivot.set_yticklabels(categories)
                 ax_pivot.xaxis.grid(False)
 
-            self.format_chart(fig_pivot, ax_pivot, title_pivot, bg_color, fg_color)
+            format_chart(fig_pivot, ax_pivot, title_pivot, bg_color, fg_color)
 
             graphs.append(fig_pivot)
 
         return graphs
-
-    def format_chart(self, fig, ax, title, bg_color, fg_color):
-        fig.patch.set_facecolor(bg_color)
-        ax.set_facecolor(bg_color)
-        ax.set_title(title, fontsize=10, color=fg_color)
-        ax.tick_params(axis='x', labelsize=8, colors=fg_color)
-        ax.tick_params(axis='y', labelsize=8, colors=fg_color)
-        ax.spines['bottom'].set_color(fg_color)
-        ax.spines['top'].set_color(fg_color)
-        ax.spines['right'].set_color(fg_color)
-        ax.spines['left'].set_color(fg_color)
-        ax.yaxis.label.set_color(fg_color)
-        ax.xaxis.label.set_color(fg_color)
-        fig.tight_layout()
 
     def save_file(self, figure):
         filename = filedialog.asksaveasfilename(defaultextension='.png', initialdir=os.getcwd(),
@@ -1180,7 +1166,7 @@ class ResultsWindow(Toplevel):
         ax = fig.add_subplot(111)
         ax.hist(data, bins, weights=weights, color='#1aff8c')
         title = 'State: {}. {}'.format(self.parent.state.get(), title_str)
-        self.format_chart(fig, ax, title, bg_color, fg_color)
+        format_chart(fig, ax, title, bg_color, fg_color)
         chart_container = ChartContainer(parent, fig, self.dark_bg)
         chart_container.pack()
 
@@ -1213,6 +1199,8 @@ class ResultsSummary(Frame):
     def __init__(self, parent, engine):
         super().__init__(parent)
         self.chart = engine.create_chart(engine.get_cost_df())
+        ax = self.chart.axes[0]
+        format_chart(self.chart, ax, ax.get_title())
         self.chart_container = Frame(self)
 
         self.chart_container.pack(fill=X, padx=15, pady=15)

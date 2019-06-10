@@ -442,7 +442,7 @@ class SimulationEngine:
         ys = out[:-1]['cost'] / 10 ** 6
         es = 0.5 * (out[:-1]['ci_upper'] - out[:-1]['ci_lower']) / 10 ** 6
         width = 0.5
-        ax.bar(ind, ys, width, yerr=es, align='center', capsize=5, color='khaki')
+        ax.bar(ind, ys, width, yerr=es, align='center', capsize=5, color='#1aff8c', ecolor='white')
         ax.set_ylabel('$ millions')
         ax.set_xticks(ind)
         ax.set_xticklabels(('Own Health', 'Maternity', 'New Child', 'Ill Child', 'Ill Spouse', 'Ill Parent'))

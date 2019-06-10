@@ -166,3 +166,18 @@ def generate_generous_params(settings):
     generous_params.self_employed = True
 
     return generous_params
+
+
+def format_chart(fig, ax, title, bg_color='#333333', fg_color='white'):
+    fig.patch.set_facecolor(bg_color)
+    ax.set_facecolor(bg_color)
+    ax.set_title(title, fontsize=10, color=fg_color)
+    ax.tick_params(axis='x', labelsize=8, colors=fg_color)
+    ax.tick_params(axis='y', labelsize=8, colors=fg_color)
+    ax.spines['bottom'].set_color(fg_color)
+    ax.spines['top'].set_color(fg_color)
+    ax.spines['right'].set_color(fg_color)
+    ax.spines['left'].set_color(fg_color)
+    ax.yaxis.label.set_color(fg_color)
+    ax.xaxis.label.set_color(fg_color)
+    fig.tight_layout()
