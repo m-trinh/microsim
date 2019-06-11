@@ -1199,8 +1199,6 @@ class ResultsSummary(Frame):
     def __init__(self, parent, engine):
         super().__init__(parent)
         self.chart = engine.create_chart(engine.get_cost_df())
-        ax = self.chart.axes[0]
-        format_chart(self.chart, ax, ax.get_title())
         self.chart_container = Frame(self)
 
         self.chart_container.pack(fill=X, padx=15, pady=15)
@@ -1243,6 +1241,7 @@ class ChartContainer(Frame):
         if filename is None:
             return
         self.chart.savefig(filename)
+
 
 class ABFResultsSummary(Frame):
     def __init__(self, parent, output, dark_bg, light_font):

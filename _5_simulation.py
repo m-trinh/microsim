@@ -17,6 +17,7 @@ import os
 import csv
 from _1_clean_FMLA import DataCleanerFMLA
 from _4_clean_ACS import DataCleanerACS
+from Utils import format_chart
 
 
 class SimulationEngine:
@@ -442,7 +443,7 @@ class SimulationEngine:
         ys = out[:-1]['cost'] / 10 ** 6
         es = 0.5 * (out[:-1]['ci_upper'] - out[:-1]['ci_lower']) / 10 ** 6
         width = 0.5
-        ax.bar(ind, ys, width, yerr=es, align='center', capsize=5, color='#1aff8c', ecolor='white')
+        ax.bar(ind, ys, width, yerr=es, align='center', capsize=5, color='khaki')
         ax.set_ylabel('$ millions')
         ax.set_xticks(ind)
         ax.set_xticklabels(('Own Health', 'Maternity', 'New Child', 'Ill Child', 'Ill Spouse', 'Ill Parent'))
@@ -450,6 +451,8 @@ class SimulationEngine:
         ax.yaxis.grid(False)
 
         plt.savefig('%s/total_cost_%s_%s_%s' % (self.output_directory, self.yr, self.st, self.out_id))
+        ax.bar(ind, ys, width, yerr=es, align='center', capsize=5, color='#1aff8c', ecolor='white')
+        format_chart(fig, ax, title)
         self.figure = fig
         return fig
 
