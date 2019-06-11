@@ -613,6 +613,7 @@ class MicrosimGUI(Tk):
 
     def show_results(self):
         # compute program costs
+        print('Showing results')
         costs = self.se.get_cost_df()
         # d_bars = {'Own Health': list(costs.loc[costs['type'] == 'own', 'cost'])[0],
         #           'Maternity': list(costs.loc[costs['type'] == 'matdis', 'cost'])[0],
@@ -628,6 +629,7 @@ class MicrosimGUI(Tk):
         self.abf_module = ABF(self.se.get_results(), self.settings, total_benefits)
         abf_output, pivot_tables = self.abf_module.run()
 
+        print('Creating results window')
         self.results_window = ResultsWindow(self, self.se, abf_output, pivot_tables,
                                             counterfactual_engine=self.counterfactual_se, policy_engine=self.policy_se)
         self.run_button.config(state=NORMAL, bg=self.theme_color)
@@ -925,6 +927,7 @@ class ResultsWindow(Toplevel):
         self.notebook.bind('<Button-1>', self.change_current_tab)
         self.current_tab = 0
 
+        print('Creating summary frame')
         self.summary_frame = ResultsSummary(self, simulation_engine)
         self.notebook.add(self.summary_frame, text='Summary')
 
@@ -971,6 +974,7 @@ class ResultsWindow(Toplevel):
         self.population_analysis_canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
         self.population_analysis_scroll.pack(side=RIGHT, fill=Y)
         self.notebook.add(self.population_analysis_container, text='Population Analysis')
+        print('Generating population analysis histograms')
         self.generate_population_analysis_histograms(simulation_data)
 
         self.canvases = [(self.abf_canvas, self.abf_info), (self.population_analysis_canvas, self.population_analysis)]
@@ -985,6 +989,7 @@ class ResultsWindow(Toplevel):
             self.policy_sim_canvas.configure(yscrollcommand=self.policy_sim_scroll.set)
             self.policy_sim_canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
             self.policy_sim_scroll.pack(side=RIGHT, fill=Y)
+            print('Generating policy simulation histograms')
             self.generate_policy_histograms(simulation_data, policy_engine.get_population_analysis_results())
             self.notebook.add(self.policy_sim_container, text='Policy Simulation')
             self.canvases.append((self.policy_sim_canvas, self.policy_sim))
@@ -1000,6 +1005,7 @@ class ResultsWindow(Toplevel):
             self.counterfactual_canvas.configure(yscrollcommand=self.counterfactual_scroll.set)
             self.counterfactual_canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
             self.counterfactual_scroll.pack(side=RIGHT, fill=Y)
+            print('Generating counterfactual simulation histograms')
             self.generate_counterfactual_histograms(simulation_data,
                                                     counterfactual_engine.get_population_analysis_results())
             self.notebook.add(self.counterfactual_container, text='Counterfactual Simulation')
@@ -1009,6 +1015,7 @@ class ResultsWindow(Toplevel):
         self.notebook.pack(expand=True, fill=BOTH)
         self.notebook.select(self.summary_frame)
         self.notebook.enable_traversal()
+        print('Creating ABF graphs')
         self.display_abf_bar_graphs(pivot_tables)
 
         self.bind("<MouseWheel>", self.scroll_abf)
@@ -1050,7 +1057,9 @@ class ResultsWindow(Toplevel):
         self.total_taxable_earnings_label.grid(column=0, row=4, sticky=W, padx=(8, 0))
         self.total_taxable_earnings_input.grid(column=1, row=4, sticky=W)
 
+        print('Updating widgets')
         self.update()
+        print('Setting scroll area')
         for canvas, frame in self.canvases:
             print(frame.winfo_height())
             canvas.configure(scrollregion=(0, 0, 0, frame.winfo_height()))
