@@ -629,7 +629,6 @@ class MicrosimGUI(Tk):
         self.abf_module = ABF(self.se.get_results(), self.settings, total_benefits)
         abf_output, pivot_tables = self.abf_module.run()
 
-        print('Creating results window')
         self.results_window = ResultsWindow(self, self.se, abf_output, pivot_tables,
                                             counterfactual_engine=self.counterfactual_se, policy_engine=self.policy_se)
         self.run_button.config(state=NORMAL, bg=self.theme_color)
@@ -763,7 +762,7 @@ class MicrosimGUI(Tk):
         if filename is None:
             return
 
-        figure.savefig(filename)
+        figure.savefig(filename, facecolor=self.dark_bg, edgecolor='white')
 
     def check_file_entries(self, *_):
         if self.fmla_file.get() and self.acs_directory.get() and self.output_directory.get():
@@ -929,19 +928,20 @@ class ResultsWindow(Toplevel):
 
         print('Creating summary frame')
         self.summary_frame = ResultsSummary(self, simulation_engine)
+        print('Finished summary frame, adding to notebook')
         self.notebook.add(self.summary_frame, text='Summary')
+        print('Finished adding summary frame to notebook')
 
         self.abf = Frame(self.notebook, bg=self.notebook_bg)
-        # self.abf_info_container = Frame(self.abf, bg=self.dark_bg)
         self.abf_canvas = Canvas(self.abf, bg=self.dark_bg)
         self.abf_info = Frame(self.abf, bg=self.dark_bg)
         self.abf_canvas.create_window((0, 0), window=self.abf_info, anchor='nw')  # Add frame to canvas
         self.abf_info_scroll = ttk.Scrollbar(self.abf, orient=VERTICAL,
                                              command=self.abf_canvas.yview)
         self.abf_canvas.configure(yscrollcommand=self.abf_info_scroll.set)
-        # self.abf_info_container.pack(side=TOP, fill=BOTH, expand=True)
         self.abf_canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
         self.abf_info_scroll.pack(side=RIGHT, fill=Y)
+        print('Creating ABF results summary frame')
         self.abf_summary = ABFResultsSummary(self.abf_info, abf_output, self.dark_bg, self.light_font)
         self.abf_summary.pack(padx=10, pady=10)
         self.abf_pivot_tables = Frame(self.abf_info, bg=self.dark_bg)
@@ -950,7 +950,6 @@ class ResultsWindow(Toplevel):
                                           background='#00e600')
         self.abf_params_reveal.pack(side=BOTTOM, anchor='se', padx=3, pady=2)
         self.abf_params = Frame(self.abf, bg=self.notebook_bg, borderwidth=1, relief='solid', padx=3, pady=3)
-        # self.abf_params.pack(side=BOTTOM, anchor='se', padx=1)
         self.abf_params_inputs = Frame(self.abf_params, bg=self.notebook_bg, pady=4)
         self.abf_params_inputs.pack(fill=X, side=TOP)
         self.abf_params_buttons = Frame(self.abf_params, bg=self.notebook_bg, pady=4)
@@ -995,7 +994,6 @@ class ResultsWindow(Toplevel):
             self.canvases.append((self.policy_sim_canvas, self.policy_sim))
 
         if counterfactual_engine is not None:
-            # self.counterfactual_frame = ResultsSummary(self, counterfactual_engine)
             self.counterfactual_container = Frame(self.notebook, bg=self.dark_bg)
             self.counterfactual_canvas = Canvas(self.counterfactual_container, bg=self.dark_bg)
             self.counterfactual = Frame(self.counterfactual_container, bg=self.dark_bg)
@@ -1135,7 +1133,7 @@ class ResultsWindow(Toplevel):
         if filename is None:
             return
 
-        figure.savefig(filename)
+        figure.savefig(filename, facecolor=self.dark_bg, edgecolor='white')
 
     def generate_population_analysis_histograms(self, population_analysis_data):
         fg_color = 'white'
@@ -1207,15 +1205,18 @@ class ResultsWindow(Toplevel):
 class ResultsSummary(Frame):
     def __init__(self, parent, engine):
         super().__init__(parent)
+        print('Creating and saving summary chart')
         self.chart = engine.create_chart(engine.get_cost_df())
         self.chart_container = Frame(self)
 
         self.chart_container.pack(fill=X, padx=15, pady=15)
+        print('Creating summary chart canvas')
         canvas = FigureCanvasTkAgg(self.chart, self.chart_container)
         canvas.draw()
         canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True)
 
         save_button = MSButton(self.chart_container, text='Save Figure', command=lambda: self.save_file())
+        print('Created save button')
         save_button.config(width=0)
         save_button.pack(side=RIGHT, padx=10, pady=10)
 
@@ -1226,13 +1227,14 @@ class ResultsSummary(Frame):
                                                            ('RGBA', '*.rgba'), ('SVG', '*.svg'), ('SVGZ', '*.svgz')])
         if filename is None:
             return
-        self.chart.savefig(filename)
+        self.chart.savefig(filename, facecolor='#333333', edgecolor='white')
 
 
 class ChartContainer(Frame):
     def __init__(self, parent, chart, bg_color):
         super().__init__(parent, bg=bg_color)
         self.chart = chart
+        self.bg_color = bg_color
         canvas = FigureCanvasTkAgg(chart, self)
         canvas.draw()
         canvas.get_tk_widget().config(height=300)
@@ -1249,7 +1251,7 @@ class ChartContainer(Frame):
                                                            ('RGBA', '*.rgba'), ('SVG', '*.svg'), ('SVGZ', '*.svgz')])
         if filename is None:
             return
-        self.chart.savefig(filename)
+        self.chart.savefig(filename, facecolor=self.bg_color, edgecolor='white')
 
 
 class ABFResultsSummary(Frame):
@@ -1267,6 +1269,7 @@ class ABFResultsSummary(Frame):
         self.tax_revenue_value = Label(self, bg=light_font, fg=dark_bg, anchor='e', padx=5, font='-size 12')
         self.benefits_recouped_value = Label(self, bg=light_font, fg=dark_bg, anchor='e', padx=5, font='-size 12')
 
+        print('Updating ABF results summary values')
         self.update_results(output)
 
         self.income_label.grid(row=0, column=0, sticky='we', padx=3, pady=2)
