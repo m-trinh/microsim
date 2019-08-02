@@ -67,6 +67,8 @@ class MicrosimGUI(Tk):
         self.main_frame = Frame(self.content, bg=self.dark_bg)
         # This notebook will have three tabs for the program, population, and simulation settings
         self.settings_frame = ttk.Notebook(self.content, style='MSNotebook.TNotebook')
+        self.showing_advanced = BooleanVar(value=False)
+        self.advanced_switch = Button(self.content, text="Advanced", command=self.toggle_advanced_parameters, font="-size 10", bg='#d9d9d9', fg='#4d4d4d', padx=6, pady=0)
         self.run_button = MSRunButton(self.content, text="Run", command=self.run_simulation)
 
         # In order to control scrolling in the right notebook tab, we need to keep track of the tab that
@@ -420,11 +422,30 @@ class MicrosimGUI(Tk):
         CreateToolTip(self.counterfactual_label, 'Simulate a policy scenario to compare user parameters against a '
                                                  'generous paid leave program.')
 
+        # ------------------------------------------- Advanced Parameters --------------------------------------------
+
+        self.advanced_parameters = [
+            self.simulation_method_label,
+            self.simulation_method_input,
+            self.leave_probability_factors_frame_label,
+            self.leave_probability_factors_frame,
+            self.needers_fully_participate_input,
+            self.top_off_rate_label,
+            self.top_off_rate_input,
+            self.top_off_min_length_label,
+            self.top_off_min_length_input,
+            self.weight_factor_label,
+            self.weight_factor_input,
+            self.fmla_protection_constraint_input,
+            self.random_seed_input
+        ]
+
         # ----------------------------------------- Add Widgets to Window --------------------------------------------
 
         self.content.pack(expand=True, fill=BOTH)
         self.main_frame.pack(fill=X)
         self.settings_frame.pack(expand=True, fill=BOTH, pady=8)
+        self.advanced_switch.pack(anchor=E, pady=(0, 3))
         self.run_button.pack(anchor=E)
 
         self.fmla_label.grid(column=0, row=0, sticky=W)
@@ -440,8 +461,8 @@ class MicrosimGUI(Tk):
         self.detail_input.grid(column=1, row=3, sticky=W, padx=8)
         self.state_label.grid(column=0, row=4, sticky=W)
         self.state_input.grid(column=1, row=4, sticky=W, padx=8)
-        self.simulation_method_label.grid(column=0, row=5, sticky=W)
-        self.simulation_method_input.grid(column=1, row=5, sticky=W, padx=8)
+        # self.simulation_method_label.grid(column=0, row=5, sticky=W)
+        # self.simulation_method_input.grid(column=1, row=5, sticky=W, padx=8)
 
         self.program_canvas.pack(side=LEFT, fill=BOTH, expand=True)
         self.program_scroll.pack(side=RIGHT, fill=Y)
@@ -484,15 +505,15 @@ class MicrosimGUI(Tk):
 
         self.take_up_rates_frame.grid(column=0, row=0, columnspan=2, sticky=(N, E, W))
         self.display_leave_objects(self.take_up_rates_labels, self.take_up_rates_inputs)
-        self.leave_probability_factors_frame.grid(column=0, row=1, columnspan=2, sticky=(N, E, W))
+        # self.leave_probability_factors_frame.grid(column=0, row=1, columnspan=2, sticky=(N, E, W))
         self.display_leave_objects(self.leave_probability_factors_labels, self.leave_probability_factors_inputs)
         # self.benefit_effect_input.grid(column=0, row=2, columnspan=2, sticky=W)
         # self.extend_input.grid(column=0, row=3, columnspan=3, sticky=W)
-        self.needers_fully_participate_input.grid(column=0, row=4, columnspan=2, sticky=W)
-        self.top_off_rate_label.grid(column=0, row=5, sticky=W)
-        self.top_off_rate_input.grid(column=1, row=5, sticky=W)
-        self.top_off_min_length_label.grid(column=0, row=6, sticky=W)
-        self.top_off_min_length_input.grid(column=1, row=6, sticky=W)
+        # self.needers_fully_participate_input.grid(column=0, row=4, columnspan=2, sticky=W)
+        # self.top_off_rate_label.grid(column=0, row=5, sticky=W)
+        # self.top_off_rate_input.grid(column=1, row=5, sticky=W)
+        # self.top_off_min_length_label.grid(column=0, row=6, sticky=W)
+        # self.top_off_min_length_input.grid(column=1, row=6, sticky=W)
 
         self.counterfactual_label.grid(column=0, row=0, sticky=W)
         self.counterfactual_input.grid(column=1, row=0)
@@ -500,11 +521,11 @@ class MicrosimGUI(Tk):
         # self.clone_factor_label.grid(column=0, row=0, sticky=W)
         # self.clone_factor_input.grid(column=1, row=0)
         # self.se_analysis_input.grid(column=0, row=1, columnspan=2, sticky=W)
-        self.weight_factor_label.grid(column=0, row=2, sticky=W)
-        self.weight_factor_input.grid(column=1, row=2)
-        self.fmla_protection_constraint_input.grid(column=0, row=3, columnspan=2, sticky=W)
+        # self.weight_factor_label.grid(column=0, row=2, sticky=W)
+        # self.weight_factor_input.grid(column=1, row=2)
+        # self.fmla_protection_constraint_input.grid(column=0, row=3, columnspan=2, sticky=W)
         # self.calibrate_input.grid(column=0, row=4, columnspan=2, sticky=W)
-        self.random_seed_input.grid(column=0, row=5, columnspan=2, sticky=W)
+        # self.random_seed_input.grid(column=0, row=5, columnspan=2, sticky=W)
 
         # This code adds padding to each row. This is needed when using grid() to add widgets.
         self.row_padding = 8
@@ -529,6 +550,7 @@ class MicrosimGUI(Tk):
             self.eligibility_frame.columnconfigure(i, weight=1)
 
         self.position_window()
+        self.original_height = self.winfo_height()
         self.settings_frame.bind('<Configure>', self.resize)
 
         self.set_notebook_width(self.settings_frame.winfo_width() - 30)
@@ -541,7 +563,7 @@ class MicrosimGUI(Tk):
         self.output_directory.set('./output')
         # self.test_result_output()
 
-    def check_all_gov_employees(self, event=None):
+    def check_all_gov_employees(self, _=None):
         checked = self.government_employees.get()
         self.fed_employees.set(checked)
         self.state_employees.set(checked)
@@ -661,22 +683,23 @@ class MicrosimGUI(Tk):
     def create_settings(self):
         # The inputs are linked to a tkinter variable. Those values will have to be retrieved from each variable
         # and passed on to the settings objects
-        self.settings = Settings(self.fmla_file.get(), self.acs_directory.get(), self.output_directory.get(), self.detail.get(),
-                        self.state.get(), self.simulation_method.get(), self.benefit_effect.get(), self.calibrate.get(),
-                        self.clone_factor.get(), self.se_analysis.get(), self.extend.get(),
-                        self.fmla_protection_constraint.get(), self.replacement_ratio.get(),
-                        self.government_employees.get(), self.needers_fully_participate.get(),
-                        self.random_seed.get(), self.self_employed.get(), self.state_of_work.get(),
-                        self.top_off_rate.get(), self.top_off_min_length.get(), self.weekly_ben_cap.get(),
-                        self.weight_factor.get(), self.eligible_earnings.get(), self.eligible_weeks.get(),
-                        self.eligible_hours.get(), self.eligible_size.get(),
-                        {key: value.get() for key, value in self.max_weeks.items()},
-                        {key: value.get() for key, value in self.take_up_rates.items()},
-                        {key: value.get() for key, value in self.leave_probability_factors.items()},
-                        self.payroll_tax.get(), self.benefits_tax.get(), self.average_state_tax.get(),
-                        self.max_taxable_earnings_per_person.get(), self.total_taxable_earnings_input.get(),
-                        self.fed_employees.get(), self.state_employees.get(), self.local_employees.get(),
-                        self.counterfactual.get(), self.policy_sim.get())
+        self.settings = Settings(self.fmla_file.get(), self.acs_directory.get(), self.output_directory.get(),
+                                 self.detail.get(),self.state.get(), self.simulation_method.get(),
+                                 self.benefit_effect.get(), self.calibrate.get(),
+                                 self.clone_factor.get(), self.se_analysis.get(), self.extend.get(),
+                                 self.fmla_protection_constraint.get(), self.replacement_ratio.get(),
+                                 self.government_employees.get(), self.needers_fully_participate.get(),
+                                 self.random_seed.get(), self.self_employed.get(), self.state_of_work.get(),
+                                 self.top_off_rate.get(), self.top_off_min_length.get(), self.weekly_ben_cap.get(),
+                                 self.weight_factor.get(), self.eligible_earnings.get(), self.eligible_weeks.get(),
+                                 self.eligible_hours.get(), self.eligible_size.get(),
+                                 {key: value.get() for key, value in self.max_weeks.items()},
+                                 {key: value.get() for key, value in self.take_up_rates.items()},
+                                 {key: value.get() for key, value in self.leave_probability_factors.items()},
+                                 self.payroll_tax.get(), self.benefits_tax.get(), self.average_state_tax.get(),
+                                 self.max_taxable_earnings_per_person.get(), self.total_taxable_earnings_input.get(),
+                                 self.fed_employees.get(), self.state_employees.get(), self.local_employees.get(),
+                                 self.counterfactual.get(), self.policy_sim.get())
 
         return self.settings
 
@@ -907,6 +930,38 @@ class MicrosimGUI(Tk):
             labels[idx].grid(column=idx, row=0, sticky=(E, W))
             inputs[idx].grid(column=idx, row=1, sticky=(E, W))
 
+    def hide_advanced_parameters(self):
+        for parameter in self.advanced_parameters:
+            parameter.grid_forget()
+
+    def show_advanced_parameters(self):
+        self.simulation_method_label.grid(column=0, row=5, sticky=W)
+        self.simulation_method_input.grid(column=1, row=5, sticky=W, padx=8)
+        self.leave_probability_factors_frame.grid(column=0, row=1, columnspan=2, sticky=(N, E, W))
+        self.needers_fully_participate_input.grid(column=0, row=4, columnspan=2, sticky=W)
+        self.top_off_rate_label.grid(column=0, row=5, sticky=W)
+        self.top_off_rate_input.grid(column=1, row=5, sticky=W)
+        self.top_off_min_length_label.grid(column=0, row=6, sticky=W)
+        self.top_off_min_length_input.grid(column=1, row=6, sticky=W)
+        self.weight_factor_label.grid(column=0, row=2, sticky=W)
+        self.weight_factor_input.grid(column=1, row=2)
+        self.fmla_protection_constraint_input.grid(column=0, row=3, columnspan=2, sticky=W)
+        self.random_seed_input.grid(column=0, row=5, columnspan=2, sticky=W)
+
+    def toggle_advanced_parameters(self):
+        if self.showing_advanced.get():
+            self.showing_advanced.set(False)
+            self.advanced_switch.config(relief="raised", bg='#d9d9d9')
+            self.hide_advanced_parameters()
+            self.update()
+            self.minsize(self.winfo_width(), self.original_height - 30)
+        else:
+            self.showing_advanced.set(True)
+            self.advanced_switch.config(relief="sunken", bg='#ffffff')
+            self.show_advanced_parameters()
+            self.update()
+            self.minsize(self.winfo_width(), self.original_height + 30)
+
 
 class ResultsWindow(Toplevel):
     def __init__(self, parent, simulation_engine, abf_output, pivot_tables, counterfactual_engine=None,
@@ -1085,10 +1140,6 @@ class ResultsWindow(Toplevel):
         for graph in graphs:
             chart_container = ChartContainer(self.abf_pivot_tables, graph, self.dark_bg)
             chart_container.pack()
-            # canvas = FigureCanvasTkAgg(graph, self.abf_pivot_tables)
-            # canvas.draw()
-            # canvas.get_tk_widget().config(height=300)
-            # canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True, padx=5, pady=10)
 
     def create_abf_bar_graphs(self, pivot_tables):
         graphs = []
@@ -1209,11 +1260,11 @@ class ResultsSummary(Frame):
         self.chart = engine.create_chart(engine.get_cost_df())
         self.chart_container = Frame(self)
 
-        self.chart_container.pack(fill=X, padx=15, pady=15)
         print('Creating summary chart canvas')
         canvas = FigureCanvasTkAgg(self.chart, self.chart_container)
         canvas.draw()
         canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True)
+        self.chart_container.pack(fill=X, padx=15, pady=15)
 
         save_button = MSButton(self.chart_container, text='Save Figure', command=lambda: self.save_file())
         print('Created save button')
