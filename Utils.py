@@ -1,4 +1,79 @@
 import copy
+from tkinter import E, W
+
+
+DEFAULT_STATE_PARAMS = {
+    '': {},
+    'CA': {
+        'replacement_ratio': 0.55,
+        'benefit_effect': True,
+        'top_off_rate': 0.01,
+        'top_off_min_length': 10,
+        'max_weeks': {'Own Health': 52,
+                      'Maternity': 52,
+                      'New Child': 6,
+                      'Ill Child': 6,
+                      'Ill Spouse': 6,
+                      'Ill Parent': 6},
+        'weekly_ben_cap': 1216,
+        'fmla_protection_constraint': True,
+        'eligible_earnings': 300,
+        'government_employees': False,
+        'fed_employees': False,
+        'state_employees': False,
+        'local_employees': False,
+        'self_employed': False,
+        # dependent allowance not implemented
+        # take_up_rates = {'Own Health': 0.25, 'Maternity': 0.25, 'New Child': 0.25, 'Ill Child': 0.25,
+        #                           'Ill Spouse': 0.25, 'Ill Parent': 0.25}
+        # waiting period not implemented
+        # extend = True
+        # extend days and proportion not implemented
+    },
+    'NJ': {
+        'replacement_ratio': 0.66,
+        'benefit_effect': True,
+        'top_off_rate': 0.01,
+        'top_off_min_length': 10,
+        'max_weeks': {'Own Health': 26,
+                      'Maternity': 26,
+                      'New Child': 6,
+                      'Ill Child': 6,
+                      'Ill Spouse': 6,
+                      'Ill Parent': 6},
+        'weekly_ben_cap': 594,
+        'fmla_protection_constraint': True,
+        'eligible_earnings': 8400,
+        'government_employees': False,
+        'fed_employees': False,
+        'state_employees': False,
+        'local_employees': False,
+        'self_employed': False,
+    },
+    'RI': {
+        'replacement_ratio': 0.6,
+        'benefit_effect': True,
+        'top_off_rate': 0.01,
+        'top_off_min_length': 10,
+        'max_weeks': {'Own Health': 30,
+                      'Maternity': 30,
+                      'New Child': 4,
+                      'Ill Child': 4,
+                      'Ill Spouse': 4,
+                      'Ill Parent': 4},
+        # weekly benefit cap proportion not implemented
+        'fmla_protection_constraint': True,
+        'eligible_earnings': 11520,
+        'government_employees': False,
+        'fed_employees': False,
+        'state_employees': False,
+        'local_employees': False,
+        'self_employed': False,
+    }
+}
+
+
+LEAVE_TYPES = ['Own Health', 'Maternity', 'New Child', 'Ill Child', 'Ill Spouse', 'Ill Parent']
 
 
 class Settings:
@@ -10,7 +85,8 @@ class Settings:
                  eligible_earnings=11520, eligible_weeks=1, eligible_hours=1, eligible_size=1, max_weeks=None,
                  take_up_rates=None, leave_probability_factors=None, payroll_tax=1, benefits_tax=False,
                  average_state_tax=5, max_taxable_earnings_per_person=100000, total_taxable_earnings=10000000000,
-                 fed_employees=True, state_employees=True, local_employees=True, counterfactual='', policy_sim=False):
+                 fed_employees=True, state_employees=True, local_employees=True, counterfactual='', policy_sim=False,
+                 existing_program=''):
         self.fmla_file = fmla_file
         self.acs_directory = acs_directory
         self.output_directory = output_directory
@@ -47,6 +123,7 @@ class Settings:
         self.total_taxable_earnings = total_taxable_earnings
         self.counterfactual = counterfactual
         self.policy_sim = policy_sim
+        self.existing_program = existing_program
         if max_weeks is None:
             self.max_weeks = {'Own Health': 30, 'Maternity': 30, 'New Child': 4, 'Ill Child': 4, 'Ill Spouse': 4,
                               'Ill Parent': 4}
@@ -75,6 +152,10 @@ class Settings:
         #          fed_employees=True, state_employees=True, local_employees=True)
         return copy.deepcopy(self)
 
+    def update_variables(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
 
 # From https://stackoverflow.com/questions/21208376/converting-float-to-dollars-and-cents
 def as_currency(amount):
@@ -86,70 +167,7 @@ def as_currency(amount):
 
 def generate_default_state_params(settings, state='CA'):
     state_params = settings.copy()
-    if state.lower() == 'ca':
-        state_params.replacement_ratio = 0.55
-        state_params.benefit_effect = True
-        state_params.top_off_rate = 0.01
-        state_params.top_off_min_length = 10
-        # dependent allowance not implemented
-        # state_params.take_up_rates = {'Own Health': 0.25, 'Maternity': 0.25, 'New Child': 0.25, 'Ill Child': 0.25,
-        #                           'Ill Spouse': 0.25, 'Ill Parent': 0.25}
-        # waiting period not implemented
-        # state_params.extend = True
-        # extend days and proportion not implemented
-        state_params.max_weeks = {'Own Health': 52, 'Maternity': 52, 'New Child': 6, 'Ill Child': 6, 'Ill Spouse': 6,
-                              'Ill Parent': 6}
-        state_params.weekly_ben_cap = 1216
-        state_params.fmla_protection_constraint = True
-        state_params.eligible_earnings = 300
-        state_params.government_employees = False
-        state_params.fed_employees = False
-        state_params.state_employees = False
-        state_params.local_employees = False
-        state_params.self_employed = False
-    elif state.lower() == 'nj':
-        state_params.replacement_ratio = 0.66
-        state_params.benefit_effect = True
-        state_params.top_off_rate = 0.01
-        state_params.top_off_min_length = 10
-        # dependent allowance not implemented
-        # state_params.take_up_rates = {'Own Health': 0.25, 'Maternity': 0.25, 'New Child': 0.25, 'Ill Child': 0.25,
-        #                           'Ill Spouse': 0.25, 'Ill Parent': 0.25}
-        # waiting period not implemented
-        # state_params.extend = True
-        # extend days and proportion not implemented
-        state_params.max_weeks = {'Own Health': 26, 'Maternity': 26, 'New Child': 6, 'Ill Child': 6, 'Ill Spouse': 6,
-                              'Ill Parent': 6}
-        state_params.weekly_ben_cap = 594
-        state_params.fmla_protection_constraint = True
-        state_params.eligible_earnings = 8400
-        state_params.government_employees = False
-        state_params.fed_employees = False
-        state_params.state_employees = False
-        state_params.local_employees = False
-        state_params.self_employed = False
-    elif state.lower() == 'ri':
-        state_params.replacement_ratio = 0.6
-        state_params.benefit_effect = True
-        state_params.top_off_rate = 0.01
-        state_params.top_off_min_length = 10
-        # dependent allowance not implemented
-        # state_params.take_up_rates = {'Own Health': 0.25, 'Maternity': 0.25, 'New Child': 0.25, 'Ill Child': 0.25,
-        #                           'Ill Spouse': 0.25, 'Ill Parent': 0.25}
-        # waiting period not implemented
-        # state_params.extend = True
-        # extend days and proportion not implemented
-        state_params.max_weeks = {'Own Health': 30, 'Maternity': 30, 'New Child': 4, 'Ill Child': 4, 'Ill Spouse': 4,
-                              'Ill Parent': 4}
-        # weekly benefit cap proportion not implemented
-        state_params.fmla_protection_constraint = True
-        state_params.eligible_earnings = 11520
-        state_params.government_employees = False
-        state_params.fed_employees = False
-        state_params.state_employees = False
-        state_params.local_employees = False
-        state_params.self_employed = False
-
+    state_params.update_variables(**DEFAULT_STATE_PARAMS[state.upper()])
     return state_params
 
 
@@ -181,3 +199,9 @@ def format_chart(fig, ax, title, bg_color='#333333', fg_color='white'):
     ax.yaxis.label.set_color(fg_color)
     ax.xaxis.label.set_color(fg_color)
     fig.tight_layout()
+
+
+def display_leave_objects(labels, inputs):
+    for idx in range(len(labels)):
+        labels[idx].grid(column=idx, row=0, sticky=(E, W))
+        inputs[idx].grid(column=idx, row=1, sticky=(E, W), padx=1, pady=(0, 2))

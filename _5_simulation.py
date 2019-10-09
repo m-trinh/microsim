@@ -22,7 +22,7 @@ from Utils import format_chart
 
 class SimulationEngine:
 
-    def __init__(self, st, yr, fps_in, fps_out, clf_name, prog_para, engine_type='main'):
+    def __init__(self, st, yr, fps_in, fps_out, clf_name, prog_para, engine_type='Main', q=None):
         '''
         :param st: state name, 'ca', 'ma', etc.
         :param yr: end year of 5-year ACS
@@ -75,11 +75,12 @@ class SimulationEngine:
         self.updates = []
         self.progress = 0
         self.figure = None
-        self.type = engine_type
-        if self.type == 'main':
+        self.engine_type = engine_type
+        self.q = q
+        if self.engine_type == 'main':
             self.output_directory = './output/output_%s' % self.out_id
         else:
-            self.output_directory = './output/output_%s_%s' % (self.out_id, self.type)
+            self.output_directory = './output/output_%s_%s' % (self.out_id, self.engine_type)
 
     def save_program_parameters(self):
 
@@ -120,20 +121,26 @@ class SimulationEngine:
     def prepare_data(self):
         dcf = DataCleanerFMLA(self.fp_fmla_in, self.fp_fmla_out)
         dcf.clean_data()
-        self.updates.append('File saved: clean FMLA data file before CPS imputation.')
+        self.__put_queue({'type': 'progress', 'engine': self.engine_type, 'value': 10})
+        self.__put_queue({'type': 'message', 'engine': self.engine_type,
+                          'value': 'File saved: clean FMLA data file before CPS imputation.'})
         message = dcf.impute_fmla_cps(self.fp_cps_in, self.fp_cps_out)
-        self.updates.append(message)
-        self.updates.append('File saved: clean FMLA data file after CPS imputation.')
+        self.__put_queue({'type': 'message', 'engine': self.engine_type, 'value': message})
+        self.__put_queue({'type': 'progress', 'engine': self.engine_type, 'value': 20})
+        self.__put_queue({'type': 'message', 'engine': self.engine_type,
+                          'value': 'File saved: clean FMLA data file after CPS imputation.'})
         dcf.get_length_distribution(self.fp_length_distribution_out)
-        self.updates.append('File saved: leave distribution estimated from FMLA data.')
-        self.progress = 25
+        self.__put_queue({'type': 'progress', 'engine': self.engine_type, 'value': 25})
+        self.__put_queue({'type': 'message', 'engine': self.engine_type,
+                          'value': 'File saved: leave distribution estimated from FMLA data.'})
 
-        self.updates.append('Cleaning ACS data. State chosen = RI. Chunk size = 100000 ACS rows')
+        self.__put_queue({'type': 'message', 'engine': self.engine_type,
+                          'value': 'Cleaning ACS data. State chosen = RI. Chunk size = 100000 ACS rows'})
         dca = DataCleanerACS(self.st, self.yr, self.fp_acsh_in, self.fp_acsp_in, self.fp_acs_out)
         dca.load_data()
         message = dca.clean_person_data()
-        self.updates.append(message)
-        self.progress = 60
+        self.__put_queue({'type': 'progress', 'engine': self.engine_type, 'value': 60})
+        self.__put_queue({'type': 'message', 'engine': self.engine_type, 'value': message})
         return None
 
     def get_acs_simulated(self):
@@ -377,8 +384,8 @@ class SimulationEngine:
         acs.to_csv('%s/acs_sim_%s.csv' % (self.output_directory, self.out_id), index=False)
         message = 'Leaves simulated for 5-year ACS 20%s-20%s in state %s. Time needed = %s seconds' % ((self.yr-4), self.yr, self.st.upper(), round(time()-tsim, 0))
         print(message)
-        self.updates.append(message)
-        self.progress = 95
+        self.__put_queue({'type': 'progress', 'engine': self.engine_type, 'value': 95})
+        self.__put_queue({'type': 'message', 'engine': self.engine_type, 'value': message})
         return acs
 
     def get_cost(self):
@@ -428,8 +435,8 @@ class SimulationEngine:
 
         message = 'Output saved. Total cost = $%s million 2012 dollars' % (round(costs['total']/1000000, 1))
         print(message)
-        self.updates.append(message)
-        self.progress = 100
+        self.__put_queue({'type': 'progress', 'engine': self.engine_type, 'value': 100})
+        self.__put_queue({'type': 'message', 'engine': self.engine_type, 'value': message})
         return out  # df of leave type specific costs and total cost, along with ci's
 
     def create_chart(self, out):
@@ -460,6 +467,10 @@ class SimulationEngine:
         self.prepare_data()
         self.get_acs_simulated()
         self.get_cost()
+
+    def __put_queue(self, obj):
+        if self.q is not None:
+            self.q.put(obj)
 
     def get_progress(self):
         result = self.progress, self.updates
