@@ -473,61 +473,64 @@ class GeneralSettingsFrame(Frame):
         super().__init__(parent, **kwargs)
         self.__create_attributes()
 
-        self.fmla_label = Label(self, text="FMLA File:", bg=self.dark_bg, fg=self.light_font, anchor=N)
+        # Create the input widgets for general parameters
+        # ------------------------------------------------ FMLA File ------------------------------------------------
+        tip = 'A CSV or Excel file that contains leave taking data to use to train model. ' \
+              'This should be FMLA survey data.'
+        self.fmla_label = TipLabel(self, tip, text="FMLA File:", bg=self.dark_bg, fg=self.light_font, anchor=N)
         self.fmla_input = MSGeneralEntry(self, textvariable=self.variables['fmla_file'])
         self.fmla_button = MSButton(self, text="Browse",
                                     command=lambda: self.browse_file(self.fmla_input))
         self.fmla_button.config(width=None)
-        CreateToolTip(self.fmla_label, 'A CSV or Excel file that contains leave taking data to use to train '
-                                       'model. This should be FMLA survey data.')
 
-        self.acs_label = Label(self, text="ACS Directory:", bg=self.dark_bg, fg=self.light_font)
+        # ------------------------------------------------ ACS File -------------------------------------------------
+        tip = 'A directory that contains ACS files that the model will use to estimate the cost of a paid ' \
+              'leave program. There should be one household and one person file for the selected state.'
+        self.acs_label = TipLabel(self, tip, text="ACS Directory:", bg=self.dark_bg, fg=self.light_font)
         self.acs_input = MSGeneralEntry(self, textvariable=self.variables['acs_directory'])
         self.acs_button = MSButton(self, text="Browse",
                                    command=lambda: self.browse_directory(self.acs_input))
-        CreateToolTip(self.acs_label,
-                      'A directory that contains ACS files that the model will use to estimate the cost of a paid '
-                      'leave program. There should be one household and one person file for the selected state.')
 
-        self.output_directory_label = Label(self, text="Output Directory:", bg=self.dark_bg,
-                                            fg=self.light_font)
+        # -------------------------------------------- Output Directory ---------------------------------------------
+        tip = 'The directory where the spreadsheet containing simulation results will be saved.'
+        self.output_directory_label = TipLabel(self, tip, text="Output Directory:", bg=self.dark_bg, fg=self.light_font)
         self.output_directory_input = MSGeneralEntry(self, textvariable=self.variables['output_directory'])
         self.output_directory_button = MSButton(self, text="Browse",
                                                 command=lambda: self.browse_directory(self.output_directory_input))
-        CreateToolTip(self.output_directory_label,
-                      'The directory where the spreadsheet containing simulation results will be saved.')
 
-        self.detail_label = Label(self, text="Output Detail Level:", bg=self.dark_bg,
-                                  fg=self.light_font)
+        # ---------------------------------------------- Output Detail ----------------------------------------------
+        tip = 'The level of detail of the results. \n1 = low detail \n8 = high detail'
+        self.detail_label = TipLabel(self, tip, text="Output Detail Level:", bg=self.dark_bg, fg=self.light_font)
         self.detail_input = ttk.Combobox(self, textvariable=self.variables['detail'], state="readonly", width=5,
                                          style='MSCombobox.TCombobox')
         self.detail_input['values'] = (1, 2, 3, 4, 5, 6, 7, 8)
         self.detail_input.current(0)
-        CreateToolTip(self.detail_label,
-                      'The level of detail of the results. \n1 = low detail \n8 = high detail')
 
-        self.state_label = Label(self, text='State to Simulate:', bg=self.dark_bg, fg=self.light_font)
+        # -------------------------------------------- State to Simulate --------------------------------------------
+        tip = 'The state that will be used to estimate program cost. Only people  living or working in ' \
+              'this state will be chosen from the input and  output files.'
+        self.state_label = TipLabel(self, tip, text='State to Simulate:', bg=self.dark_bg, fg=self.light_font)
         self.state_input = ttk.Combobox(self, textvariable=self.variables['state'], state="readonly", width=5,
                                         values=self.states)
         self.state_input.current(self.states.index('RI'))
-        CreateToolTip(self.state_label, 'The state that will be used to estimate program cost. Only people '
-                                        'living or working in this state will be chosen from the input and '
-                                        'output files.')
 
-        self.simulation_method_label = Label(self, text='Simulation Method:',
-                                             bg=self.dark_bg, fg=self.light_font)
+        # -------------------------------------------- Simulation Method --------------------------------------------
+        tip = 'The method used to train model.'
+        self.simulation_method_label = TipLabel(self, tip, text='Simulation Method:', bg=self.dark_bg,
+                                                fg=self.light_font)
         self.simulation_method_input = ttk.Combobox(self, textvariable=self.variables['simulation_method'],
                                                     state="readonly", width=21, values=self.simulation_methods)
         self.simulation_method_input.current(0)
-        CreateToolTip(self.simulation_method_label, 'The method used to train model.')
 
-        self.existing_program_label = Label(self, text='Existing State Program:',
-                                            bg=self.dark_bg, fg=self.light_font)
+        # ----------------------------------------- Existing State Program ------------------------------------------
+        tip = 'Sets program parameters to match an existing state program.'
+        self.existing_program_label = TipLabel(self, tip, text='Existing State Program:', bg=self.dark_bg,
+                                               fg=self.light_font)
         self.existing_program_input = ttk.Combobox(self, textvariable=self.variables['existing_program'],
                                                    state="readonly", width=5, values=list(DEFAULT_STATE_PARAMS.keys()))
         self.existing_program_input.current(0)
-        CreateToolTip(self.existing_program_label, 'Sets program parameters to match an existing state program.')
 
+        # Add the input widgets to the parent widget
         self.row_padding = 4
         self.fmla_label.grid(column=0, row=0, sticky=W, pady=self.row_padding)
         self.fmla_input.grid(column=1, row=0, columnspan=3, sticky=(E, W), padx=8, pady=self.row_padding)
@@ -543,6 +546,7 @@ class GeneralSettingsFrame(Frame):
         self.existing_program_label.grid(column=0, row=5, sticky=W, pady=self.row_padding)
         self.existing_program_input.grid(column=1, row=5, sticky=W, padx=8, pady=self.row_padding)
 
+        # Give the second column more space than the others
         self.columnconfigure(1, weight=1)
 
     def __create_attributes(self):
@@ -649,12 +653,16 @@ class ScrollFrame(Frame):
         self.default_settings = self.winfo_toplevel().default_settings
 
         self.notebook_bg = self.winfo_toplevel().notebook_bg
+
+        # Create scroll bar
         self.scroll_bar = ttk.Scrollbar(self, orient=VERTICAL)
         self.scroll_bar.pack(side=RIGHT, fill=Y)
-        # Canvas needed to hold scroll wheel
+
+        # Canvas needed to hold scroll wheel and content frame
         self.canvas = Canvas(self, bg=self.notebook_bg, borderwidth=0, highlightthickness=0,
                              yscrollcommand=self.scroll_bar.set)
         self.canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
+
         self.content = Frame(self, padx=10, pady=10, bg=self.notebook_bg, width=600)  # Frame holds the actual content
         self.canvas.create_window((0, 0), window=self.content, anchor='nw')  # Add frame to canvas
         self.scroll_bar.config(command=self.canvas.yview)
@@ -662,20 +670,6 @@ class ScrollFrame(Frame):
     def update_scroll_region(self):
         self.update()
         self.canvas.configure(scrollregion=(0, 0, 0, self.content.winfo_height()))
-
-    # Some inputs require an entry value for each leave type. It is better to store each input in a list than
-    # create separate variables for all of them.
-    def create_leave_objects(self, parent, leave_vars):
-        leave_type_labels = []  # A list of label widgets for inputs
-        leave_type_inputs = []  # A list of entry inputs
-        for i, leave_type in enumerate(LEAVE_TYPES):
-            # Create the label and entry widgets
-            leave_type_labels.append(Label(parent, text=leave_type, bg=self.notebook_bg))
-            leave_type_inputs.append(MSNotebookEntry(parent, textvariable=leave_vars[leave_type], justify='center',
-                                                     width=10))
-            parent.columnconfigure(i, weight=1)
-
-        return leave_type_labels, leave_type_inputs
 
 
 class NotebookFrame(ScrollFrame):
@@ -697,6 +691,20 @@ class NotebookFrame(ScrollFrame):
     def show_advanced_parameters(self):
         raise NotImplementedError
 
+    # Some inputs require an entry value for each leave type. It is better to store each input in a list than
+    # create separate variables for all of them.
+    def create_leave_objects(self, parent, leave_vars):
+        leave_type_labels = []  # A list of label widgets for inputs
+        leave_type_inputs = []  # A list of entry inputs
+        for i, leave_type in enumerate(LEAVE_TYPES):
+            # Create the label and entry widgets
+            leave_type_labels.append(Label(parent, text=leave_type, bg=self.notebook_bg, font='-size 10'))
+            leave_type_inputs.append(MSNotebookEntry(parent, textvariable=leave_vars[leave_type], justify='center',
+                                                     width=10))
+            parent.columnconfigure(i, weight=1)
+
+        return leave_type_labels, leave_type_inputs
+
 
 class ProgramFrame(NotebookFrame):
     def __init__(self, parent=None, **kwargs):
@@ -704,116 +712,133 @@ class ProgramFrame(NotebookFrame):
         self.__create_attributes()
         v = self.variables
 
-        self.eligibility_frame_label = ttk.Label(self.content, text='Eligibility Rules:',
-                                                 style='MSLabelframe.TLabelframe.Label')
+        # Create the input widgets for program parameters
+        # ------------------------------------------- Program Eligibility -------------------------------------------
+        # Inputs related to eligibility will be grouped in a label frame
+        self.eligibility_frame_label = ttk.Label(self.content, text='Eligibility Rules:', cursor='question_arrow',
+                                                 style='MSLabelframe.TLabelframe.Label', font='-size 10')
         self.eligibility_frame = ttk.Labelframe(self.content, labelwidget=self.eligibility_frame_label,
                                                 style='MSLabelframe.TLabelframe')
-        self.eligible_earnings_label = Label(self.eligibility_frame, text="Earnings", bg=self.notebook_bg)
+        CreateToolTip(self.eligibility_frame_label, 'The requirements to be eligible for the paid leave program.')
+
+        # Earnings
+        tip = 'The amount of money earned in the last year.'
+        self.eligible_earnings_label = TipLabel(self.eligibility_frame, tip, text="Earnings", bg=self.notebook_bg,
+                                                font='-size 10')
         self.eligible_earnings_input = MSNotebookEntry(self.eligibility_frame, textvariable=v['eligible_earnings'],
                                                        justify='center', width=15)
-        self.eligible_weeks_label = Label(self.eligibility_frame, text="Weeks", bg=self.notebook_bg)
+
+        # Weeks worked
+        tip = 'The number of weeks worked in the last year.'
+        self.eligible_weeks_label = TipLabel(self.eligibility_frame, tip, text="Weeks", bg=self.notebook_bg,
+                                             font='-size 10')
         self.eligible_weeks_input = MSNotebookEntry(self.eligibility_frame, textvariable=v['eligible_weeks'],
                                                     justify='center', width=15)
-        self.eligible_hours_label = Label(self.eligibility_frame, text="Hours", bg=self.notebook_bg)
+
+        # Hours worked
+        tip = 'The number of hours worked in the last year.'
+        self.eligible_hours_label = TipLabel(self.eligibility_frame, tip, text="Hours", bg=self.notebook_bg,
+                                             font='-size 10')
         self.eligible_hours_input = MSNotebookEntry(self.eligibility_frame, textvariable=v['eligible_hours'],
                                                     justify='center', width=15)
-        self.eligible_size_label = Label(self.eligibility_frame, text="Employer Size", bg=self.notebook_bg)
+
+        # Employer size
+        tip = 'Size of the employer.'
+        self.eligible_size_label = TipLabel(self.eligibility_frame, tip, text="Employer Size", bg=self.notebook_bg,
+                                            font='-size 10')
         self.eligible_size_input = MSNotebookEntry(self.eligibility_frame, textvariable=v['eligible_size'],
                                                    justify='center', width=15)
-        CreateToolTip(self.eligibility_frame_label,
-                      'The requirements to be eligible for the paid leave program. This includes '
-                      'the amount of money earned in the last year, the number of weeks worked '
-                      'in the last year, the number of hours worked in the ast year, and the '
-                      'size of the employer.')
 
-        self.max_weeks_frame_label = ttk.Label(self.content, text='Max Weeks:',
-                                               style='MSLabelframe.TLabelframe.Label')
+        # ----------------------------------------- Max Weeks with Benefits -----------------------------------------
+        self.max_weeks_frame_label = ttk.Label(self.content, text='Max Weeks:', style='MSLabelframe.TLabelframe.Label',
+                                               cursor='question_arrow')
         self.max_weeks_frame = ttk.Labelframe(self.content, labelwidget=self.max_weeks_frame_label,
                                               style='MSLabelframe.TLabelframe')
         self.max_weeks_labels, self.max_weeks_inputs = self.create_leave_objects(self.max_weeks_frame, v['max_weeks'])
         CreateToolTip(self.max_weeks_frame_label,
                       'The maximum number of weeks for each leave type that the program will pay for.')
 
-        self.replacement_ratio_label = Label(self.content, text="Replacement Ratio:", bg=self.notebook_bg)
+        # ----------------------------------------- Wage Replacement Ratio ------------------------------------------
+        tip = 'The percentage of wage that the program will pay.'
+        self.replacement_ratio_label = TipLabel(self.content, tip, text="Replacement Ratio:", bg=self.notebook_bg)
         self.replacement_ratio_input = MSNotebookEntry(self.content, textvariable=v['replacement_ratio'])
-        CreateToolTip(self.replacement_ratio_label, 'The percentage of wage that the program will pay.')
 
-        self.weekly_ben_cap_label = Label(self.content, text="Weekly Benefit Cap:", bg=self.notebook_bg)
+        # ------------------------------------------- Weekly Benefit Cap --------------------------------------------
+        tip = 'The maximum amount of benefits paid out per week.'
+        self.weekly_ben_cap_label = TipLabel(self.content, tip, text="Weekly Benefit Cap:", bg=self.notebook_bg)
         self.weekly_ben_cap_input = MSNotebookEntry(self.content, textvariable=v['weekly_ben_cap'])
-        CreateToolTip(self.weekly_ben_cap_label, 'The maximum amount of benefits paid out per week.')
 
+        # -------------------------------------------- Benefit Financing --------------------------------------------
         # self.benefit_financing_frame_label = ttk.Label(self.content, text='Benefit Financing:',
         #                                                style='MSLabelframe.TLabelframe.Label')
         self.benefit_financing_frame = ttk.LabelFrame(self.content, text='Benefit Financing:',
                                                       style='MSLabelframe.TLabelframe')
-        self.payroll_tax_label = Label(self.benefit_financing_frame, text='Payroll Tax (%):', bg=self.notebook_bg)
+
+        # Tax on Payroll
+        tip = 'The payroll tax that will be implemented to fund benefits program.'
+        self.payroll_tax_label = TipLabel(self.benefit_financing_frame, tip, text='Payroll Tax (%):',
+                                          bg=self.notebook_bg)
         self.payroll_tax_input = MSNotebookEntry(self.benefit_financing_frame, textvariable=v['payroll_tax'])
-        CreateToolTip(self.payroll_tax_label, 'The payroll tax that will be implemented to fund benefits program.')
 
-        self.benefits_tax_input = ttk.Checkbutton(self.benefit_financing_frame, text='Benefits Tax', onvalue=True,
-                                                  offvalue=False, variable=v['benefits_tax'],
-                                                  style='MSCheckbutton.TCheckbutton')
-        CreateToolTip(self.benefits_tax_input, 'Whether or not program benefits are taxed.')
+        # Tax on Benefits
+        tip = 'Whether or not program benefits are taxed.'
+        self.benefits_tax_input = TipCheckButton(self.benefit_financing_frame, tip, text='Benefits Tax',
+                                                 variable=v['benefits_tax'])
 
-        self.average_state_tax_label = Label(self.benefit_financing_frame, text='State Average Tax Rate (%):',
-                                             bg=self.notebook_bg)
+        # Average State Tax
+        tip = 'The average tax rate of a selected state.'
+        self.average_state_tax_label = TipLabel(self.benefit_financing_frame, tip, text='State Average Tax Rate (%):',
+                                                bg=self.notebook_bg)
         self.average_state_tax_input = MSNotebookEntry(self.benefit_financing_frame,
                                                        textvariable=v['average_state_tax'])
-        CreateToolTip(self.average_state_tax_label, 'The average tax rate of a selected state.')
 
-        self.max_taxable_earnings_per_person_label = Label(self.benefit_financing_frame,
-                                                           text='Maximum Taxable Earnings Per Person ($):',
-                                                           bg=self.notebook_bg)
+        # Maximum Taxable Earnings per Person
+        tip = 'The maximum amount that a person can be taxed.'
+        self.max_taxable_earnings_per_person_label = TipLabel(self.benefit_financing_frame, tip,
+                                                              text='Maximum Taxable Earnings Per Person ($):',
+                                                              bg=self.notebook_bg)
         self.max_taxable_earnings_per_person_input = MSNotebookEntry(self.benefit_financing_frame,
                                                                      textvariable=v['max_taxable_earnings_per_person'])
-        CreateToolTip(self.max_taxable_earnings_per_person_label, 'The maximum amount that a person can be taxed.')
 
-        self.total_taxable_earnings_label = Label(self.benefit_financing_frame, text='Total Taxable Earnings ($):',
-                                                  bg=self.notebook_bg)
+        # Maximum Taxable Earnings Total
+        tip = 'The total earnings that can be taxed.'
+        self.total_taxable_earnings_label = TipLabel(self.benefit_financing_frame, tip,
+                                                     text='Total Taxable Earnings ($):', bg=self.notebook_bg)
         self.total_taxable_earnings_input = MSNotebookEntry(self.benefit_financing_frame,
                                                             textvariable=v['total_taxable_earnings'])
-        CreateToolTip(self.total_taxable_earnings_label, 'The total earnings that can be taxed.')
 
-        self.government_employees_input = ttk.Checkbutton(self.content, text="Government Employees", onvalue=True,
-                                                          offvalue=False, variable=v['government_employees'],
-                                                          style='MSCheckbutton.TCheckbutton',
-                                                          command=self.check_all_gov_employees)
-        CreateToolTip(self.government_employees_input,
-                      'Whether or not government employees are eligible for program.')
+        # ------------------------------------ Government Employees Eligibility -------------------------------------
+        # All Government Employees
+        tip = 'Whether or not government employees are eligible for program.'
+        self.government_employees_input = TipCheckButton(self.content, tip, text="Government Employees",
+                                                         variable=v['government_employees'],
+                                                         command=self.check_all_gov_employees)
 
-        self.federal_employees_input = ttk.Checkbutton(self.content, text="Federal Employees", onvalue=True,
-                                                       offvalue=False, variable=v['fed_employees'],
-                                                       style='MSCheckbutton.TCheckbutton',
-                                                       command=self.check_gov_employees)
-        CreateToolTip(self.federal_employees_input,
-                      'Whether or not federal employees are eligible for program.')
+        # Federal Employees
+        tip = 'Whether or not federal employees are eligible for program.'
+        self.federal_employees_input = TipCheckButton(self.content, tip, text="Federal Employees",
+                                                      variable=v['fed_employees'], command=self.check_gov_employees)
 
-        self.state_employees_input = ttk.Checkbutton(self.content, text="State Employees", onvalue=True,
-                                                     offvalue=False, variable=v['state_employees'],
-                                                     style='MSCheckbutton.TCheckbutton',
-                                                     command=self.check_gov_employees)
-        CreateToolTip(self.state_employees_input,
-                      'Whether or not state employees are eligible for program.')
+        # State Employees
+        tip = 'Whether or not state employees are eligible for program.'
+        self.state_employees_input = TipCheckButton(self.content, tip, text="State Employees",
+                                                    variable=v['state_employees'], command=self.check_gov_employees)
 
-        self.local_employees_input = ttk.Checkbutton(self.content, text="Local Employees", onvalue=True,
-                                                     offvalue=False, variable=v['local_employees'],
-                                                     style='MSCheckbutton.TCheckbutton',
-                                                     command=self.check_gov_employees)
-        CreateToolTip(self.local_employees_input,
-                      'Whether or not local employees are eligible for program.')
+        # Local Government Employees
+        tip = 'Whether or not local employees are eligible for program.'
+        self.local_employees_input = TipCheckButton(self.content, tip, text="Local Employees",
+                                                    variable=v['local_employees'], command=self.check_gov_employees)
 
-        self.self_employed_input = ttk.Checkbutton(self.content, text="Self Employed", onvalue=True,
-                                                   offvalue=False, variable=v['self_employed'],
-                                                   style='MSCheckbutton.TCheckbutton')
-        CreateToolTip(self.self_employed_input, 'Whether or not self employed workers are eligible for program.')
+        # ------------------------------------ Self-Employed Worker Eligibility -------------------------------------
+        tip = 'Whether or not self employed workers are eligible for program.'
+        self.self_employed_input = TipCheckButton(self.content, tip, text="Self Employed", variable=v['self_employed'])
 
-        self.state_of_work_input = ttk.Checkbutton(self.content, text="State of Work", onvalue=True,
-                                                   offvalue=False, variable=v['state_of_work'],
-                                                   style='MSCheckbutton.TCheckbutton')
-        CreateToolTip(self.state_of_work_input,
-                      'Whether or not the analysis is to be done for persons who work in particular state – '
-                      'rather than for residents of the state.')
+        # ---------------------------------------------- State of Work ----------------------------------------------
+        tip = 'Whether or not the analysis is to be done for persons who work in particular state – ' \
+              'rather than for residents of the state.'
+        self.state_of_work_input = TipCheckButton(self.content, tip, text="State of Work", variable=v['state_of_work'])
 
+        # Add input widgets to the parent widget
         self.eligibility_frame.grid(column=0, row=0, columnspan=2, sticky=(N, E, W), pady=self.row_padding)
         self.eligible_earnings_label.grid(column=0, row=0)
         self.eligible_weeks_label.grid(column=1, row=0)
@@ -847,6 +872,7 @@ class ProgramFrame(NotebookFrame):
         self.self_employed_input.grid(column=0, row=9, columnspan=2, sticky=W, pady=self.row_padding)
         self.state_of_work_input.grid(column=0, row=10, columnspan=2, sticky=W, pady=self.row_padding)
 
+        # Give weight to columns
         self.columnconfigure(0, weight=0)
         self.columnconfigure(1, weight=1)
         for i in range(4):
@@ -880,7 +906,9 @@ class PopulationFrame(NotebookFrame):
         super().__init__(parent, **kwargs)
         self.__create_attributes()
 
-        self.take_up_rates_frame_label = ttk.Label(self.content, text='Take Up Rates:',
+        # Create the input widgets for population parameters
+        # ---------------------------------------------- Take Up Rates ----------------------------------------------
+        self.take_up_rates_frame_label = ttk.Label(self.content, text='Take Up Rates:', cursor='question_arrow',
                                                    style='MSLabelframe.TLabelframe.Label')
         self.take_up_rates_frame = ttk.Labelframe(self.content, labelwidget=self.take_up_rates_frame_label,
                                                   style='MSLabelframe.TLabelframe')
@@ -889,8 +917,10 @@ class PopulationFrame(NotebookFrame):
         CreateToolTip(self.take_up_rates_frame_label, 'The proportion of eligible leave takers who decide to use the '
                                                       'program for each leave type.')
 
+        # ---------------------------------------- Leave Probability Factors ----------------------------------------
         self.leave_probability_factors_frame_label = ttk.Label(self.content, text='Leave Probability Factors:',
-                                                               style='MSLabelframe.TLabelframe.Label')
+                                                               style='MSLabelframe.TLabelframe.Label',
+                                                               cursor='question_arrow')
         self.leave_probability_factors_frame = ttk.Labelframe(self.content,
                                                               labelwidget=self.leave_probability_factors_frame_label,
                                                               style='MSLabelframe.TLabelframe')
@@ -899,41 +929,40 @@ class PopulationFrame(NotebookFrame):
         CreateToolTip(self.leave_probability_factors_frame_label, 'Factors the probability of needing or taking '
                                                                   'a leave for each type of leave.')
 
-        self.benefit_effect_input = ttk.Checkbutton(self.content, text="Benefit Effect", onvalue=True,
-                                                    offvalue=False, variable=self.variables['benefit_effect'],
-                                                    style='MSCheckbutton.TCheckbutton')
-        CreateToolTip(self.benefit_effect_input,
-                      'Whether or not the benefit amount affects participation in the program.')
+        # --------------------------------------------- Benefit Effect ----------------------------------------------
+        tip = 'Whether or not the benefit amount affects participation in the program.'
+        self.benefit_effect_input = TipCheckButton(self.content, tip, text="Benefit Effect",
+                                                   variable=self.variables['benefit_effect'])
 
-        self.extend_input = ttk.Checkbutton(self.content, text="Extend", onvalue=True, offvalue=False,
-                                            variable=self.variables['extend'], style='MSCheckbutton.TCheckbutton')
-        CreateToolTip(self.extend_input,
-                      'Whether or not participants extend their leave in the presence of the program.')
+        # ---------------------------------------- Participants Extend Leave ----------------------------------------
+        tip = 'Whether or not participants extend their leave in the presence of the program.'
+        self.extend_input = TipCheckButton(self.content, tip, text="Extend", variable=self.variables['extend'])
 
-        self.needers_fully_participate_input = ttk.Checkbutton(self.content, text="Needers Fully Participate",
-                                                               onvalue=True, offvalue=False,
-                                                               variable=self.variables['needers_fully_participate'],
-                                                               style='MSCheckbutton.TCheckbutton')
-        CreateToolTip(self.needers_fully_participate_input,
-                      'Whether or not all people who need leave take leave in the presnce of the program.')
+        # ---------------------------------------- Needers Fully Participate ----------------------------------------
+        tip = 'Whether or not all people who need leave take leave in the presnce of the program.'
+        self.needers_fully_participate_input = TipCheckButton(self.content, tip, text="Needers Fully Participate",
+                                                              variable=self.variables['needers_fully_participate'])
 
-        self.top_off_rate_label = Label(self.content, text="Top Off Rate:", bg=self.notebook_bg)
+        # ---------------------------------------------- Top Off Rate -----------------------------------------------
+        tip = 'The proportion of employers already paying full wages in the absence of the program ' \
+              'that will top off benefits in the presence of a program to reach full wages.'
+        self.top_off_rate_label = TipLabel(self.content, tip, text="Top Off Rate:", bg=self.notebook_bg)
         self.top_off_rate_input = MSNotebookEntry(self.content, textvariable=self.variables['top_off_rate'])
-        CreateToolTip(self.top_off_rate_label,
-                      'The proportion of employers already paying full wages in the absence of the program '
-                      'that will top off benefits in the presence of a program to reach full wages.')
 
-        self.top_off_min_length_label = Label(self.content, text="Top Off Minimum Length:",
-                                              bg=self.notebook_bg)
+        # ----------------------------------------- Top Off Minimum Length ------------------------------------------
+        tip = 'The number of days employers will top off benefits.'
+        self.top_off_min_length_label = TipLabel(self.content, tip, text="Top Off Minimum Length:",
+                                                 bg=self.notebook_bg)
         self.top_off_min_length_input = MSNotebookEntry(self.content, textvariable=self.variables['top_off_min_length'])
-        CreateToolTip(self.top_off_min_length_label, 'The number of days employers will top off benefits.')
 
+        # Add input widgets to the parent widget
         self.take_up_rates_frame.grid(column=0, row=0, columnspan=2, sticky=(N, E, W), pady=self.row_padding)
         display_leave_objects(self.take_up_rates_labels, self.take_up_rates_inputs)
         display_leave_objects(self.leave_probability_factors_labels, self.leave_probability_factors_inputs)
         # self.benefit_effect_input.grid(column=0, row=2, columnspan=2, sticky=W)
         # self.extend_input.grid(column=0, row=3, columnspan=3, sticky=W)
 
+        # Make second column take up more space
         self.columnconfigure(0, weight=0)
         self.columnconfigure(1, weight=1)
 
@@ -962,58 +991,54 @@ class SimulationFrame(NotebookFrame):
     def __init__(self, parent=None, **kwargs):
         super().__init__(parent, **kwargs)
         self.__create_attributes()
+        v = self.variables
 
-        self.clone_factor_label = Label(self.content, text="Clone Factor:", bg=self.notebook_bg)
-        self.clone_factor_input = MSNotebookEntry(self.content, textvariable=self.variables['clone_factor'])
-        CreateToolTip(self.clone_factor_label,
-                      'The number of times each sample person will be run through the simulation.')
+        # Create the input widgets for simulation parameters
+        # ---------------------------------------------- Clone Factor -----------------------------------------------
+        tip = 'The number of times each sample person will be run through the simulation.'
+        self.clone_factor_label = TipLabel(self.content, tip, text="Clone Factor:", bg=self.notebook_bg)
+        self.clone_factor_input = MSNotebookEntry(self.content, textvariable=v['clone_factor'])
 
-        self.se_analysis_input = ttk.Checkbutton(self.content, text="SE Analysis", onvalue=True,
-                                                 offvalue=False, variable=self.variables['se_analysis'],
-                                                 style='MSCheckbutton.TCheckbutton')
-        CreateToolTip(self.se_analysis_input, 'Whether or not weight should be divided by clone factor value.')
+        # ----------------------------------------------- SE Analysis -----------------------------------------------
+        tip = 'Whether or not weight should be divided by clone factor value.'
+        self.se_analysis_input = TipCheckButton(self.content, tip, text="SE Analysis", variable=v['se_analysis'])
 
-        self.weight_factor_label = Label(self.content, text="Weight Factor:", bg=self.notebook_bg)
-        self.weight_factor_input = MSNotebookEntry(self.content, textvariable=self.variables['weight_factor'])
-        CreateToolTip(self.weight_factor_label, 'Multiplies the sample weights by value.')
+        # ---------------------------------------------- Weight Factor ----------------------------------------------
+        tip = 'Multiplies the sample weights by value.'
+        self.weight_factor_label = TipLabel(self.content, tip, text="Weight Factor:", bg=self.notebook_bg)
+        self.weight_factor_input = MSNotebookEntry(self.content, textvariable=v['weight_factor'])
 
-        self.fmla_protection_constraint_input = ttk.Checkbutton(
-            self.content, text="FMLA Protection Constraint", onvalue=True, offvalue=False,
-            variable=self.variables['fmla_protection_constraint'], style='MSCheckbutton.TCheckbutton')
-        CreateToolTip(self.fmla_protection_constraint_input,
-                      'If checked, leaves that are extended due to a paid '
-                      'leave program will be capped at 12 weeks.')
+        # --------------------------------------- FMLA Protection Constraint ----------------------------------------
+        tip = 'If checked, leaves that are extended due to a paid leave program will be capped at 12 weeks.'
+        self.fmla_protection_constraint_input = TipCheckButton(self.content, tip, text="FMLA Protection Constraint",
+                                                               variable=v['fmla_protection_constraint'])
 
-        self.calibrate_input = ttk.Checkbutton(self.content, text="Calibrate", onvalue=True, offvalue=False,
-                                               variable=self.variables['calibrate'], style='MSCheckbutton.TCheckbutton')
-        CreateToolTip(self.calibrate_input,
-                      'Indicates whether or not the calibration add-factors are used in the equations giving '
-                      'the probability of taking or needing leaves. These calibration factors adjust the '
-                      'simulated probabilities of taking or needing the most recent leave to equal those in '
-                      'the Family and Medical Leave in 2012: Revised Public Use File Documentation (McGarry '
-                      'et al, Abt Associates, 2013).')
+        # ------------------------------------------------ Calibrate ------------------------------------------------
+        tip = '''Indicates whether or not the calibration add-factors are used in the equations giving the probability 
+        of taking or needing leaves. These calibration factors adjust the simulated probabilities of taking or needing 
+        the most recent leave to equal those in the Family and Medical Leave in 2012: Revised Public Use File 
+        Documentation (McGarry et al, Abt Associates, 2013).'''
+        self.calibrate_input = TipCheckButton(self.content, tip, text="Calibrate", variable=v['calibrate'])
 
-        self.random_seed_input = ttk.Checkbutton(self.content, text="Random Seed", onvalue=True,
-                                                 offvalue=False, variable=self.variables['random_seed'],
-                                                 style='MSCheckbutton.TCheckbutton')
-        CreateToolTip(self.random_seed_input,
-                      'Whether or not a seed will be created using a random number generator.')
+        # ----------------------------------------------- Random Seed -----------------------------------------------
+        tip = 'Whether or not a seed will be created using a random number generator.'
+        self.random_seed_input = TipCheckButton(self.content, tip, text="Random Seed", variable=v['random_seed'])
 
-        self.counterfactual_label = Label(self.content, text='Compare Against Existing:', bg=self.notebook_bg)
-        self.counterfactual_input = ttk.Combobox(self.content, textvariable=self.variables['counterfactual'],
+        # ---------------------------------------- Compare Against Existing -----------------------------------------
+        tip = 'Simulate a counterfactual scenario to compare user parameters  against a real paid leave program.'
+        self.counterfactual_label = TipLabel(self.content, tip, text='Compare Against Existing:', bg=self.notebook_bg)
+        self.counterfactual_input = ttk.Combobox(self.content, textvariable=v['counterfactual'],
                                                  state="readonly", width=5, values=list(DEFAULT_STATE_PARAMS.keys()))
         self.counterfactual_input.current(0)
-        CreateToolTip(self.counterfactual_label, 'Simulate a counterfactual scenario to compare user parameters '
-                                                 'against a real paid leave program.')
 
-        self.policy_sim_input = ttk.Checkbutton(self.content, text="Compare Against Generous", onvalue=True,
-                                                offvalue=False, variable=self.variables['policy_sim'],
-                                                style='MSCheckbutton.TCheckbutton')
-        CreateToolTip(self.counterfactual_label, 'Simulate a policy scenario to compare user parameters against a '
-                                                 'generous paid leave program.')
+        # ---------------------------------------- Compare Against Generous -----------------------------------------
+        tip = 'Simulate a policy scenario to compare user parameters against a  generous paid leave program.'
+        self.policy_sim_input = TipCheckButton(self.content, tip, text="Compare Against Generous",
+                                               variable=v['policy_sim'])
 
+        # Add input widgets to the parent widget
         self.counterfactual_label.grid(column=0, row=0, sticky=W, pady=self.row_padding)
-        self.counterfactual_input.grid(column=1, row=0, pady=self.row_padding)
+        self.counterfactual_input.grid(column=1, row=0, sticky=W, pady=self.row_padding)
         self.policy_sim_input.grid(column=0, row=1, columnspan=2, sticky=W, pady=self.row_padding)
         # self.clone_factor_label.grid(column=0, row=0, sticky=W)
         # self.clone_factor_input.grid(column=1, row=0)
@@ -1031,7 +1056,7 @@ class SimulationFrame(NotebookFrame):
 
     def show_advanced_parameters(self):
         self.weight_factor_label.grid(column=0, row=2, sticky=W, pady=self.row_padding)
-        self.weight_factor_input.grid(column=1, row=2, pady=self.row_padding)
+        self.weight_factor_input.grid(column=1, row=2, sticky=W, pady=self.row_padding)
         self.fmla_protection_constraint_input.grid(column=0, row=3, columnspan=2, sticky=W, pady=self.row_padding)
         self.random_seed_input.grid(column=0, row=5, columnspan=2, sticky=W, pady=self.row_padding)
 
@@ -1146,32 +1171,31 @@ class ResultsWindow(Toplevel):
 
         self.bind("<MouseWheel>", self.scroll_abf)
 
-        self.payroll_tax_label = Label(self.abf_params_inputs, text='Payroll Tax (%):', bg=self.notebook_bg)
+        tip = 'The payroll tax that will be implemented to fund benefits program.'
+        self.payroll_tax_label = TipLabel(self.abf_params_inputs, tip, text='Payroll Tax (%):', bg=self.notebook_bg)
         self.payroll_tax_input = Entry(self.abf_params_inputs, textvariable=parent.variables['payroll_tax'])
-        CreateToolTip(self.payroll_tax_label, 'The payroll tax that will be implemented to fund benefits program.')
 
-        self.benefits_tax_input = ttk.Checkbutton(self.abf_params_inputs, text='Benefits Tax', onvalue=True,
-                                                  offvalue=False, variable=parent.variables['benefits_tax'],
-                                                  style='MSCheckbutton.TCheckbutton')
-        CreateToolTip(self.benefits_tax_input, 'Whether or not program benefits are taxed.')
+        tip = 'Whether or not program benefits are taxed.'
+        self.benefits_tax_input = TipCheckButton(self.abf_params_inputs, tip, text='Benefits Tax',
+                                                 variable=parent.variables['benefits_tax'])
 
-        self.average_state_tax_label = Label(self.abf_params_inputs, text='State Average Tax Rate (%):',
-                                             bg=self.notebook_bg)
+        tip = 'The average tax rate of a selected state.'
+        self.average_state_tax_label = TipLabel(self.abf_params_inputs, tip, text='State Average Tax Rate (%):',
+                                                bg=self.notebook_bg)
         self.average_state_tax_input = Entry(self.abf_params_inputs, textvariable=parent.variables['average_state_tax'])
-        CreateToolTip(self.average_state_tax_label, 'The average tax rate of a selected state.')
 
-        self.max_taxable_earnings_per_person_label = Label(self.abf_params_inputs,
-                                                           text='Maximum Taxable Earnings\nPer Person ($):',
-                                                           bg=self.notebook_bg, justify=LEFT)
+        tip = 'The maximum amount that a person can be taxed.'
+        self.max_taxable_earnings_per_person_label = TipLabel(self.abf_params_inputs, tip,
+                                                              text='Maximum Taxable Earnings\nPer Person ($):',
+                                                              bg=self.notebook_bg, justify=LEFT)
         self.max_taxable_earnings_per_person_input = \
             Entry(self.abf_params_inputs, textvariable=parent.variables['max_taxable_earnings_per_person'])
-        CreateToolTip(self.max_taxable_earnings_per_person_label, 'The maximum amount that a person can be taxed.')
 
-        self.total_taxable_earnings_label = Label(self.abf_params_inputs, text='Total Taxable Earnings ($):',
-                                                  bg=self.notebook_bg)
+        tip = 'The total earnings that can be taxed.'
+        self.total_taxable_earnings_label = TipLabel(self.abf_params_inputs, tip, text='Total Taxable Earnings ($):',
+                                                     bg=self.notebook_bg)
         self.total_taxable_earnings_input = Entry(self.abf_params_inputs,
                                                   textvariable=parent.variables['total_taxable_earnings'])
-        CreateToolTip(self.total_taxable_earnings_label, 'The total earnings that can be taxed.')
 
         self.payroll_tax_label.grid(column=0, row=0, sticky=W, padx=(8, 0))
         self.payroll_tax_input.grid(column=1, row=0, sticky=W)
@@ -1586,6 +1610,19 @@ class MSNotebookEntry(Entry):
     def __init__(self, parent=None, **kwargs):
         super().__init__(parent, borderwidth=2, highlightbackground='#999999', relief='flat',
                          highlightthickness=1, font='-size 11', **kwargs)
+
+
+class TipLabel(Label):
+    def __init__(self, parent=None, tip='', cursor='question_arrow', **kwargs):
+        super().__init__(parent, cursor=cursor, **kwargs)
+        CreateToolTip(self, tip)
+
+
+class TipCheckButton(ttk.Checkbutton):
+    def __init__(self, parent=None, tip='', cursor='question_arrow', onvalue=True, offvalue=False,
+                 style='MSCheckbutton.TCheckbutton', **kwargs):
+        super().__init__(parent, cursor=cursor, onvalue=onvalue, offvalue=offvalue, style=style, **kwargs)
+        CreateToolTip(self, tip)
 
 
 def run_engines(se, counterfactual_se, policy_se, q):
