@@ -183,6 +183,7 @@ class SimulationEngine:
         acs.loc[acs['nochildren']==1, 'need_matdis'] = 0
 
         # Conditional simulation - anypay, doctor, hospital for taker/needer sample
+        # TODO: use list comprehension to replace lambda
         acs['taker'] = acs[['take_%s' % t for t in self.types]].apply(lambda x: max(x), axis=1)
         acs['needer'] = acs[['need_%s' % t for t in self.types]].apply(lambda x: max(x), axis=1)
 
@@ -219,7 +220,7 @@ class SimulationEngine:
             acs = acs.join(yhat)
             acs.loc[acs['prop_pay'].notna(), 'prop_pay'] = acs.loc[acs['prop_pay'].notna(), 'prop_pay'].apply(lambda x: d_prop[x])
 
-        # Draw leave length for each type
+        # Draw status-quo leave length for each type
         # Without-program lengths - draw from FMLA-based distribution (pfl indicator = 0)
         # note: here, cumsum/bisect is 20% faster than np/choice.
         # But when simulate_wof applied as lambda to df, np/multinomial is 5X faster!
@@ -243,7 +244,7 @@ class SimulationEngine:
         for t in self.types:
             t0 = time()
             acs['mnl_%s' % t] = 0
-            # resp_len = 0 workers' mnl = sq length
+            # resp_len = 0 workers' mnl = status-quo length
             acs.loc[acs['resp_len']==0, 'mnl_%s' % t] = acs.loc[acs['resp_len']==0, 'len_%s' % t]
             # resp_len = 1 workers' mnl draw from length distribution conditional on new length > sq length
             dct_vw = {} # dict from sq length to possible greater length value, and associated weight of worker who provides the length
@@ -316,6 +317,35 @@ class SimulationEngine:
                 (acs['empsize']>=elig_empsizebin), 'elig_prog'] = 1
 
         acs = acs.drop(acs[acs['elig_prog']!=1].index)
+
+        ###########################################################################################
+        # Choice between employer and state benefits
+        # 1. A fraction (up to 100%) of workers can and choose to receive both employer/state benefits simultaneously
+        # 2. For matdis/bond, workers take leave length = mnl, regardless of replacement ratio levels
+        # 3. For other 4 types, workers take leave length in [sq-len, mnl], based on replacement ratio
+
+        # 4. At status-quo, total length taken = sum over take_type over 4 types.
+        # At 100% replacement, total length taken = sum over mnl_type over 4 types.
+
+        # 5. Regardless of simultaneous/sequential use of emp/gov benefits, for the 4 types we have
+        # an 'area-under-replacement' AUR = total wage replacement during MNL of the 4 types.
+        # When AUR = 0, total length over 4 types = sum(sq-lens for 4 types) = L0
+        # When AUR = 100%, total length over 4 types = sum(mnl for 4 types) = L1
+        # When AUR in (0, 100%), total length over 4 types = L0 + AUR*(L1-L0) = L
+
+
+        # 3. assume employer benefit is 15 days at ratio=rre for 4 types
+
+        # 4. For double-users, ratio can take different values over course of leave, solving worker choice is hard
+        # To simplify, assume leave taken under program is random draw from (sq-length, mnl)
+
+
+        # 3. For workers at workplace that does not allow simultaneous benefits:
+        # --3a: if employer benefit is zero, take state benefit
+        # --3b: if employer benefit has higher replacement ratio, take employer benefit
+        # --3c: if employer benefit has ratio in (0, state ratio), take state benefit if
+
+        ###########################################################################################
 
         # assumption 1: choice between employer and state benefits
         # rre, rrp = replacement ratio of employer, of state
