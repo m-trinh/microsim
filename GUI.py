@@ -58,6 +58,10 @@ class MicrosimGUI(Tk):
         self.position_window()
         self.original_height = self.winfo_height()
 
+        self.abf_module = None
+        self.results_windows = []
+        self.progress_windows = []
+
         # TODO: Remove
         # --------- TEST ONLY -------------
         self.variables['fmla_file'].set('./data/fmla_2012/fmla_2012_employee_restrict_puf.csv')
@@ -174,7 +178,12 @@ class MicrosimGUI(Tk):
         self.geometry('%dx%d+%d+%d' % (ww, wh, x, y))
 
     def on_close(self):
+        for w in self.progress_windows:
+            w.destroy()
+        for w in self.results_windows:
+            w.destroy()
         self.destroy()
+        exit(0)
 
     def set_existing_parameters(self, *_):
         # Change all relevant parameters to match an existing state program
@@ -220,12 +229,13 @@ class MicrosimGUI(Tk):
 
         self.counterfactual_se = counterfactual_se
         self.run_button.config(state=DISABLED, bg='#99d6ff')
-        self.progress_window = ProgressWindow(self, se, counterfactual_se, policy_se)
+        progress_window = ProgressWindow(self, se, counterfactual_se, policy_se)
+        self.progress_windows.append(progress_window)
         # Run model
         engine_process = multiprocessing.Process(None, target=run_engines, args=(se, counterfactual_se, policy_se, q))
         engine_process.start()
 
-        self.progress_window.update_progress(q)
+        progress_window.update_progress(q)
 
     def show_results(self):
         # compute program costs
@@ -233,18 +243,11 @@ class MicrosimGUI(Tk):
         costs = self.se.get_cost_df()
 
         total_benefits = list(costs.loc[costs['type'] == 'total', 'cost'])[0]
-        self.abf_module = ABF(self.se.get_results(), self.settings, total_benefits)
-        abf_output, pivot_tables = self.abf_module.run()
+        abf_module = ABF(self.se.get_results(), self.settings, total_benefits)
 
-        self.results_window = ResultsWindow(self, self.se, abf_output, pivot_tables,
-                                            counterfactual_engine=self.counterfactual_se, policy_engine=self.policy_se)
+        self.results_windows.append(ResultsWindow(self, self.se, abf_module, policy_engine=self.policy_se,
+                                                  counterfactual_engine=self.counterfactual_se))
         self.run_button.config(state=NORMAL, bg=self.theme_color)
-
-    def run_abf(self):
-        abf_output, pivot_tables = self.abf_module.rerun(self.settings)
-        # self.results_window.update_abf_output(abf_output)
-        # self.results_window.update_pivot_tables(pivot_tables)
-        self.results_window.update_abf_output(abf_output, pivot_tables)
 
     # Create an object with all of the setting values
     def __create_settings(self):
@@ -639,10 +642,12 @@ class SettingsNotebook(ttk.Notebook):
         self.set_scroll_region(event.height - 30)
 
     def hide_advanced_parameters(self):
+        self.program_frame.hide_advanced_parameters()
         self.population_frame.hide_advanced_parameters()
         self.simulation_frame.hide_advanced_parameters()
 
     def show_advanced_parameters(self):
+        self.program_frame.show_advanced_parameters()
         self.population_frame.show_advanced_parameters()
         self.simulation_frame.show_advanced_parameters()
 
@@ -1062,8 +1067,7 @@ class SimulationFrame(NotebookFrame):
 
 
 class ResultsWindow(Toplevel):
-    def __init__(self, parent, simulation_engine, abf_output, pivot_tables, counterfactual_engine=None,
-                 policy_engine=None):
+    def __init__(self, parent, simulation_engine, abf_module, counterfactual_engine=None, policy_engine=None):
         super().__init__(parent)
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.icon = PhotoImage(file='impaq_logo.gif')
@@ -1085,6 +1089,8 @@ class ResultsWindow(Toplevel):
         self.notebook.add(self.summary_frame, text='Summary')
         print('Finished adding summary frame to notebook')
 
+        self.abf_module = abf_module
+        abf_output, pivot_tables = self.abf_module.run()
         self.abf = Frame(self.notebook, bg=self.notebook_bg)
         self.abf_canvas = Canvas(self.abf, bg=self.dark_bg)
         self.abf_info = Frame(self.abf, bg=self.dark_bg)
@@ -1111,7 +1117,7 @@ class ResultsWindow(Toplevel):
                                         background='#00e600')
         self.abf_params_hide.pack(side=LEFT, pady=3, padx=5)
         self.run_button = MSButton(self.abf_params_buttons, font='-size 12 -weight bold', text="Run ABF",
-                                   command=parent.run_abf, padx=4)
+                                   command=self.rerun_abf, padx=4)
         self.run_button.pack(side=RIGHT, pady=3, padx=5)
         self.notebook.add(self.abf, text="Benefit Financing")
 
@@ -1271,6 +1277,12 @@ class ResultsWindow(Toplevel):
             graphs.append(fig_pivot)
 
         return graphs
+
+    def rerun_abf(self):
+        abf_output, pivot_tables = self.abf_module.rerun(self.parent.settings)
+        # self.results_window.update_abf_output(abf_output)
+        # self.results_window.update_pivot_tables(pivot_tables)
+        self.update_abf_output(abf_output, pivot_tables)
 
     def save_file(self, figure):
         filename = filedialog.asksaveasfilename(defaultextension='.png', initialdir=os.getcwd(),
@@ -1448,6 +1460,7 @@ class ProgressWindow(Toplevel):
         super().__init__(parent)
         self.icon = PhotoImage(file='impaq_logo.gif')
         self.tk.call('wm', 'iconphoto', self._w, self.icon)
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
 
         self.parent = parent
         self.se = se
@@ -1533,6 +1546,9 @@ class ProgressWindow(Toplevel):
         self.minsize(ww, wh)
 
         self.geometry('%dx%d+%d+%d' % (ww, wh, x, y))
+
+    def on_close(self):
+        self.destroy()
 
 
 # From StackOverflow: https://stackoverflow.com/questions/3221956/how-do-i-display-tooltips-in-tkinter
