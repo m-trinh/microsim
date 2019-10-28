@@ -36,11 +36,11 @@ class SimulationEngine:
         self.yr = yr
         self.fp_fmla_in = fps_in[0]
         self.fp_cps_in = fps_in[1]
-        self.fp_acsh_in = fps_in[2] # directory only for raw ACS household file, excl. csv file ext
-        self.fp_acsp_in = fps_in[3] # directory only for raw ACS person file, excl. csv file ext
+        self.fp_acsh_in = fps_in[2] # directory only for ACS household file
+        self.fp_acsp_in = fps_in[3] # directory only for ACS person file
         self.fp_fmla_out = fps_out[0]
         self.fp_cps_out = fps_out[1]
-        self.fp_acs_out = fps_out[2] # directory only for cleaned ACS file, excl. csv file ext
+        self.fp_acs_out = fps_out[2] # directory only for cleaned ACS file
         self.fp_length_distribution_out = fps_out[3]
         self.clf_name = clf_name
         self.elig_wage12 = prog_para[0] # min annual wage
@@ -56,6 +56,9 @@ class SimulationEngine:
         self.incl_empgov_loc = prog_para[10]
         self.incl_empself = prog_para[11]
         self.sim_method = prog_para[12]
+        self.needers_fully_participate = prog_para[13]
+        self.state_of_work = prog_para[14]
+        self.weight_factor = prog_para[15]
 
         # leave types
         self.types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
@@ -141,7 +144,7 @@ class SimulationEngine:
 
         self.__put_queue({'type': 'message', 'engine': self.engine_type,
                           'value': 'Cleaning ACS data. State chosen = RI. Chunk size = 100000 ACS rows'})
-        dca = DataCleanerACS(self.st, self.yr, self.fp_acsh_in, self.fp_acsp_in, self.fp_acs_out)
+        dca = DataCleanerACS(self.st, self.yr, self.fp_acsh_in, self.fp_acsp_in, self.fp_acs_out, self.state_of_work)
         dca.load_data()
         message = dca.clean_person_data()
         self.__put_queue({'type': 'progress', 'engine': self.engine_type, 'value': 60})
@@ -308,7 +311,7 @@ class SimulationEngine:
         # keep only eligible population
         acs = acs.drop(acs[acs['elig_prog'] != 1].index)
 
-        # Given fraction of double receiver x, simulate double/single receiver status
+        # Given fraction of dual receiver x, simulate dual/single receiver status
         # With state program:
         # if anypay = 0, must be single receiver
         # let %(anypay=0) = a, %single-receiver specified must satisfy (1-x) >= a, i.e. x <= (1-a)
@@ -318,50 +321,58 @@ class SimulationEngine:
         # simulate double receiver status
         # we need x/(1-a) share of double receiver from (1-a) of all eligible workers who have anypay=1
         acs['z'] = [random.random() for x in range(len(acs))]
-        acs['double_receiver'] = (acs['z'] < (x / (1 - s_no_emp_pay))).astype(int)
-        acs.loc[acs['anypay'] == 0, 'double_receiver'] = 0
+        acs['dual_receiver'] = (acs['z'] < (x / (1 - s_no_emp_pay))).astype(int)
+        acs.loc[acs['anypay'] == 0, 'dual_receiver'] = 0
         # treat each ACS row equally and check if post-sim weighted share = x
         # using even a small state RI shows close to equality
-        s_double_receiver = acs[acs['double_receiver'] == 1]['PWGTP'].sum() / acs['PWGTP'].sum()
-        s_double_receiver = round(s_double_receiver, 2)
-        print('Specified share of double-receiver = %s. Post-sim weighted share = %s' % (x, s_double_receiver))
+        s_dual_receiver = acs[acs['dual_receiver'] == 1]['PWGTP'].sum() / acs['PWGTP'].sum()
+        s_dual_receiver = round(s_dual_receiver, 2)
+        print('Specified share of dual-receiver = %s. Post-sim weighted share = %s' % (x, s_dual_receiver))
 
-        # Simulate counterfactual leave lengths (cf-len) for double receivers
+        # Simulate counterfactual leave lengths (cf-len) for dual receivers
         # Given cf-len, get cp-len
+        # With program, effective rr =min(rre+rrp, 1), assuming responsiveness diminishes if full replacement attainable
         for t in self.types:
             acs['cfl_%s' % t] = np.nan
-            acs.loc[acs['double_receiver'] == 1, 'cfl_%s' % t] = \
-                acs.loc[acs['double_receiver'] == 1, 'len_%s' % t] + (acs.loc[
-                                                                          acs['double_receiver'] == 1, 'mnl_%s' % t] -
+            ## Get cf-len for dual receivers
+            # use [(rre, sql), (1, mnl)] to interpolate cfl at rre+rrp, regardless rre+rrp<1 or not
+            acs.loc[acs['dual_receiver'] == 1, 'cfl_%s' % t] = \
+                acs.loc[acs['dual_receiver'] == 1, 'len_%s' % t] + (acs.loc[
+                                                                          acs['dual_receiver'] == 1, 'mnl_%s' % t] -
                                                                       acs.loc[
-                                                                          acs['double_receiver'] == 1, 'len_%s' % t]) \
-                                                                     * (0.5 * self.rrp) / (1 - 0.5 * acs.loc[
-                    acs['double_receiver'] == 1, 'prop_pay'])
-            # Get covered-by-program leave lengths (cp-len) for double receivers
-            acs.loc[acs['double_receiver'] == 1, 'cpl_%s' % t] = acs.loc[acs['double_receiver'] == 1, 'cfl_%s' % t] * \
+                                                                          acs['dual_receiver'] == 1, 'len_%s' % t]) \
+                                                                     * self.rrp / (1 - acs.loc[
+                    acs['dual_receiver'] == 1, 'prop_pay'])
+            # if rre+rrp>=1, set cfl = mnl
+            acs.loc[(acs['dual_receiver'] == 1) & (acs['prop_pay'] >= 1-self.rrp), 'cfl_%s' % t] = \
+                acs.loc[(acs['dual_receiver'] == 1) & (acs['prop_pay'] >= 1-self.rrp), 'mnl_%s' % t]
+            ## Get covered-by-program leave lengths (cp-len) for dual receivers
+            # allocate cf-len between employer and state according to rre/rrp ratio
+            acs.loc[acs['dual_receiver'] == 1, 'cpl_%s' % t] = acs.loc[acs['dual_receiver'] == 1, 'cfl_%s' % t] * \
                                                                  self.rrp / (
-                self.rrp + acs.loc[acs['double_receiver'] == 1, 'prop_pay'])
+                self.rrp + acs.loc[acs['dual_receiver'] == 1, 'prop_pay'])
+
 
         # Simulate cf-len for single receivers
         # Given cf-len, get cp-len
         for t in self.types:
             # single receiver, rrp>rre. Assume will use state program benefit to replace employer benefit
-            acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'cfl_%s' % t] = \
-                acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'len_%s' % t] + \
-                (acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'mnl_%s' % t] -
-                 acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'len_%s' % t]) * \
-                (self.rrp - acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'prop_pay']) / \
-                (1 - acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'prop_pay'])
+            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'cfl_%s' % t] = \
+                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'len_%s' % t] + \
+                (acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'mnl_%s' % t] -
+                 acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'len_%s' % t]) * \
+                (self.rrp - acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'prop_pay']) / \
+                (1 - acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'prop_pay'])
             # single receiver, rrp<=rre. Assume will not use any state program benefit
             # so still using same employer benefit as status-quo, thus cf-len = sq-len
-            acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] >= self.rrp), 'cfl_%s' % t] = \
-                acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] >= self.rrp), 'len_%s' % t]
+            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >= self.rrp), 'cfl_%s' % t] = \
+                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >= self.rrp), 'len_%s' % t]
             # Get covered-by-program leave lengths (cp-len) for single receivers
             # if rrp>rre, cp-len = cf-len
-            acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'cpl_%s' % t] = \
-                acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'cfl_%s' % t]
+            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'cpl_%s' % t] = \
+                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'cfl_%s' % t]
             # if rrp<=rre, cp-len = 0
-            acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] >= self.rrp), 'cpl_%s' % t] = 0
+            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >= self.rrp), 'cpl_%s' % t] = 0
             # set cp-len = 0 if missing
             acs.loc[acs['cpl_%s' % t].isna(), 'cpl_%s' % t] = 0
 
@@ -378,6 +389,29 @@ class SimulationEngine:
         self.__put_queue({'type': 'message', 'engine': self.engine_type, 'value': message})
         return acs
 
+    def get_adjusted_weight(self, takeup_factor, acs, col_w='PWGTP'):
+        ## Adjust weights per user input
+        ## w = acs weight col
+        ## takeup_factor = type-specific takeup factor
+        ## acs = post-sim acs
+        ## col_w = ACS weight col to use, default is PWGTP, could be rep-w cols like PWGTP1...80, etc.
+
+        # get raw weight
+        w = acs[col_w]
+        # takeup factor - multiplier on ACS row (incl. non-participants) to reach user-specified takeup rates
+        w = w * takeup_factor
+        # needers_fully_participate - if True, then apply selective multiplier=1 on ACS rows with needer = 1
+        if self.needers_fully_participate:
+            w = [x[1] if x[0] == 1 else x[1] * takeup_factor for x in acs[['needer', col_w]].values]
+            w = np.array(w)
+        # state_of_work - multiplier to account for 'missing workers' with missing POW data in ACS
+        if self.state_of_work:
+            w = w * self.pow_pop_multiplier
+        # weight_factor - multiplier to account for user-specified weight factor (e.g. pop growth)
+        w = w * self.weight_factor
+        return w
+
+
     def get_cost(self):
         # read simulated ACS
         acs = pd.read_csv('%s/acs_sim_%s.csv' % (self.output_directory, self.out_id))
@@ -392,7 +426,22 @@ class SimulationEngine:
             # so pop take = total pop * official take up
             # takeup normalization factor = pop take / pop of ACS rows where take up occurs for leave type
             takeup_factor = acs['PWGTP'].sum() * self.d_takeup[t] / acs[acs['cpl_%s' % t] > 0]['PWGTP'].sum()
-            w = acs['PWGTP'] * takeup_factor
+            # get adjusted weight
+            w = self.get_adjusted_weight(takeup_factor, acs)
+
+            # # apply takeup factor to weights
+            # # if needers_fully_participate = 1 is chosen, for needers takeup factor = 1
+            # w = acs['PWGTP'] * takeup_factor
+            # if self.needers_fully_participate:
+            #     w = [x[1] if x[0]==1 else x[1]*takeup_factor for x in acs[['needer', 'PWGTP']].values]
+            #     w = np.array(w)
+            # # apply pow_pop_multiplier if state_of_work is True
+            # if self.state_of_work:
+            #     w = w * self.pow_pop_multiplier
+            # # apply weight factor
+            # w = w * self.weight_factor
+
+            # get program cost for leave type t - sumprod of capped benefit and adjusted weight for each ACS row
             costs[t] = (v * w).sum()
         costs['total'] = sum(list(costs.values()))
 
@@ -404,7 +453,9 @@ class SimulationEngine:
                 v = [min(x, self.wkbene_cap) for x in
                      ((acs['cpl_%s' % t] / 5) * (acs['wage12'] / acs['wkswork'] * self.rrp))]
                 takeup_factor = acs[wt].sum() * self.d_takeup[t] / acs[acs['cpl_%s' % t] > 0][wt].sum()
-                w = acs[wt] * takeup_factor
+                # get adjusted weight
+                w = self.get_adjusted_weight(takeup_factor, acs, col_w=wt)
+                #w = acs[wt] * takeup_factor
                 costs_rep[t] = (v * w).sum()
             costs_rep['total'] = sum(list(costs_rep.values()))
             for k in costs_rep.keys():

@@ -80,7 +80,7 @@ class Settings:
     def __init__(self, fmla_file=None, acs_directory=None, output_directory=None, detail=None, state=None,
                  simulation_method=None, benefit_effect=False, calibrate=True, clone_factor=1, se_analysis=False,
                  extend=False, fmla_protection_constraint=False, replacement_ratio=0.5, government_employees=True,
-                 needers_fully_participate=False, random_seed=False, self_employed=False, state_of_work=False,
+                 needers_fully_participate=False, random_seed=False, self_employed=False, state_of_work=True,
                  top_off_rate=0, top_off_min_length=0, weekly_ben_cap=99999999, weight_factor=1,
                  eligible_earnings=11520, eligible_weeks=1, eligible_hours=1, eligible_size=1, max_weeks=None,
                  take_up_rates=None, leave_probability_factors=None, payroll_tax=1, benefits_tax=False,

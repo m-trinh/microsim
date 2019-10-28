@@ -270,8 +270,12 @@ class MicrosimGUI(Tk):
         yr = 16
         fp_fmla_in = settings.fmla_file
         fp_cps_in = './data/cps/CPS2014extract.csv'
-        fp_acsh_in = settings.acs_directory + '/pow_household_files'
-        fp_acsp_in = settings.acs_directory + '/pow_person_files'
+        fp_acsh_in = settings.acs_directory + '/household_files'
+        fp_acsp_in = settings.acs_directory + '/person_files'
+        state_of_work = settings.state_of_work
+        if state_of_work:
+            fp_acsh_in = settings.acs_directory + '/pow_household_files'
+            fp_acsp_in = settings.acs_directory + '/pow_person_files'
         fp_fmla_out = './data/fmla_2012/fmla_clean_2012.csv'
         fp_cps_out = './data/cps/cps_for_acs_sim.csv'
         fp_acs_out = './data/acs/'
@@ -317,9 +321,13 @@ class MicrosimGUI(Tk):
         incl_empgov_loc = settings.local_employees
         incl_empself = settings.self_employed
         sim_method = settings.simulation_method
+        needers_fully_participate = settings.needers_fully_participate
+        #state_of_work value see above next to fp_acsh_in/fp_acsp_in
+        weight_factor = settings.weight_factor
 
         prog_para = [elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp, wkbene_cap, d_maxwk, d_takeup,
-                     incl_empgov_fed, incl_empgov_st, incl_empgov_loc, incl_empself, sim_method]
+                     incl_empgov_fed, incl_empgov_st, incl_empgov_loc, incl_empself, sim_method,
+                     needers_fully_participate, state_of_work, weight_factor]
 
         return SimulationEngine(st, yr, fps_in, fps_out, clf_name, prog_para, engine_type=engine_type, q=q)
 
@@ -362,13 +370,14 @@ class MicrosimGUI(Tk):
                            self.settings_notebook.program_frame.weekly_ben_cap_input,
                            self.settings_notebook.population_frame.top_off_min_length_input,
                            self.settings_notebook.simulation_frame.clone_factor_input,
-                           self.settings_notebook.simulation_frame.weight_factor_input,
                            self.settings_notebook.program_frame.max_taxable_earnings_per_person_input,
                            self.settings_notebook.program_frame.total_taxable_earnings_input]
         integer_entries += [entry for entry in self.settings_notebook.program_frame.max_weeks_inputs]
 
         float_entries = [self.settings_notebook.program_frame.payroll_tax_input,
-                         self.settings_notebook.program_frame.average_state_tax_input]
+                         self.settings_notebook.program_frame.average_state_tax_input,
+                         self.settings_notebook.simulation_frame.weight_factor_input,
+                         ]
 
         rate_entries = [self.settings_notebook.program_frame.replacement_ratio_input,
                         self.settings_notebook.population_frame.top_off_rate_input]

@@ -195,20 +195,6 @@ acs.loc[acs['nochildren'] == 1, 'mnl_matdis'] = 0
 # print('All MNL sim done. TElapsed = %s' % (time()-T0))
 
 # Compute program cost
-# TODO: takeup rates denominator = all eligible OR all who choose prog? Table 1&2 of ACM doc, back out pay schedule
-
-# elig_wage12 = 3440
-# elig_wkswork = 20
-# elig_yrhours = 1
-# elig_empsizebin = 1
-# rrp = 0.67
-# wkbene_cap = 650
-# d_maxwk = dict(zip(self.types, 6*np.ones(6)))
-# d_takeup = dict(zip(self.types, 1*np.ones(6)))
-# incl_empgov = False
-# incl_empself = False
-
-# get individual cost
 # sample restriction
 acs = acs.drop(acs[(acs['taker'] == 0) & (acs['needer'] == 0)].index)
 
@@ -221,7 +207,7 @@ if not se.incl_empgov_loc:
 if not se.incl_empself:
     acs = acs.drop(acs[(acs['COW'] == 6) | (acs['COW'] == 7)].index)
 
-# program eligibility - TODO: port to GUI input, program eligibility determinants
+# program eligibility
 acs['elig_prog'] = 0
 
 elig_empsizebin = 0
