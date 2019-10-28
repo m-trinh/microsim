@@ -18,7 +18,7 @@ import csv
 from _1_clean_FMLA import DataCleanerFMLA
 from _4_clean_ACS import DataCleanerACS
 from Utils import format_chart
-
+import random
 
 class SimulationEngine:
 
@@ -82,6 +82,11 @@ class SimulationEngine:
         else:
             self.output_directory = './output/output_%s_%s' % (self.out_id, self.engine_type)
 
+        # POW population weight multiplier
+        # TODO: wrap this with Weight Factor in GUI, and apply final factor to get_cost()
+        self.pow_pop_multiplier = 1.0217029934467345 # based on 2012-2016 ACS, see project acs_all
+
+
     def save_program_parameters(self):
 
         # create output folder
@@ -144,13 +149,11 @@ class SimulationEngine:
         return None
 
     def get_acs_simulated(self):
-
-        # Set up timer
         tsim = time()
 
         # Read in cleaned ACS and FMLA data, and FMLA-based length distribution
         acs = pd.read_csv(self.fp_acs_out + 'ACS_cleaned_forsimulation_20%s_%s.csv' % (self.yr, self.st))
-        pfl = 'non-PFL' # status of PFL as of ACS sample period
+        pfl = 'non-PFL'  # status of PFL as of ACS sample period
         d = pd.read_csv(self.fp_fmla_out, low_memory=False)
         with open(self.fp_length_distribution_out) as f:
             flen = json.load(f)
@@ -169,40 +172,39 @@ class SimulationEngine:
             tt = time()
             y = d[c]
             acs = acs.join(get_sim_col(X, y, w, Xa, clf))
-            #print('Simulation of col %s done. Time elapsed = %s' % (c, (time()-tt)))
-        #print('6+6+1 simulated. Time elapsed = %s' % (time()-t0))
+            print('Simulation of col %s done. Time elapsed = %s' % (c, (time() - tt)))
+        print('6+6+1 simulated. Time elapsed = %s' % (time() - t0))
 
         # Post-simluation logic control
-        acs.loc[acs['male']==1, 'take_matdis']=0
-        acs.loc[acs['male']==1, 'need_matdis']=0
-        acs.loc[(acs['nevermarried']==1) | (acs['divorced']==1), 'take_illspouse'] = 0
-        acs.loc[(acs['nevermarried']==1) | (acs['divorced']==1), 'need_illspouse'] = 0
-        acs.loc[acs['nochildren']==1, 'take_bond'] = 0
-        acs.loc[acs['nochildren']==1, 'need_bond'] = 0
-        acs.loc[acs['nochildren']==1, 'take_matdis'] = 0
-        acs.loc[acs['nochildren']==1, 'need_matdis'] = 0
+        acs.loc[acs['male'] == 1, 'take_matdis'] = 0
+        acs.loc[acs['male'] == 1, 'need_matdis'] = 0
+        acs.loc[(acs['nevermarried'] == 1) | (acs['divorced'] == 1), 'take_illspouse'] = 0
+        acs.loc[(acs['nevermarried'] == 1) | (acs['divorced'] == 1), 'need_illspouse'] = 0
+        acs.loc[acs['nochildren'] == 1, 'take_bond'] = 0
+        acs.loc[acs['nochildren'] == 1, 'need_bond'] = 0
+        acs.loc[acs['nochildren'] == 1, 'take_matdis'] = 0
+        acs.loc[acs['nochildren'] == 1, 'need_matdis'] = 0
 
         # Conditional simulation - anypay, doctor, hospital for taker/needer sample
-        # TODO: use list comprehension to replace lambda
-        acs['taker'] = acs[['take_%s' % t for t in self.types]].apply(lambda x: max(x), axis=1)
-        acs['needer'] = acs[['need_%s' % t for t in self.types]].apply(lambda x: max(x), axis=1)
-
-        X = d[(d['taker']==1) | (d['needer']==1)][col_Xs]
+        acs['taker'] = [max(z) for z in acs[['take_%s' % t for t in self.types]].values]
+        acs['needer'] = [max(z) for z in acs[['need_%s' % t for t in self.types]].values]
+        X = d[(d['taker'] == 1) | (d['needer'] == 1)][col_Xs]
         w = d.loc[X.index][col_w]
-        Xa = acs[(acs['taker']==1) | (acs['needer']==1)][X.columns]
-        if len(Xa)==0:
-            pass
+        Xa = acs[(acs['taker'] == 1) | (acs['needer'] == 1)][X.columns]
+        if len(Xa) == 0:
+            print('Warning: Neither leave taker nor leave needer present in simulated ACS persons. '
+                  'Simulation gives degenerate scenario of zero leaves for all workers.')
         else:
             for c in ['anypay', 'doctor', 'hospital']:
                 y = d.loc[X.index][c]
                 acs = acs.join(get_sim_col(X, y, w, Xa, clf))
             # Post-simluation logic control
-            acs.loc[acs['hospital']==1, 'doctor'] = 1
+            acs.loc[acs['hospital'] == 1, 'doctor'] = 1
 
         # Conditional simulation - prop_pay for anypay=1 sample
-        X = d[(d['anypay']==1) & (d['prop_pay'].notna())][col_Xs]
+        X = d[(d['anypay'] == 1) & (d['prop_pay'].notna())][col_Xs]
         w = d.loc[X.index][col_w]
-        Xa = acs[acs['anypay']==1][X.columns]
+        Xa = acs[acs['anypay'] == 1][X.columns]
         # a dict from prop_pay int category to numerical prop_pay value
         # int category used for phat 'p_0', etc. in get_sim_col
         v = d.prop_pay.value_counts().sort_index().index
@@ -210,15 +212,16 @@ class SimulationEngine:
         d_prop = dict(zip(k, v))
         D_prop = dict(zip(v, k))
 
-        if len(Xa)==0:
+        if len(Xa) == 0:
             pass
         else:
-            y = d.loc[X.index]['prop_pay'].apply(lambda x: D_prop[x])
+            y = [D_prop[x] for x in d.loc[X.index]['prop_pay']]
             yhat = get_sim_col(X, y, w, Xa, clf)
             # prop_pay labels are from 1 to 6, get_sim_col() vectorization sum gives 0~5, increase label by 1
             yhat = pd.Series(data=yhat.values + 1, index=yhat.index, name='prop_pay')
             acs = acs.join(yhat)
-            acs.loc[acs['prop_pay'].notna(), 'prop_pay'] = acs.loc[acs['prop_pay'].notna(), 'prop_pay'].apply(lambda x: d_prop[x])
+            acs.loc[acs['prop_pay'].notna(), 'prop_pay'] = [d_prop[x] for x in
+                                                            acs.loc[acs['prop_pay'].notna(), 'prop_pay']]
 
         # Draw status-quo leave length for each type
         # Without-program lengths - draw from FMLA-based distribution (pfl indicator = 0)
@@ -227,16 +230,16 @@ class SimulationEngine:
         t0 = time()
         for t in self.types:
             acs['len_%s' % t] = 0
-            n_lensim = len(acs.loc[acs['take_%s' % t]==1]) # number of acs workers who need length simulation
-            #print(n_lensim)
-            ps = [x[1] for x in flen[pfl][t]] # prob vector of length of type t
+            n_lensim = len(acs.loc[acs['take_%s' % t] == 1])  # number of acs workers who need length simulation
+            # print(n_lensim)
+            ps = [x[1] for x in flen[pfl][t]]  # prob vector of length of type t
             cs = np.cumsum(ps)
-            lens = [] # initiate list of lengths
+            lens = []  # initiate list of lengths
             for i in range(n_lensim):
                 lens.append(flen[pfl][t][bisect.bisect(cs, np.random.random())][0])
-            acs.loc[acs['take_%s' % t]==1, 'len_%s' % t] = np.array(lens)
-            #print('mean = %s' % acs['len_%s' % t].mean())
-        #print('te: sq length sim = %s' % (time()-t0))
+            acs.loc[acs['take_%s' % t] == 1, 'len_%s' % t] = np.array(lens)
+            # print('mean = %s' % acs['len_%s' % t].mean())
+        # print('te: sq length sim = %s' % (time()-t0))
 
         # Max needed lengths (mnl) - draw from simulated without-program length distribution
         # conditional on max length >= without-program length
@@ -245,174 +248,131 @@ class SimulationEngine:
             t0 = time()
             acs['mnl_%s' % t] = 0
             # resp_len = 0 workers' mnl = status-quo length
-            acs.loc[acs['resp_len']==0, 'mnl_%s' % t] = acs.loc[acs['resp_len']==0, 'len_%s' % t]
+            acs.loc[acs['resp_len'] == 0, 'mnl_%s' % t] = acs.loc[acs['resp_len'] == 0, 'len_%s' % t]
             # resp_len = 1 workers' mnl draw from length distribution conditional on new length > sq length
-            dct_vw = {} # dict from sq length to possible greater length value, and associated weight of worker who provides the length
+            dct_vw = {}  # dict from sq length to possible greater length value, and associated weight of worker who provides the length
             x_max = acs['len_%s' % t].max()
             for x in acs['len_%s' % t].value_counts().index:
-                if x<x_max:
-                    dct_vw[x] = acs[(acs['len_%s' % t] > x)][['len_%s' % t, 'PWGTP']].groupby(by='len_%s' % t)['PWGTP'].sum().reset_index()
+                if x < x_max:
+                    dct_vw[x] = acs[(acs['len_%s' % t] > x)][['len_%s' % t, 'PWGTP']].groupby(by='len_%s' % t)[
+                        'PWGTP'].sum().reset_index()
                     mx = len(acs[(acs['resp_len'] == 1) & (acs['len_%s' % t] == x)])
                     vxs = np.random.choice(dct_vw[x]['len_%s' % t], mx, p=dct_vw[x]['PWGTP'] / dct_vw[x]['PWGTP'].sum())
-                    acs.loc[(acs['resp_len']==1) & (acs['len_%s' % t]==x), 'mnl_%s' % t] = vxs
+                    acs.loc[(acs['resp_len'] == 1) & (acs['len_%s' % t] == x), 'mnl_%s' % t] = vxs
                 else:
-                    acs.loc[(acs['resp_len']==1) & (acs['len_%s' % t]==x), 'mnl_%s' % t] = x*1.25
-            #print('mean = %s. MNL sim done for type %s. telapse = %s' % (acs['mnl_%s' % t].mean(), t, (time()-t0)))
+                    acs.loc[(acs['resp_len'] == 1) & (acs['len_%s' % t] == x), 'mnl_%s' % t] = x * 1.25
+                    # print('mean = %s. MNL sim done for type %s. telapse = %s' % (acs['mnl_%s' % t].mean(), t, (time()-t0)))
 
         # logic control of mnl
-        acs.loc[acs['male']==1, 'mnl_matdis']=0
-        acs.loc[(acs['nevermarried']==1) | (acs['divorced']==1), 'mnl_illspouse'] = 0
-        acs.loc[acs['nochildren']==1, 'mnl_bond'] = 0
-        acs.loc[acs['nochildren']==1, 'mnl_matdis'] = 0
+        acs.loc[acs['male'] == 1, 'mnl_matdis'] = 0
+        acs.loc[(acs['nevermarried'] == 1) | (acs['divorced'] == 1), 'mnl_illspouse'] = 0
+        acs.loc[acs['nochildren'] == 1, 'mnl_bond'] = 0
+        acs.loc[acs['nochildren'] == 1, 'mnl_matdis'] = 0
 
-        #print('All MNL sim done. TElapsed = %s' % (time()-T0))
+        # print('All MNL sim done. TElapsed = %s' % (time()-T0))
 
-        # Compute program cost
-        # TODO: takeup rates denominator = all eligible OR all who choose prog? Table 1&2 of ACM doc, back out pay schedule
-
-        # elig_wage12 = 3440
-        # elig_wkswork = 20
-        # elig_yrhours = 1
-        # elig_empsizebin = 1
-        # rrp = 0.67
-        # wkbene_cap = 650
-        # d_maxwk = dict(zip(self.types, 6*np.ones(6)))
-        # d_takeup = dict(zip(self.types, 1*np.ones(6)))
-        # incl_empgov = False
-        # incl_empself = False
-
-        # get individual cost
         # sample restriction
-        acs = acs.drop(acs[(acs['taker']==0) & (acs['needer']==0)].index)
+        acs = acs.drop(acs[(acs['taker'] == 0) & (acs['needer'] == 0)].index)
 
         if not self.incl_empgov_fed:
-            acs = acs.drop(acs[acs['empgov_fed']==1].index)
+            acs = acs.drop(acs[acs['empgov_fed'] == 1].index)
         if not self.incl_empgov_st:
-            acs = acs.drop(acs[acs['empgov_st']==1].index)
+            acs = acs.drop(acs[acs['empgov_st'] == 1].index)
         if not self.incl_empgov_loc:
-            acs = acs.drop(acs[acs['empgov_loc']==1].index)
+            acs = acs.drop(acs[acs['empgov_loc'] == 1].index)
         if not self.incl_empself:
-            acs = acs.drop(acs[(acs['COW']==6) | (acs['COW']==7)].index)
+            acs = acs.drop(acs[(acs['COW'] == 6) | (acs['COW'] == 7)].index)
 
-        # program eligibility - TODO: port to GUI input, program eligibility determinants
+        # program eligibility
         acs['elig_prog'] = 0
 
         elig_empsizebin = 0
-        if 1<= self.elig_empsize < 10:
+        if 1 <= self.elig_empsize < 10:
             elig_empsizebin = 1
-        elif 10 <= self.elig_empsize <=49:
+        elif 10 <= self.elig_empsize <= 49:
             elig_empsizebin = 2
-        elif 50 <= self.elig_empsize <=99:
+        elif 50 <= self.elig_empsize <= 99:
             elig_empsizebin = 3
-        elif 100 <= self.elig_empsize <=499:
+        elif 100 <= self.elig_empsize <= 499:
             elig_empsizebin = 4
-        elif 500 <= self.elig_empsize <=999:
+        elif 500 <= self.elig_empsize <= 999:
             elig_empsizebin = 5
-        elif self.elig_empsize >=1000:
+        elif self.elig_empsize >= 1000:
             elig_empsizebin = 6
 
-        acs.loc[(acs['wage12']>=self.elig_wage12) &
-                (acs['wkswork']>=self.elig_wkswork) &
-                (acs['wkswork']*acs['wkhours']>=self.elig_yrhours) &
-                (acs['empsize']>=elig_empsizebin), 'elig_prog'] = 1
+        acs.loc[(acs['wage12'] >= self.elig_wage12) &
+                (acs['wkswork'] >= self.elig_wkswork) &
+                (acs['wkswork'] * acs['wkhours'] >= self.elig_yrhours) &
+                (acs['empsize'] >= elig_empsizebin), 'elig_prog'] = 1
 
-        acs = acs.drop(acs[acs['elig_prog']!=1].index)
+        # keep only eligible population
+        acs = acs.drop(acs[acs['elig_prog'] != 1].index)
 
-        ###########################################################################################
-        # Choice between employer and state benefits
-        # 1. A fraction (up to 100%) of workers can and choose to receive both employer/state benefits simultaneously
-        # 2. For matdis/bond, workers take leave length = mnl, regardless of replacement ratio levels
-        # 3. For other 4 types, workers take leave length in [sq-len, mnl], based on replacement ratio
+        # Given fraction of double receiver x, simulate double/single receiver status
+        # With state program:
+        # if anypay = 0, must be single receiver
+        # let %(anypay=0) = a, %single-receiver specified must satisfy (1-x) >= a, i.e. x <= (1-a)
+        s_no_emp_pay = acs[acs['anypay'] == 0]['PWGTP'].sum() / acs['PWGTP'].sum()
+        x = 0.6  # specified share of double receiver
+        x = min(1 - s_no_emp_pay, x)  # cap x at (1 - %(anypay=0))
+        # simulate double receiver status
+        # we need x/(1-a) share of double receiver from (1-a) of all eligible workers who have anypay=1
+        acs['z'] = [random.random() for x in range(len(acs))]
+        acs['double_receiver'] = (acs['z'] < (x / (1 - s_no_emp_pay))).astype(int)
+        acs.loc[acs['anypay'] == 0, 'double_receiver'] = 0
+        # treat each ACS row equally and check if post-sim weighted share = x
+        # using even a small state RI shows close to equality
+        s_double_receiver = acs[acs['double_receiver'] == 1]['PWGTP'].sum() / acs['PWGTP'].sum()
+        s_double_receiver = round(s_double_receiver, 2)
+        print('Specified share of double-receiver = %s. Post-sim weighted share = %s' % (x, s_double_receiver))
 
-        # 4. At status-quo, total length taken = sum over take_type over 4 types.
-        # At 100% replacement, total length taken = sum over mnl_type over 4 types.
-
-        # 5. Regardless of simultaneous/sequential use of emp/gov benefits, for the 4 types we have
-        # an 'area-under-replacement' AUR = total wage replacement during MNL of the 4 types.
-        # When AUR = 0, total length over 4 types = sum(sq-lens for 4 types) = L0
-        # When AUR = 100%, total length over 4 types = sum(mnl for 4 types) = L1
-        # When AUR in (0, 100%), total length over 4 types = L0 + AUR*(L1-L0) = L
-
-
-        # 3. assume employer benefit is 15 days at ratio=rre for 4 types
-
-        # 4. For double-users, ratio can take different values over course of leave, solving worker choice is hard
-        # To simplify, assume leave taken under program is random draw from (sq-length, mnl)
-
-
-        # 3. For workers at workplace that does not allow simultaneous benefits:
-        # --3a: if employer benefit is zero, take state benefit
-        # --3b: if employer benefit has higher replacement ratio, take employer benefit
-        # --3c: if employer benefit has ratio in (0, state ratio), take state benefit if
-
-        ###########################################################################################
-
-        # assumption 1: choice between employer and state benefits
-        # rre, rrp = replacement ratio of employer, of state
-        # if rre >= rrp, use employer pay indefinitely (assuming employer imposes no max period)
-        # if rre <  rrp, use employer pay if weekly wage*rre > state weekly cap (the larger weekly wage*rrp would be capped)
-        # so only case of using state benefits (thus induced to take longer leave) is rre < rrp and weekly wage*rre < cap
-        # TODO: assumption 1 perhaps too strict - use of employer pay may be limited by (shorter) max length!
-
-        # identify workers who have rre < rrp, and are 'uncapped' by state weekly benefit cap under current weekly wage and prop_pay
-        # thus would prefer state benefits over employer
-        acs['uncapped'] = True
-        acs['uncapped'] = ((acs['prop_pay'] < self.rrp) & (acs['wage12'] / acs['wkswork'] * acs['prop_pay'] < self.wkbene_cap))
-
-        # assumption 2: if using state benefits, choice of leave length is a function of replacement ratio
-        # at current rr = prop_pay, leave length = status-quo (sql), at 100% rr, leave length = max needed length (mnl)
-        # at proposed prog rr = rrp, if rrp> (1-prop_pay), then leave length = mnl. Leave length covered by program = mnl - sql
-        # OW, linearly interpolate at rr = (prop_pay + rrp). Leave length covered by program = sql+(mnl - sql)*(rrp-prop_pay)/(1-prop_pay)
-
-
-
-
-        # set prop_pay = 0 if missing (ie anypay = 0 in acs)
-        acs.loc[acs['prop_pay'].isna(), 'prop_pay'] = 0
-
-        # cpl: covered-by-program leave length, 6 types - derive by interpolation at rrp (between rre and 1)
+        # Simulate counterfactual leave lengths (cf-len) for double receivers
+        # Given cf-len, get cp-len
         for t in self.types:
-            # under assumptions 1 + 2:
-            # acs['cpl_%s' % t] = 0
-            # acs.loc[(acs['prop_pay'] < rrp) & (acs['uncapped']), 'cpl_%s' % t] = \
-            #     acs['len_%s' % t] + (acs['mnl_%s' % t] - acs['len_%s' % t]) * (rrp - acs['prop_pay'])/ (1-acs['prop_pay'])
+            acs['cfl_%s' % t] = np.nan
+            acs.loc[acs['double_receiver'] == 1, 'cfl_%s' % t] = \
+                acs.loc[acs['double_receiver'] == 1, 'len_%s' % t] + (acs.loc[
+                                                                          acs['double_receiver'] == 1, 'mnl_%s' % t] -
+                                                                      acs.loc[
+                                                                          acs['double_receiver'] == 1, 'len_%s' % t]) \
+                                                                     * (0.5 * self.rrp) / (1 - 0.5 * acs.loc[
+                    acs['double_receiver'] == 1, 'prop_pay'])
+            # Get covered-by-program leave lengths (cp-len) for double receivers
+            acs.loc[acs['double_receiver'] == 1, 'cpl_%s' % t] = acs.loc[acs['double_receiver'] == 1, 'cfl_%s' % t] * \
+                                                                 self.rrp / (
+                self.rrp + acs.loc[acs['double_receiver'] == 1, 'prop_pay'])
 
-            # assumption 1A: asssuming short max length of employer benefit, use state benefit if sq len >= 5/10 days regardless of rr value
-            # motivation: with leave need>=a week workers do not consider employer benefit like PTO but take program benefit
-            # if rre < rrp <=1, interpolation of leave length is possible
-            # if rre = 1, cannot interpolate length using rre/length relationship. These workers are likely due to bad need
-            # of leave length but no much of wage replacement. Assume cpl = mnl then apply max period cap.
-            # if rre >=rrp, workers make choice between get large rre over short period (say 5 days) VS
-            # get less rrp over longer period (mnl). To avoid underestimating cost, we assume all workers choose latter.
-            # under assumptions 1A + 2:
-            acs['cpl_%s' % t] = 0
+        # Simulate cf-len for single receivers
+        # Given cf-len, get cp-len
+        for t in self.types:
+            # single receiver, rrp>rre. Assume will use state program benefit to replace employer benefit
+            acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'cfl_%s' % t] = \
+                acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'len_%s' % t] + \
+                (acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'mnl_%s' % t] -
+                 acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'len_%s' % t]) * \
+                (self.rrp - acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'prop_pay']) / \
+                (1 - acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'prop_pay'])
+            # single receiver, rrp<=rre. Assume will not use any state program benefit
+            # so still using same employer benefit as status-quo, thus cf-len = sq-len
+            acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] >= self.rrp), 'cfl_%s' % t] = \
+                acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] >= self.rrp), 'len_%s' % t]
+            # Get covered-by-program leave lengths (cp-len) for single receivers
+            # if rrp>rre, cp-len = cf-len
+            acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'cpl_%s' % t] = \
+                acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'cfl_%s' % t]
+            # if rrp<=rre, cp-len = 0
+            acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] >= self.rrp), 'cpl_%s' % t] = 0
+            # set cp-len = 0 if missing
+            acs.loc[acs['cpl_%s' % t].isna(), 'cpl_%s' % t] = 0
 
-            # if rre < rrp <=1
-            acs.loc[acs['prop_pay'] < self.rrp, 'cpl_%s' % t] = \
-                acs['len_%s' % t] + (acs['mnl_%s' % t] - acs['len_%s' % t]) * (self.rrp - acs['prop_pay']) / (1 - acs['prop_pay'])
-            # if rre >=rrp and MNL > 5
-            acs.loc[(acs['prop_pay'] >= self.rrp) & (acs['mnl_%s' % t] > 5), 'cpl_%s' % t] = acs['mnl_%s' % t]
-            # finally no program use if cpl <= 5
-            acs.loc[acs['cpl_%s' % t] <= 5, 'cpl_%s' % t] = 0
-            # take integer cpl
-            acs['cpl_%s' % t] = acs['cpl_%s' % t].apply(lambda x: math.ceil(x))
-
-            # apply max number of covered weeks
-            acs['cpl_%s' % t] = acs['cpl_%s' % t].apply(lambda x: min(x, self.d_maxwk[t] * 5))
-
-            # does max # covered weeks cause employer pay more attractive?
-            # under rre: get Be = acs['len_%s' % t] * acs['prop_pay']
-            # under rrp > rre: get Bp = acs['cpl_%s' % t] * rrp
-            # assumption 3: use state benefits if total benefit under state is higher, i.e. Bp > Be
-            # so assign cpl_[type] = 0 if Bp <= Be
-            # TODO: assumption 3 perhaps too strict - higher Be with lower rre in longer period may not be preferred!
-            # because with length>x days in program using employer benefit can cause undesirable emp bene depletion (PTO?)
-            # TODO: no benefit crowdout on matdis/bond if have paternity/maternity pay (A46e, A46f). Impute on ACS.
-            # acs.loc[(acs['cpl_%s' % t] * rrp <= acs['len_%s' % t] * acs['prop_pay']), 'cpl_%s' % t] = 0
-
+        # Apply cap of coverage period (in weeks) to cpl_type (in days) for each leave type
+        for t in self.types:
+            acs.loc[acs['cpl_%s' % t] >= 0, 'cpl_%s' % t] = [min(x, 5 * self.d_maxwk[t]) for x in
+                                                             acs.loc[acs['cpl_%s' % t] >= 0, 'cpl_%s' % t]]
         # Save ACS data after finishing simulation
         acs.to_csv('%s/acs_sim_%s.csv' % (self.output_directory, self.out_id), index=False)
-        message = 'Leaves simulated for 5-year ACS 20%s-20%s in state %s. Time needed = %s seconds' % ((self.yr-4), self.yr, self.st.upper(), round(time()-tsim, 0))
+        message = 'Leaves simulated for 5-year ACS 20%s-20%s in state %s. Time needed = %s seconds' % \
+                  ((self.yr-4), self.yr, self.st.upper(), round(time()-tsim, 0))
         print(message)
         self.__put_queue({'type': 'progress', 'engine': self.engine_type, 'value': 95})
         self.__put_queue({'type': 'message', 'engine': self.engine_type, 'value': message})
@@ -424,21 +384,32 @@ class SimulationEngine:
         # apply take up rates and weekly benefit cap, and compute total cost, 6 types
         costs = {}
         for t in self.types:
-            v = ((acs['cpl_%s' % t]/5) * (acs['wage12'] / acs['wkswork'] * self.rrp)).apply(lambda x: min(x, self.wkbene_cap))
-            w = acs['PWGTP']*self.d_takeup[t]
-            costs[t] = (v*w).sum()
+            # v = capped weekly benefit of leave type
+            v = [min(x, self.wkbene_cap) for x in
+                 ((acs['cpl_%s' % t] / 5) * (acs['wage12'] / acs['wkswork'] * self.rrp))]
+            # w = population that take up benefit of leave type
+            # d_takeup[t] is 'official' takeup rate = pop take / pop eligible
+            # so pop take = total pop * official take up
+            # takeup normalization factor = pop take / pop of ACS rows where take up occurs for leave type
+            takeup_factor = acs['PWGTP'].sum() * self.d_takeup[t] / acs[acs['cpl_%s' % t] > 0]['PWGTP'].sum()
+            w = acs['PWGTP'] * takeup_factor
+            costs[t] = (v * w).sum()
         costs['total'] = sum(list(costs.values()))
+
         # compute standard error using replication weights, then compute confidence interval
         sesq = dict(zip(costs.keys(), [0]*len(costs.keys())))
         for wt in ['PWGTP%s' % x for x in range(1, 81)]:
-            costs1 = {}
+            costs_rep = {}
             for t in self.types:
-                v = (acs['cpl_%s' % t]/5) * (acs['wage12'] / acs['wkswork'] * self.rrp).apply(lambda x: min(x, self.wkbene_cap))
-                w = acs[wt]*self.d_takeup[t]
-                costs1[t] = (v*w).sum()
-            costs1['total'] = sum(list(costs1.values()))
-            for k in costs1.keys():
-                sesq[k] += 4/80 * (costs[k] - costs1[k])**2
+                v = [min(x, self.wkbene_cap) for x in
+                     ((acs['cpl_%s' % t] / 5) * (acs['wage12'] / acs['wkswork'] * self.rrp))]
+                takeup_factor = acs[wt].sum() * self.d_takeup[t] / acs[acs['cpl_%s' % t] > 0][wt].sum()
+                w = acs[wt] * takeup_factor
+                costs_rep[t] = (v * w).sum()
+            costs_rep['total'] = sum(list(costs_rep.values()))
+            for k in costs_rep.keys():
+                sesq[k] += 4 / 80 * (costs[k] - costs_rep[k]) ** 2
+
         for k, v in sesq.items():
             sesq[k] = v**0.5
         ci = {}
@@ -517,7 +488,7 @@ class SimulationEngine:
         # read in simulated acs, this is just df returned from get_acs_simulated()
         d = pd.read_csv('%s/acs_sim_%s.csv' % (self.output_directory, self.out_id))
         # total covered-by-program length
-        d['cpl'] = d[['cpl_%s' % t for t in self.types]].apply(lambda x: sum(x), axis=1)
+        d['cpl'] = [sum(x) for x in d[['cpl_%s' % t for t in self.types]].values]
         # keep needed vars for population analysis plots
         d = d[['PWGTP', 'cpl', 'female', 'age']]
         return d

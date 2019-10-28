@@ -3,9 +3,12 @@ from _4_clean_ACS import DataCleanerACS
 from _5_simulation import SimulationEngine
 from _5a_aux_functions import *
 import pandas as pd
+pd.set_option('max_colwidth', 100)
+pd.set_option('display.max_columns', 999)
+pd.set_option('display.width', 200)
 import numpy as np
 import bisect
-
+import random
 from time import time
 import json
 
@@ -49,12 +52,12 @@ d_maxwk = {
 }
 
 d_takeup = {
-    'own': 0.5,
-    'matdis': 0.5,
-    'bond': 0.5,
-    'illchild': 0.5,
-    'illspouse': 0.5,
-    'illparent': 0.5
+    'own': 0.25,
+    'matdis': 0.25,
+    'bond': 0.25,
+    'illchild': 0.25,
+    'illspouse': 0.25,
+    'illparent': 0.25
 }
 
 incl_empgov_fed = True
@@ -240,7 +243,76 @@ acs.loc[(acs['wage12'] >= se.elig_wage12) &
         (acs['wkswork'] * acs['wkhours'] >= se.elig_yrhours) &
         (acs['empsize'] >= elig_empsizebin), 'elig_prog'] = 1
 
+# keep only eligible population
 acs = acs.drop(acs[acs['elig_prog'] != 1].index)
+
+# Given fraction of double receiver x, simulate double/single receiver status
+# With state program:
+# if anypay = 0, must be single receiver
+# let %(anypay=0) = a, %single-receiver specified must satisfy (1-x) >= a, i.e. x <= (1-a)
+s_no_emp_pay = acs[acs['anypay']==0]['PWGTP'].sum() / acs['PWGTP'].sum()
+x = 0.6 # percentage of double receiver
+x = min(1 - s_no_emp_pay, x) # cap x at (1 - %(anypay=0))
+# simulate double receiver status
+# we need x/(1-a) share of double receiver from (1-a) of all eligible workers who have anypay=1
+acs['z'] = [random.random() for x in range(len(acs))]
+acs['double_receiver'] = (acs['z']<x/(1-s_no_emp_pay)).astype(int)
+acs.loc[acs['anypay']==0, 'double_receiver'] = 0
+# treat each ACS row equally and check if post-sim weighted share = x
+# using even a small state RI shows close to equality
+s_double_receiver = acs[acs['double_receiver']==1]['PWGTP'].sum() / acs['PWGTP'].sum()
+s_double_receiver = round(s_double_receiver, 2)
+print('Specified share of double-receiver = %s. Post-sim weighted share = %s' % (x, s_double_receiver))
+
+# Simulate counterfactual leave lengths (cf-len) for double receivers
+# Given cf-len, get cp-len
+for t in se.types:
+    acs['cfl_%s' % t] = np.nan
+    acs.loc[acs['double_receiver']==1, 'cfl_%s' % t] = \
+    acs.loc[acs['double_receiver']==1, 'len_%s' % t] + (acs.loc[acs['double_receiver']==1, 'mnl_%s' % t] -
+                                                     acs.loc[acs['double_receiver']==1, 'len_%s' % t]) \
+                                                    * (0.5*rrp)/(1-0.5 * acs.loc[acs['double_receiver']==1, 'prop_pay'])
+    # Get covered-by-program leave lengths (cp-len) for double receivers
+    acs.loc[acs['double_receiver']==1, 'cpl_%s' % t] = acs.loc[acs['double_receiver']==1, 'cfl_%s' % t] * \
+                                                    rrp / (rrp + acs.loc[acs['double_receiver']==1, 'prop_pay'])
+
+# Simulate cf-len for single receivers
+# Given cf-len, get cp-len
+for t in se.types:
+    # single receiver, rrp>rre. Assume will use state program benefit to replace employer benefit
+    acs.loc[(acs['double_receiver']==0) & (acs['prop_pay'] < rrp), 'cfl_%s' % t] = \
+    acs.loc[(acs['double_receiver']==0) & (acs['prop_pay'] < rrp), 'len_%s' % t] + \
+    (acs.loc[(acs['double_receiver']==0) & (acs['prop_pay'] < rrp), 'mnl_%s' % t] -
+     acs.loc[(acs['double_receiver']==0) & (acs['prop_pay'] < rrp), 'len_%s' % t]) *\
+    (rrp-acs.loc[(acs['double_receiver']==0) & (acs['prop_pay'] < rrp), 'prop_pay'])/\
+    (1-acs.loc[(acs['double_receiver']==0) & (acs['prop_pay'] < rrp), 'prop_pay'])
+    # single receiver, rrp<=rre. Assume will not use any state program benefit
+    # so still using same employer benefit as status-quo, thus cf-len = sq-len
+    acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] >= rrp), 'cfl_%s' % t] = \
+    acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] >= rrp), 'len_%s' % t]
+    # Get covered-by-program leave lengths (cp-len) for single receivers
+    # if rrp>rre, cp-len = cf-len
+    acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] < rrp), 'cpl_%s' % t] = \
+    acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] < rrp), 'cfl_%s' % t]
+    # if rrp<=rre, cp-len = 0
+    acs.loc[(acs['double_receiver'] == 0) & (acs['prop_pay'] >= rrp), 'cpl_%s' % t] = 0
+    # set cp-len = 0 if missing
+    acs.loc[acs['cpl_%s' % t].isna(), 'cpl_%s' % t] = 0
+
+# Apply cap of coverage period (in weeks) to cpl_type (in days) for each leave type
+for t in se.types:
+    acs.loc[acs['cpl_%s' % t]>=0, 'cpl_%s' % t] = [min(x, 5*se.d_maxwk[t]) for x in acs.loc[acs['cpl_%s' % t]>=0, 'cpl_%s' % t]]
+
+# Save ACS data after finishing simulation
+acs.to_csv('%s/acs_sim_%s.csv' % (se.output_directory, se.out_id), index=False)
+message = 'Leave lengths (status-quo/counterfactual/covered-by-program) simulated for 5-year ACS 20%s-20%s in state %s. Time needed = %s seconds' % (
+(se.yr - 4), se.yr, se.st.upper(), round(time() - tsim, 0))
+print(message)
+self.__put_queue({'type': 'progress', 'engine': self.engine_type, 'value': 95})
+self.__put_queue({'type': 'message', 'engine': self.engine_type, 'value': message})
+return acs
+
+
 
 ###########################################################################################
 # Choice between employer and state benefits
@@ -257,84 +329,20 @@ acs = acs.drop(acs[acs['elig_prog'] != 1].index)
 #-----------------------------------------------------------------
 #
 #
-# 1. A fraction (up to 100%) of workers can and choose to receive both employer/state benefits simultaneously or sequentially
-# 2. For double receivers, at status-quo, rr = (rre, 0), leave length = len_type
+# DONE - 1. A fraction (up to 100%) of workers can and choose to receive both employer/state benefits simultaneously or sequentially
+# DONE - 2. For double receivers, at status-quo, rr = (rre, 0), leave length = len_type
 # At full replacement, rr = (1, 1), leave length = mnl_type
-# At program scenario, rr = (rre, rrp), leave length = cfl_type which is linearly interpolated between [rre, 2]
-# cfl_type then needs to be distributed between employer and state benefits. We distribute in proportion to rre/rrp.
-# The resulting cfl_prog_type will then be subject to max period cap, and rrp * cfl_prog_type will be subject to $ cap.
-# 3. For single receivers, at status-quo, rr = rre, len = len_type.
+# At program scenario, rr = (rre, rrp), leave length = cfl_type which is linearly interpolated between
+# the normed version of [rre, 2] = [rre/2, 1] for mid-point (rre/2 + rrp/2)
+# DONE - 3. For single receivers, at status-quo, rr = rre, len = len_type.
 # At full replacement, rr = 1, len = mnl_type
 # At program scenario, rr = rrp. If rrp<=rre, len = len_type (use no program). If rrp > rre, len = cfl_prog_type, which
-# is linearly interpolated between [rre, 1].
-
+# is linearly interpolated between [rre, 1] for mid-point rrp.
+# DONE - 4. For double receivers, cfl_type then needs to be distributed between employer and state benefits.
+# We distribute in proportion to rre/rrp.
+# DONE - 5. The resulting cfl_prog_type will then be subject to max period cap,
+# TODO 6. (do it in get_cost())  rrp * cfl_prog_type will be subject to $ cap.
 ###########################################################################################
-
-
-
-# assumption 1: choice between employer and state benefits
-# rre, rrp = replacement ratio of employer, of state
-# if rre >= rrp, use employer pay indefinitely (assuming employer imposes no max period)
-# if rre <  rrp, use employer pay if weekly wage*rre > state weekly cap (the larger weekly wage*rrp would be capped)
-# so only case of using state benefits (thus induced to take longer leave) is rre < rrp and weekly wage*rre < cap
-# TODO: assumption 1 perhaps too strict - use of employer pay may be limited by (shorter) max length!
-
-# identify workers who have rre < rrp, and are 'uncapped' by state weekly benefit cap under current weekly wage and prop_pay
-# thus would prefer state benefits over employer
-acs['uncapped'] = True
-acs['uncapped'] = ((acs['prop_pay'] < self.rrp) & (acs['wage12'] / acs['wkswork'] * acs['prop_pay'] < self.wkbene_cap))
-
-# assumption 2: if using state benefits, choice of leave length is a function of replacement ratio
-# at current rr = prop_pay, leave length = status-quo (sql), at 100% rr, leave length = max needed length (mnl)
-# at proposed prog rr = rrp, if rrp> (1-prop_pay), then leave length = mnl. Leave length covered by program = mnl - sql
-# OW, linearly interpolate at rr = (prop_pay + rrp). Leave length covered by program = sql+(mnl - sql)*(rrp-prop_pay)/(1-prop_pay)
-
-
-
-
-# set prop_pay = 0 if missing (ie anypay = 0 in acs)
-acs.loc[acs['prop_pay'].isna(), 'prop_pay'] = 0
-
-# cpl: covered-by-program leave length, 6 types - derive by interpolation at rrp (between rre and 1)
-for t in self.types:
-    # under assumptions 1 + 2:
-    # acs['cpl_%s' % t] = 0
-    # acs.loc[(acs['prop_pay'] < rrp) & (acs['uncapped']), 'cpl_%s' % t] = \
-    #     acs['len_%s' % t] + (acs['mnl_%s' % t] - acs['len_%s' % t]) * (rrp - acs['prop_pay'])/ (1-acs['prop_pay'])
-
-    # assumption 1A: asssuming short max length of employer benefit, use state benefit if sq len >= 5/10 days regardless of rr value
-    # motivation: with leave need>=a week workers do not consider employer benefit like PTO but take program benefit
-    # if rre < rrp <=1, interpolation of leave length is possible
-    # if rre = 1, cannot interpolate length using rre/length relationship. These workers are likely due to bad need
-    # of leave length but no much of wage replacement. Assume cpl = mnl then apply max period cap.
-    # if rre >=rrp, workers make choice between get large rre over short period (say 5 days) VS
-    # get less rrp over longer period (mnl). To avoid underestimating cost, we assume all workers choose latter.
-    # under assumptions 1A + 2:
-    acs['cpl_%s' % t] = 0
-
-    # if rre < rrp <=1
-    acs.loc[acs['prop_pay'] < self.rrp, 'cpl_%s' % t] = \
-        acs['len_%s' % t] + (acs['mnl_%s' % t] - acs['len_%s' % t]) * (self.rrp - acs['prop_pay']) / (
-        1 - acs['prop_pay'])
-    # if rre >=rrp and MNL > 5
-    acs.loc[(acs['prop_pay'] >= self.rrp) & (acs['mnl_%s' % t] > 5), 'cpl_%s' % t] = acs['mnl_%s' % t]
-    # finally no program use if cpl <= 5
-    acs.loc[acs['cpl_%s' % t] <= 5, 'cpl_%s' % t] = 0
-    # take integer cpl
-    acs['cpl_%s' % t] = acs['cpl_%s' % t].apply(lambda x: math.ceil(x))
-
-    # apply max number of covered weeks
-    acs['cpl_%s' % t] = acs['cpl_%s' % t].apply(lambda x: min(x, self.d_maxwk[t] * 5))
-
-    # does max # covered weeks cause employer pay more attractive?
-    # under rre: get Be = acs['len_%s' % t] * acs['prop_pay']
-    # under rrp > rre: get Bp = acs['cpl_%s' % t] * rrp
-    # assumption 3: use state benefits if total benefit under state is higher, i.e. Bp > Be
-    # so assign cpl_[type] = 0 if Bp <= Be
-    # TODO: assumption 3 perhaps too strict - higher Be with lower rre in longer period may not be preferred!
-    # because with length>x days in program using employer benefit can cause undesirable emp bene depletion (PTO?)
-    # TODO: no benefit crowdout on matdis/bond if have paternity/maternity pay (A46e, A46f). Impute on ACS.
-    # acs.loc[(acs['cpl_%s' % t] * rrp <= acs['len_%s' % t] * acs['prop_pay']), 'cpl_%s' % t] = 0
 
 # Save ACS data after finishing simulation
 acs.to_csv('%s/acs_sim_%s.csv' % (self.output_directory, self.out_id), index=False)
@@ -344,3 +352,66 @@ print(message)
 self.__put_queue({'type': 'progress', 'engine': self.engine_type, 'value': 95})
 self.__put_queue({'type': 'message', 'engine': self.engine_type, 'value': message})
 return acs
+
+############# GET COST
+
+## def get_cost(self):
+# read simulated ACS
+# acs = pd.read_csv('%s/acs_sim_%s.csv' % (self.output_directory, self.out_id))
+# apply take up rates and weekly benefit cap, and compute total cost, 6 types
+costs = {}
+for t in se.types:
+    # v = capped weekly benefit of leave type
+    v = [min(x, se.wkbene_cap) for x in
+         ((acs['cpl_%s' % t] / 5) * (acs['wage12'] / acs['wkswork'] * se.rrp))]
+    # w = population that take up benefit of leave type
+    # d_takeup[t] is 'official' takeup rate = pop take / pop eligible
+    # so pop take = total pop * official take up
+    # takeup normalization factor = pop take / pop of ACS rows where take up occurs for leave type
+    takeup_factor = acs['PWGTP'].sum() * se.d_takeup[t] / acs[acs['cpl_%s' % t]>0]['PWGTP'].sum()
+    w = acs['PWGTP'] * takeup_factor
+    costs[t] = (v * w).sum()
+costs['total'] = sum(list(costs.values()))
+
+# compute standard error using replication weights, then compute confidence interval
+sesq = dict(zip(costs.keys(), [0] * len(costs.keys())))
+for wt in ['PWGTP%s' % x for x in range(1, 81)]:
+    costs_rep = {}
+    for t in se.types:
+        v = [min(x, se.wkbene_cap) for x in
+             ((acs['cpl_%s' % t] / 5) * (acs['wage12'] / acs['wkswork'] * se.rrp))]
+        takeup_factor = acs[wt].sum() * se.d_takeup[t] / acs[acs['cpl_%s' % t] > 0][wt].sum()
+        w = acs[wt] * takeup_factor
+        costs_rep[t] = (v * w).sum()
+    costs_rep['total'] = sum(list(costs_rep.values()))
+    for k in costs_rep.keys():
+        sesq[k] += 4 / 80 * (costs[k] - costs_rep[k]) ** 2
+for k, v in sesq.items():
+    sesq[k] = v ** 0.5
+ci = {}
+for k, v in sesq.items():
+    ci[k] = (costs[k] - 1.96 * sesq[k], costs[k] + 1.96 * sesq[k])
+
+# Save output
+out_costs = pd.DataFrame.from_dict(costs, orient='index')
+out_costs = out_costs.reset_index()
+out_costs.columns = ['type', 'cost']
+
+out_ci = pd.DataFrame.from_dict(ci, orient='index')
+out_ci = out_ci.reset_index()
+out_ci.columns = ['type', 'ci_lower', 'ci_upper']
+
+out = pd.merge(out_costs, out_ci, how='left', on='type')
+
+d_tix = {'own': 1, 'matdis': 2, 'bond': 3, 'illchild': 4, 'illspouse': 5, 'illparent': 6, 'total': 7}
+out['tix'] = out['type'].apply(lambda x: d_tix[x])
+out = out.sort_values(by='tix')
+del out['tix']
+
+out.to_csv('%s/program_cost_%s_%s.csv' % (se.output_directory, se.st, se.out_id), index=False)
+
+message = 'Output saved. Total cost = $%s million 2012 dollars' % (round(costs['total'] / 1000000, 1))
+print(message)
+se.__put_queue({'type': 'progress', 'engine': se.engine_type, 'value': 100})
+se.__put_queue({'type': 'message', 'engine': se.engine_type, 'value': message})
+return out  # df of leave type specific costs and total cost, along with ci's

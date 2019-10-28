@@ -267,8 +267,8 @@ class MicrosimGUI(Tk):
         yr = 16
         fp_fmla_in = settings.fmla_file
         fp_cps_in = './data/cps/CPS2014extract.csv'
-        fp_acsh_in = settings.acs_directory
-        fp_acsp_in = settings.acs_directory
+        fp_acsh_in = settings.acs_directory + '/pow_household_files'
+        fp_acsp_in = settings.acs_directory + '/pow_person_files'
         fp_fmla_out = './data/fmla_2012/fmla_clean_2012.csv'
         fp_cps_out = './data/cps/cps_for_acs_sim.csv'
         fp_acs_out = './data/acs/'
@@ -1285,6 +1285,9 @@ class ResultsWindow(Toplevel):
     def generate_population_analysis_histograms(self, population_analysis_data):
         fg_color = 'white'
         bg_color = self.dark_bg
+
+        # print(population_analysis_data['cpl'])
+        # print(population_analysis_data['PWGTP'])
 
         self.create_histogram(self.population_analysis, population_analysis_data['cpl'], 20,
                               population_analysis_data['PWGTP'], bg_color, fg_color, 'All Workers')

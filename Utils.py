@@ -130,8 +130,8 @@ class Settings:
         else:
             self.max_weeks = max_weeks
         if take_up_rates is None:
-            self.take_up_rates = {'Own Health': 0.5, 'Maternity': 0.5, 'New Child': 0.5, 'Ill Child': 0.5,
-                                  'Ill Spouse': 0.5, 'Ill Parent': 0.5}
+            self.take_up_rates = {'Own Health': 0.25, 'Maternity': 0.25, 'New Child': 0.25, 'Ill Child': 0.25,
+                                  'Ill Spouse': 0.25, 'Ill Parent': 0.25}
         else:
             self.take_up_rates = take_up_rates
         if leave_probability_factors is None:
