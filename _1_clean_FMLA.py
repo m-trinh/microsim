@@ -977,10 +977,15 @@ class DataCleanerFMLA:
         dct['non-PFL'] = dct_NPFL
 
         # Save as json
-        jsn = json.dumps(dct)
-        f = open(fp_length_distribution_out, 'w')
-        f.write(jsn)
-        f.close()
+
+        with open(fp_length_distribution_out, 'w') as f:
+            json.dump(dct, f, sort_keys=True, indent=4)
+            f.close()
+        #
+        # jsn = json.dumps(dct)
+        # f = open(fp_length_distribution_out, 'w')
+        # f.write(jsn)
+        # f.close()
         print('File saved: leave distribution estimated from FMLA data.')
         return None
 
