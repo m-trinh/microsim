@@ -205,3 +205,68 @@ def display_leave_objects(labels, inputs):
     for idx in range(len(labels)):
         labels[idx].grid(column=idx, row=0, sticky=(E, W))
         inputs[idx].grid(column=idx, row=1, sticky=(E, W), padx=1, pady=(0, 2))
+
+
+def run_r_engine(settings):
+    params = [
+        settings.replacement_ratio,  # base_bene_level
+        settings.simulation_method,  # impute_method
+        True,  # makelog
+        1,  # sample_prop?
+        settings.state,  # state
+        settings.fed_employees,  # FEDGOV
+        settings.state_employees,  # STATEGOV
+        settings.local_employees,  # LOCALGOV
+        settings.self_employed,  # SELFEMP
+        settings.state_of_work,  # place_of_work
+        True,  # exclusive_particip
+        False,  # SMOTE
+        False,  # ext_resp_len
+        'mean',  # len_method
+        'unaffordable',  # sens_var?
+        'post',  # progalt_post_or_pre
+        True,  # intra_impute
+        True,  # exclusive_particip
+        True,  # ext_base_effect
+        0.01,  # extend_prob
+        1,  # extend_days
+        1.01,  # extend_prop
+        settings.top_off_rate,  # topoff_rate
+        settings.top_off_min_length,  # topoff_minlength
+        settings.benefit_effect,  # bene_effect
+        0,  # dependent_allow
+        settings.needers_fully_participate,  # fill_particip_needer
+        5,  # wait_period
+        settings.clone_factor,  # clone_factor
+        settings.weekly_ben_cap,  # week_bene_cap
+        0,  # weekly_ben_min
+        settings.take_up_rates['Own Health'],  # own_uptake
+        settings.take_up_rates['Maternity'],  # matdis_uptake
+        settings.take_up_rates['New Child'],  # bond_uptake
+        settings.take_up_rates['Ill Parent'],  # illparent_uptake
+        settings.take_up_rates['Ill Spouse'],  # illspouse_uptake
+        settings.take_up_rates['Ill Child'],  # illchild_uptake
+        settings.max_weeks['Own Health'] * 5,  # maxlen_own
+        settings.max_weeks['Maternity'] * 5,  # maxlen_matdis
+        settings.max_weeks['New Child'] * 5,  # maxlen_bond
+        settings.max_weeks['Ill Parent'] * 5,  # maxlen_illparent
+        settings.max_weeks['Ill Spouse'] * 5,  # maxlen_illspouse
+        settings.max_weeks['Ill Child'] * 5,  # maxlen_illchild
+        260,  # maxlen_total
+        30,  # maxlen_PFL
+        260,  # maxlen_DI
+        settings.eligible_earnings,  # earnings
+        settings.eligible_weeks,  # weeks
+        settings.eligible_hours,  # ann_hours
+        settings.eligible_size,  # minsize
+        settings.leave_probability_factors['Own Health'],  # own_elig_adj
+        settings.leave_probability_factors['Maternity'],
+        settings.leave_probability_factors['New Child'],
+        settings.leave_probability_factors['Ill Parent'],
+        settings.leave_probability_factors['Ill Spouse'],
+        settings.leave_probability_factors['Ill Child'],
+        'output',  # output
+        123,  # random_seed
+    ]
+
+    command = '{} run_engine.R {}'.format(settings.r_path, ' '.join(params))
