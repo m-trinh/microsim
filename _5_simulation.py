@@ -59,6 +59,7 @@ class SimulationEngine:
         self.needers_fully_participate = prog_para[13]
         self.state_of_work = prog_para[14]
         self.weight_factor = prog_para[15]
+        self.dual_receivers_share = prog_para[16]
 
         # leave types
         self.types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
@@ -316,7 +317,7 @@ class SimulationEngine:
         # if anypay = 0, must be single receiver
         # let %(anypay=0) = a, %single-receiver specified must satisfy (1-x) >= a, i.e. x <= (1-a)
         s_no_emp_pay = acs[acs['anypay'] == 0]['PWGTP'].sum() / acs['PWGTP'].sum()
-        x = 0.6  # specified share of double receiver
+        x = self.dual_receivers_share  # specified share of double receiver
         x = min(1 - s_no_emp_pay, x)  # cap x at (1 - %(anypay=0))
         # simulate double receiver status
         # we need x/(1-a) share of double receiver from (1-a) of all eligible workers who have anypay=1
@@ -541,7 +542,9 @@ class SimulationEngine:
         # total covered-by-program length
         d['cpl'] = [sum(x) for x in d[['cpl_%s' % t for t in self.types]].values]
         # keep needed vars for population analysis plots
-        d = d[['PWGTP', 'cpl', 'female', 'age']]
+        columns = ['PWGTP', 'cpl', 'female', 'age', 'wage12', 'nochildren', 'asian', 'black', 'white', 'native',
+                   'other', 'hisp']
+        d = d[columns]
         return d
 
 ## Other factors

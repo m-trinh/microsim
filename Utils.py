@@ -80,13 +80,13 @@ class Settings:
     def __init__(self, fmla_file=None, acs_directory=None, output_directory=None, detail=None, state=None,
                  simulation_method=None, benefit_effect=False, calibrate=True, clone_factor=1, se_analysis=False,
                  extend=False, fmla_protection_constraint=False, replacement_ratio=0.5, government_employees=True,
-                 needers_fully_participate=False, random_seed=False, self_employed=False, state_of_work=True,
+                 needers_fully_participate=False, random_seed=None, self_employed=False, state_of_work=True,
                  top_off_rate=0, top_off_min_length=0, weekly_ben_cap=99999999, weight_factor=1,
                  eligible_earnings=11520, eligible_weeks=1, eligible_hours=1, eligible_size=1, max_weeks=None,
                  take_up_rates=None, leave_probability_factors=None, payroll_tax=1, benefits_tax=False,
                  average_state_tax=5, max_taxable_earnings_per_person=100000, total_taxable_earnings=10000000000,
                  fed_employees=True, state_employees=True, local_employees=True, counterfactual='', policy_sim=False,
-                 existing_program=''):
+                 existing_program='', dual_receivers_share=0.6):
         self.fmla_file = fmla_file
         self.acs_directory = acs_directory
         self.output_directory = output_directory
@@ -124,6 +124,7 @@ class Settings:
         self.counterfactual = counterfactual
         self.policy_sim = policy_sim
         self.existing_program = existing_program
+        self.dual_receivers_share = dual_receivers_share
         if max_weeks is None:
             self.max_weeks = {'Own Health': 30, 'Maternity': 30, 'New Child': 4, 'Ill Child': 4, 'Ill Spouse': 4,
                               'Ill Parent': 4}

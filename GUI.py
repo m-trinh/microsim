@@ -4,6 +4,7 @@ import os
 import sys
 import multiprocessing
 import queue
+import random
 import numpy as np
 from abc import ABCMeta, abstractmethod
 from _5_simulation import SimulationEngine
@@ -119,7 +120,7 @@ class MicrosimGUI(Tk):
             'state_employees': BooleanVar(value=d.state_employees),
             'local_employees': BooleanVar(value=d.local_employees),
             'needers_fully_participate': BooleanVar(value=d.needers_fully_participate),
-            'random_seed': BooleanVar(value=d.random_seed),
+            'random_seed': StringVar(value=d.random_seed),
             'self_employed': BooleanVar(value=d.self_employed),
             'state_of_work': BooleanVar(value=d.state_of_work),
             'top_off_rate': DoubleVar(value=d.top_off_rate),
@@ -137,6 +138,7 @@ class MicrosimGUI(Tk):
             'total_taxable_earnings': IntVar(value=d.total_taxable_earnings),
             'counterfactual': StringVar(),
             'policy_sim': BooleanVar(value=d.policy_sim),
+            'dual_receivers_share': DoubleVar(value=d.dual_receivers_share),
             'max_weeks': {leave_type: IntVar(value=d.max_weeks[leave_type]) for leave_type in LEAVE_TYPES},
             'take_up_rates': {leave_type: DoubleVar(value=d.take_up_rates[leave_type]) for leave_type in LEAVE_TYPES},
             'leave_probability_factors': {leave_type: DoubleVar(value=d.leave_probability_factors[leave_type])
@@ -209,6 +211,9 @@ class MicrosimGUI(Tk):
             return
 
         settings = self.__create_settings()
+        if settings.random_seed is not None and settings.random_seed != '':
+            random.seed(settings.random_seed)
+            np.random.seed(settings.random_seed)
 
         # run simulation
         # initiate a SimulationEngine instance
@@ -324,10 +329,11 @@ class MicrosimGUI(Tk):
         needers_fully_participate = settings.needers_fully_participate
         #state_of_work value see above next to fp_acsh_in/fp_acsp_in
         weight_factor = settings.weight_factor
+        dual_receivers_share = settings.dual_receivers_share
 
         prog_para = [elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp, wkbene_cap, d_maxwk, d_takeup,
                      incl_empgov_fed, incl_empgov_st, incl_empgov_loc, incl_empself, sim_method,
-                     needers_fully_participate, state_of_work, weight_factor]
+                     needers_fully_participate, state_of_work, weight_factor, dual_receivers_share]
 
         return SimulationEngine(st, yr, fps_in, fps_out, clf_name, prog_para, engine_type=engine_type, q=q)
 
@@ -576,14 +582,14 @@ class GeneralSettingsFrame(Frame):
         self.variables = self.winfo_toplevel().variables
 
     def hide_advanced_parameters(self):
-        self.detail_label.grid_forget()
-        self.detail_input.grid_forget()
+        # self.detail_label.grid_forget()
+        # self.detail_input.grid_forget()
         self.simulation_method_label.grid_forget()
         self.simulation_method_input.grid_forget()
 
     def show_advanced_parameters(self):
-        self.detail_label.grid(column=0, row=3, sticky=W, pady=self.row_padding)
-        self.detail_input.grid(column=1, row=3, sticky=W, padx=8, pady=self.row_padding)
+        # self.detail_label.grid(column=0, row=3, sticky=W, pady=self.row_padding)
+        # self.detail_input.grid(column=1, row=3, sticky=W, padx=8, pady=self.row_padding)
         self.simulation_method_label.grid(column=0, row=6, sticky=W, pady=self.row_padding)
         self.simulation_method_input.grid(column=1, row=6, sticky=W, padx=8, pady=self.row_padding)
 
@@ -664,8 +670,6 @@ class SettingsNotebook(ttk.Notebook):
 class ScrollFrame(Frame):
     def __init__(self, parent=None, **kwargs):
         super().__init__(parent, **kwargs)
-        self.default_settings = self.winfo_toplevel().default_settings
-
         self.notebook_bg = self.winfo_toplevel().notebook_bg
 
         # Create scroll bar
@@ -691,6 +695,7 @@ class NotebookFrame(ScrollFrame):
 
     def __init__(self, parent=None, **kwargs):
         super().__init__(parent, **kwargs)
+        self.default_settings = self.winfo_toplevel().default_settings
         self.row_padding = 4
 
     @abstractmethod
@@ -969,12 +974,21 @@ class PopulationFrame(NotebookFrame):
                                                  bg=self.notebook_bg)
         self.top_off_min_length_input = MSNotebookEntry(self.content, textvariable=self.variables['top_off_min_length'])
 
+        # ----------------------------------------- Share of Dual Receivers -----------------------------------------
+        tip = 'Dual receiver of company and state benefits'
+        self.dual_receivers_share_label = TipLabel(self.content, tip, text='Share of Dual Receivers:',
+                                                   bg=self.notebook_bg)
+        self.dual_receivers_share_input = MSNotebookEntry(self.content,
+                                                          textvariable=self.variables['dual_receivers_share'])
+
         # Add input widgets to the parent widget
         self.take_up_rates_frame.grid(column=0, row=0, columnspan=2, sticky=(N, E, W), pady=self.row_padding)
         display_leave_objects(self.take_up_rates_labels, self.take_up_rates_inputs)
         display_leave_objects(self.leave_probability_factors_labels, self.leave_probability_factors_inputs)
         # self.benefit_effect_input.grid(column=0, row=2, columnspan=2, sticky=W)
         # self.extend_input.grid(column=0, row=3, columnspan=3, sticky=W)
+        self.dual_receivers_share_label.grid(column=0, row=4, sticky=W)
+        self.dual_receivers_share_input.grid(column=1, row=4, sticky=W)
 
         # Make second column take up more space
         self.columnconfigure(0, weight=0)
@@ -984,21 +998,23 @@ class PopulationFrame(NotebookFrame):
         self.variables = self.winfo_toplevel().variables
 
     def hide_advanced_parameters(self):
-        self.leave_probability_factors_frame.grid_forget()
-        self.needers_fully_participate_input.grid_forget()
-        self.top_off_rate_label.grid_forget()
-        self.top_off_rate_input.grid_forget()
-        self.top_off_min_length_label.grid_forget()
-        self.top_off_min_length_input.grid_forget()
+        # self.leave_probability_factors_frame.grid_forget()
+        # self.needers_fully_participate_input.grid_forget()
+        # self.top_off_rate_label.grid_forget()
+        # self.top_off_rate_input.grid_forget()
+        # self.top_off_min_length_label.grid_forget()
+        # self.top_off_min_length_input.grid_forget()
+        pass
 
     def show_advanced_parameters(self):
-        self.leave_probability_factors_frame.grid(column=0, row=1, columnspan=2, sticky=(N, E, W),
-                                                  pady=self.row_padding)
-        self.needers_fully_participate_input.grid(column=0, row=4, columnspan=2, sticky=W, pady=self.row_padding)
-        self.top_off_rate_label.grid(column=0, row=5, sticky=W, pady=self.row_padding)
-        self.top_off_rate_input.grid(column=1, row=5, sticky=W, pady=self.row_padding)
-        self.top_off_min_length_label.grid(column=0, row=6, sticky=W, pady=self.row_padding)
-        self.top_off_min_length_input.grid(column=1, row=6, sticky=W, pady=self.row_padding)
+        # self.leave_probability_factors_frame.grid(column=0, row=1, columnspan=2, sticky=(N, E, W),
+        #                                           pady=self.row_padding)
+        # self.needers_fully_participate_input.grid(column=0, row=4, columnspan=2, sticky=W, pady=self.row_padding)
+        # self.top_off_rate_label.grid(column=0, row=5, sticky=W, pady=self.row_padding)
+        # self.top_off_rate_input.grid(column=1, row=5, sticky=W, pady=self.row_padding)
+        # self.top_off_min_length_label.grid(column=0, row=6, sticky=W, pady=self.row_padding)
+        # self.top_off_min_length_input.grid(column=1, row=6, sticky=W, pady=self.row_padding)
+        pass
 
 
 class SimulationFrame(NotebookFrame):
@@ -1035,8 +1051,10 @@ class SimulationFrame(NotebookFrame):
         self.calibrate_input = TipCheckButton(self.content, tip, text="Calibrate", variable=v['calibrate'])
 
         # ----------------------------------------------- Random Seed -----------------------------------------------
-        tip = 'Whether or not a seed will be created using a random number generator.'
-        self.random_seed_input = TipCheckButton(self.content, tip, text="Random Seed", variable=v['random_seed'])
+        tip = 'The value that will be used in random number generation. Can be used to recreate results as long ' \
+              'as all other parameters are unchanged.'
+        self.random_seed_label = TipLabel(self.content, tip, text="Random Seed", bg=self.notebook_bg)
+        self.random_seed_input = MSNotebookEntry(self.content, textvariable=v['random_seed'])
 
         # ---------------------------------------- Compare Against Existing -----------------------------------------
         tip = 'Simulate a counterfactual scenario to compare user parameters  against a real paid leave program.'
@@ -1046,7 +1064,8 @@ class SimulationFrame(NotebookFrame):
         self.counterfactual_input.current(0)
 
         # ---------------------------------------- Compare Against Generous -----------------------------------------
-        tip = 'Simulate a policy scenario to compare user parameters against a  generous paid leave program.'
+        tip = 'Simulate a policy scenario to compare user parameters against a  generous paid leave program ' \
+              'in which everyone is eligible and the wage replacement is 1.'
         self.policy_sim_input = TipCheckButton(self.content, tip, text="Compare Against Generous",
                                                variable=v['policy_sim'])
 
@@ -1065,14 +1084,16 @@ class SimulationFrame(NotebookFrame):
     def hide_advanced_parameters(self):
         self.weight_factor_label.grid_forget()
         self.weight_factor_input.grid_forget()
-        self.fmla_protection_constraint_input.grid_forget()
+        # self.fmla_protection_constraint_input.grid_forget()
+        self.random_seed_label.grid_forget()
         self.random_seed_input.grid_forget()
 
     def show_advanced_parameters(self):
         self.weight_factor_label.grid(column=0, row=2, sticky=W, pady=self.row_padding)
         self.weight_factor_input.grid(column=1, row=2, sticky=W, pady=self.row_padding)
-        self.fmla_protection_constraint_input.grid(column=0, row=3, columnspan=2, sticky=W, pady=self.row_padding)
-        self.random_seed_input.grid(column=0, row=5, columnspan=2, sticky=W, pady=self.row_padding)
+        # self.fmla_protection_constraint_input.grid(column=0, row=3, columnspan=2, sticky=W, pady=self.row_padding)
+        self.random_seed_label.grid(column=0, row=5, sticky=W, pady=self.row_padding)
+        self.random_seed_input.grid(column=1, row=5, sticky=W, pady=self.row_padding)
 
 
 class ResultsWindow(Toplevel):
@@ -1100,21 +1121,13 @@ class ResultsWindow(Toplevel):
 
         self.abf_module = abf_module
         abf_output, pivot_tables = self.abf_module.run()
-        self.abf = Frame(self.notebook, bg=self.notebook_bg)
-        self.abf_canvas = Canvas(self.abf, bg=self.dark_bg)
-        self.abf_info = Frame(self.abf, bg=self.dark_bg)
-        self.abf_canvas.create_window((0, 0), window=self.abf_info, anchor='nw')  # Add frame to canvas
-        self.abf_info_scroll = ttk.Scrollbar(self.abf, orient=VERTICAL,
-                                             command=self.abf_canvas.yview)
-        self.abf_canvas.configure(yscrollcommand=self.abf_info_scroll.set)
-        self.abf_canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
-        self.abf_info_scroll.pack(side=RIGHT, fill=Y)
+        self.abf = ScrollFrame(self.notebook, bg=self.notebook_bg)
         print('Creating ABF results summary frame')
-        self.abf_summary = ABFResultsSummary(self.abf_info, abf_output, self.dark_bg, self.light_font)
+        self.abf_summary = ABFResultsSummary(self.abf.content, abf_output, self.dark_bg, self.light_font)
         self.abf_summary.pack(padx=10, pady=10)
-        self.abf_pivot_tables = Frame(self.abf_info, bg=self.dark_bg)
+        self.abf_pivot_tables = Frame(self.abf.content, bg=self.dark_bg)
         self.abf_pivot_tables.pack(fill=X, expand=True)
-        self.abf_params_reveal = MSButton(self.abf, text='ABF Parameters', padx=4, command=self.show_params, width=16,
+        self.abf_params_reveal = MSButton(self.abf.content, text='ABF Parameters', padx=4, command=self.show_params, width=16,
                                           background='#00e600')
         self.abf_params_reveal.pack(side=BOTTOM, anchor='se', padx=3, pady=2)
         self.abf_params = Frame(self.abf, bg=self.notebook_bg, borderwidth=1, relief='solid', padx=3, pady=3)
@@ -1130,52 +1143,56 @@ class ResultsWindow(Toplevel):
         self.run_button.pack(side=RIGHT, pady=3, padx=5)
         self.notebook.add(self.abf, text="Benefit Financing")
 
-        simulation_data = simulation_engine.get_population_analysis_results()
-        self.population_analysis_container = Frame(self.notebook, bg=self.notebook_bg)
-        self.population_analysis_canvas = Canvas(self.population_analysis_container, bg=self.dark_bg)
-        self.population_analysis = Frame(self.population_analysis_container, bg=self.dark_bg)
-        self.population_analysis_canvas.create_window((0, 0), window=self.population_analysis, anchor='nw')
-        self.population_analysis_scroll = ttk.Scrollbar(self.population_analysis_container, orient=VERTICAL,
-                                                        command=self.population_analysis_canvas.yview)
-        self.population_analysis_canvas.configure(yscrollcommand=self.population_analysis_scroll.set)
-        self.population_analysis_canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
-        self.population_analysis_scroll.pack(side=RIGHT, fill=Y)
-        self.notebook.add(self.population_analysis_container, text='Population Analysis')
-        print('Generating population analysis histograms')
-        self.generate_population_analysis_histograms(simulation_data)
+        # simulation_data = simulation_engine.get_population_analysis_results()
+        # self.population_analysis_container = Frame(self.notebook, bg=self.notebook_bg)
+        # self.population_analysis_canvas = Canvas(self.population_analysis_container, bg=self.dark_bg)
+        # self.population_analysis = Frame(self.population_analysis_container, bg=self.dark_bg)
+        # self.population_analysis_canvas.create_window((0, 0), window=self.population_analysis, anchor='nw')
+        # self.population_analysis_scroll = ttk.Scrollbar(self.population_analysis_container, orient=VERTICAL,
+        #                                                 command=self.population_analysis_canvas.yview)
+        # self.population_analysis_canvas.configure(yscrollcommand=self.population_analysis_scroll.set)
+        # self.population_analysis_canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
+        # self.population_analysis_scroll.pack(side=RIGHT, fill=Y)
+        # self.notebook.add(self.population_analysis_container, text='Population Analysis')
+        # print('Generating population analysis histograms')
+        # self.generate_population_analysis_histograms(simulation_data)
+        #
+        # self.canvases = [(self.abf_canvas, self.abf_info), (self.population_analysis_canvas, self.population_analysis)]
+        #
+        # if policy_engine is not None:
+        #     self.policy_sim_container = Frame(self.notebook, bg=self.dark_bg)
+        #     self.policy_sim_canvas = Canvas(self.policy_sim_container, bg=self.dark_bg)
+        #     self.policy_sim = Frame(self.policy_sim_container, bg=self.dark_bg)
+        #     self.policy_sim_canvas.create_window((0, 0), window=self.policy_sim, anchor='nw')
+        #     self.policy_sim_scroll = ttk.Scrollbar(self.policy_sim_container, orient=VERTICAL,
+        #                                            command=self.policy_sim_canvas.yview)
+        #     self.policy_sim_canvas.configure(yscrollcommand=self.policy_sim_scroll.set)
+        #     self.policy_sim_canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
+        #     self.policy_sim_scroll.pack(side=RIGHT, fill=Y)
+        #     print('Generating policy simulation histograms')
+        #     self.generate_policy_histograms(simulation_data, policy_engine.get_population_analysis_results())
+        #     self.notebook.add(self.policy_sim_container, text='Policy Simulation')
+        #     self.canvases.append((self.policy_sim_canvas, self.policy_sim))
+        #
+        # if counterfactual_engine is not None:
+        #     self.counterfactual_container = Frame(self.notebook, bg=self.dark_bg)
+        #     self.counterfactual_canvas = Canvas(self.counterfactual_container, bg=self.dark_bg)
+        #     self.counterfactual = Frame(self.counterfactual_container, bg=self.dark_bg)
+        #     self.counterfactual_canvas.create_window((0, 0), window=self.counterfactual, anchor='nw')
+        #     self.counterfactual_scroll = ttk.Scrollbar(self.counterfactual_container, orient=VERTICAL,
+        #                                                command=self.counterfactual_canvas.yview)
+        #     self.counterfactual_canvas.configure(yscrollcommand=self.counterfactual_scroll.set)
+        #     self.counterfactual_canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
+        #     self.counterfactual_scroll.pack(side=RIGHT, fill=Y)
+        #     print('Generating counterfactual simulation histograms')
+        #     self.generate_counterfactual_histograms(simulation_data,
+        #                                             counterfactual_engine.get_population_analysis_results())
+        #     self.notebook.add(self.counterfactual_container, text='Counterfactual Simulation')
+        #     self.canvases.append((self.counterfactual_canvas, self.counterfactual))
 
-        self.canvases = [(self.abf_canvas, self.abf_info), (self.population_analysis_canvas, self.population_analysis)]
-
-        if policy_engine is not None:
-            self.policy_sim_container = Frame(self.notebook, bg=self.dark_bg)
-            self.policy_sim_canvas = Canvas(self.policy_sim_container, bg=self.dark_bg)
-            self.policy_sim = Frame(self.policy_sim_container, bg=self.dark_bg)
-            self.policy_sim_canvas.create_window((0, 0), window=self.policy_sim, anchor='nw')
-            self.policy_sim_scroll = ttk.Scrollbar(self.policy_sim_container, orient=VERTICAL,
-                                                   command=self.policy_sim_canvas.yview)
-            self.policy_sim_canvas.configure(yscrollcommand=self.policy_sim_scroll.set)
-            self.policy_sim_canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
-            self.policy_sim_scroll.pack(side=RIGHT, fill=Y)
-            print('Generating policy simulation histograms')
-            self.generate_policy_histograms(simulation_data, policy_engine.get_population_analysis_results())
-            self.notebook.add(self.policy_sim_container, text='Policy Simulation')
-            self.canvases.append((self.policy_sim_canvas, self.policy_sim))
-
-        if counterfactual_engine is not None:
-            self.counterfactual_container = Frame(self.notebook, bg=self.dark_bg)
-            self.counterfactual_canvas = Canvas(self.counterfactual_container, bg=self.dark_bg)
-            self.counterfactual = Frame(self.counterfactual_container, bg=self.dark_bg)
-            self.counterfactual_canvas.create_window((0, 0), window=self.counterfactual, anchor='nw')
-            self.counterfactual_scroll = ttk.Scrollbar(self.counterfactual_container, orient=VERTICAL,
-                                                       command=self.counterfactual_canvas.yview)
-            self.counterfactual_canvas.configure(yscrollcommand=self.counterfactual_scroll.set)
-            self.counterfactual_canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
-            self.counterfactual_scroll.pack(side=RIGHT, fill=Y)
-            print('Generating counterfactual simulation histograms')
-            self.generate_counterfactual_histograms(simulation_data,
-                                                    counterfactual_engine.get_population_analysis_results())
-            self.notebook.add(self.counterfactual_container, text='Counterfactual Simulation')
-            self.canvases.append((self.counterfactual_canvas, self.counterfactual))
+        self.population_analysis = PopulationAnalysis(self.notebook, simulation_engine, counterfactual_engine,
+                                                      policy_engine)
+        self.notebook.add(self.population_analysis, text='Population Analysis')
 
         self.content.pack(expand=True, fill=BOTH)
         self.notebook.pack(expand=True, fill=BOTH)
@@ -1184,7 +1201,8 @@ class ResultsWindow(Toplevel):
         print('Creating ABF graphs')
         self.display_abf_bar_graphs(pivot_tables)
 
-        self.bind("<MouseWheel>", self.scroll_abf)
+        self.bind("<MouseWheel>", self.scroll)
+        # self.bind('<Configure>', self.resize)
 
         tip = 'The payroll tax that will be implemented to fund benefits program.'
         self.payroll_tax_label = TipLabel(self.abf_params_inputs, tip, text='Payroll Tax (%):', bg=self.notebook_bg)
@@ -1224,10 +1242,10 @@ class ResultsWindow(Toplevel):
 
         print('Updating widgets')
         self.update()
-        print('Setting scroll area')
-        for canvas, frame in self.canvases:
-            canvas.configure(scrollregion=(0, 0, 0, frame.winfo_height()))
-        # self.abf_canvas.configure(scrollregion=(0, 0, 0, self.abf_info.winfo_height()))
+        self.notebook.config(width=self.abf.content.winfo_width() + 25)
+        self.abf.update_scroll_region()
+        self.population_analysis.update_scroll_region()
+        self.resizable(False, False)
 
     def show_params(self):
         self.abf_params_reveal.pack_forget()
@@ -1303,42 +1321,6 @@ class ResultsWindow(Toplevel):
 
         figure.savefig(filename, facecolor=self.dark_bg, edgecolor='white')
 
-    def generate_population_analysis_histograms(self, population_analysis_data):
-        fg_color = 'white'
-        bg_color = self.dark_bg
-
-        # print(population_analysis_data['cpl'])
-        # print(population_analysis_data['PWGTP'])
-
-        self.create_histogram(self.population_analysis, population_analysis_data['cpl'], 20,
-                              population_analysis_data['PWGTP'], bg_color, fg_color, 'All Workers')
-
-        female_data = population_analysis_data[population_analysis_data['female'] == 1]
-        self.create_histogram(self.population_analysis, female_data['cpl'], 20,
-                              female_data['PWGTP'], bg_color, fg_color, 'Female Workers')
-
-        child_bearing_data = female_data[(female_data['age'] >= 25) & (female_data['age'] <= 40)]
-        self.create_histogram(self.population_analysis, child_bearing_data['cpl'], 20,
-                              child_bearing_data['PWGTP'], bg_color, fg_color, 'Female Child Bearing Age')
-
-    def generate_counterfactual_histograms(self, simulation_data, counterfactual_data):
-        fg_color = 'white'
-        bg_color = self.dark_bg
-        self.create_histogram(self.counterfactual, simulation_data['cpl'], 20,
-                              simulation_data['PWGTP'], bg_color, fg_color, 'Current Program')
-        self.create_histogram(self.counterfactual, counterfactual_data['cpl'], 20,
-                              counterfactual_data['PWGTP'], bg_color, fg_color,
-                              'Counterfactual Program ({})'.format(self.parent.settings.counterfactual))
-
-    def generate_policy_histograms(self, simulation_data, policy_sim_data):
-        fg_color = 'white'
-        bg_color = self.dark_bg
-        self.create_histogram(self.policy_sim, simulation_data['cpl'], 20,
-                              simulation_data['PWGTP'], bg_color, fg_color, 'Current Program')
-        self.create_histogram(self.policy_sim, policy_sim_data['cpl'], 20,
-                              policy_sim_data['PWGTP'], bg_color, fg_color,
-                              'Most Generous Program')
-
     def create_histogram(self, parent, data, bins, weights, bg_color, fg_color, title_str):
         fig = Figure(figsize=(8, 4))
         ax = fig.add_subplot(111)
@@ -1355,22 +1337,135 @@ class ResultsWindow(Toplevel):
         self.display_abf_bar_graphs(pivot_tables)
         self.abf_summary.update_results(abf_output)
 
-    def scroll_abf(self, event):
+    def scroll(self, event):
+        # In Windows, the delta will be either 120 or -120. In Mac, it will be 1 or -1.
+        # The delta value will determine whether the user is scrolling up or down.
         move_unit = 0
         if event.num == 5 or event.delta > 0:
-            move_unit = -1
+            move_unit = -2
         elif event.num == 4 or event.delta < 0:
-            move_unit = 1
+            move_unit = 2
 
-        if self.current_tab > 0:
-            self.canvases[self.current_tab - 1][0].yview_scroll(move_unit, 'units')
-        # self.abf_canvas.yview_scroll(move_unit, 'units')
+        # Only scroll the tab that is currently visible.
+        if self.current_tab == 1:
+            self.abf.canvas.yview_scroll(move_unit, 'units')
+        elif self.current_tab == 2:
+            self.population_analysis.canvas.yview_scroll(move_unit, 'units')
 
     def change_current_tab(self, event):
         self.current_tab = self.notebook.tk.call(self.notebook._w, "identify", "tab", event.x, event.y)
 
+    def set_notebook_width(self, width):
+        self.abf.canvas.itemconfig(1, width=width)
+        self.population_analysis.canvas.itemconfig(1, width=width)
+
     def on_close(self):
         self.destroy()
+
+
+class PopulationAnalysis(ScrollFrame):
+    def __init__(self, parent, simulation_engine, counterfactual_engine=None, policy_sim_engine=None):
+        super().__init__(parent)
+        self.simulation_data = simulation_engine.get_population_analysis_results()
+        self.counterfactual_data = None if counterfactual_engine is None else \
+            counterfactual_engine.get_population_analysis_results()
+        self.policy_sim_data = None if policy_sim_engine is None else \
+            policy_sim_engine.get_population_analysis_results()
+        self.dark_bg = self.winfo_toplevel().dark_bg
+        self.light_font = self.winfo_toplevel().light_font
+        self.notebook_bg = self.winfo_toplevel().notebook_bg
+
+        self.parameters_frame = Frame(self.content, padx=4, pady=4, bg=self.dark_bg)
+        self.parameters_frame.pack(fill=X, pady=(0, 4))
+
+        self.gender = StringVar()
+        self.gender_label = Label(self.parameters_frame, text='Gender:', font='Helvetica 12 bold', bg=self.dark_bg,
+                                  fg=self.light_font)
+        self.gender_input = ttk.Combobox(self.parameters_frame, textvariable=self.gender, state="readonly", width=10,
+                                         values=['Both', 'Male', 'Female'])
+        self.gender_input.current(0)
+
+        self.age_min = IntVar()
+        self.age_max = IntVar()
+        self.age_label = Label(self.parameters_frame, text='Age:', font='Helvetica 12 bold', bg=self.dark_bg,
+                               fg=self.light_font)
+        self.age_min_label = Label(self.parameters_frame, text='Min', bg=self.dark_bg, fg=self.light_font)
+        self.age_max_label = Label(self.parameters_frame, text='Max', bg=self.dark_bg, fg=self.light_font)
+        self.age_min_input = MSGeneralEntry(self.parameters_frame, textvariable=self.age_min)
+        self.age_max_input = MSGeneralEntry(self.parameters_frame, textvariable=self.age_max)
+
+        self.wage_min = DoubleVar()
+        self.wage_max = DoubleVar()
+        self.wage_label = Label(self.parameters_frame, text='Wage:', font='Helvetica 12 bold', bg=self.dark_bg,
+                                fg=self.light_font)
+        self.wage_min_label = Label(self.parameters_frame, text='Min', bg=self.dark_bg, fg=self.light_font)
+        self.wage_max_label = Label(self.parameters_frame, text='Max', bg=self.dark_bg, fg=self.light_font)
+        self.wage_min_input = MSGeneralEntry(self.parameters_frame, textvariable=self.wage_min)
+        self.wage_max_input = MSGeneralEntry(self.parameters_frame, textvariable=self.wage_max)
+
+        self.submit_button = MSButton(self.parameters_frame, text='Submit', command=lambda: self.__create_histograms())
+
+        self.gender_label.grid(column=0, row=1, sticky=W, pady=2)
+        self.gender_input.grid(column=0, row=2, sticky=W, pady=2)
+        self.age_label.grid(column=1, row=0, sticky=W, pady=2)
+        self.age_min_label.grid(column=1, row=1, sticky=W, pady=2)
+        self.age_max_label.grid(column=2, row=1, sticky=W, pady=2)
+        self.age_min_input.grid(column=1, row=2, sticky=W, padx=2)
+        self.age_max_input.grid(column=2, row=2, sticky=W, padx=2)
+        self.wage_label.grid(column=3, row=0, sticky=W, pady=2)
+        self.wage_min_label.grid(column=3, row=1, sticky=W, pady=2)
+        self.wage_max_label.grid(column=4, row=1, sticky=W, pady=2)
+        self.wage_min_input.grid(column=3, row=2, sticky=W, padx=2)
+        self.wage_max_input.grid(column=4, row=2, sticky=W, padx=2)
+        self.submit_button.grid(column=0, row=3, sticky=W, pady=4)
+
+        self.histogram_frame = Frame(self.content, bg=self.dark_bg)
+        self.__create_histograms()
+        self.histogram_frame.pack(side=TOP, fill=BOTH, expand=True)
+
+    def __create_histograms(self):
+        for chart in self.histogram_frame.winfo_children():
+            chart.destroy()
+
+        simulation_data = self.filter_data(self.simulation_data)
+        self.create_histogram(simulation_data['cpl'], 20, simulation_data['PWGTP'], 'Main Simulation')
+
+        if self.counterfactual_data is not None:
+            counterfactual_data = self.filter_data(self.counterfactual_data)
+            self.create_histogram(
+                counterfactual_data['cpl'], 20, counterfactual_data['PWGTP'],
+                'Counterfactual Program ({})'.format(self.winfo_toplevel().parent.settings.counterfactual))
+
+        if self.policy_sim_data is not None:
+            policy_sim_data = self.filter_data(self.policy_sim_data)
+            self.create_histogram(policy_sim_data['cpl'], 20, policy_sim_data['PWGTP'], 'Most Generous Program')
+
+    def filter_data(self, data):
+        if self.gender.get() == 'Male':
+            data = data[data['female'] == 0]
+        elif self.gender.get() == 'Female':
+            data = data[data['female'] == 1]
+
+        if self.age_min.get() is not None:
+            data = data[data['age'] >= self.age_min.get()]
+        if self.age_max.get() is not None and self.age_max.get() > 0:
+            data = data[data['age'] <= self.age_max.get()]
+
+        if self.wage_min.get() is not None:
+            data = data[data['wage12'] >= self.wage_min.get()]
+        if self.wage_max.get() is not None and self.wage_max.get() > 0:
+            data = data[data['wage12'] <= self.wage_max.get()]
+
+        return data
+
+    def create_histogram(self, data, bins, weights, title_str):
+        fig = Figure(figsize=(8, 4))
+        ax = fig.add_subplot(111)
+        ax.hist(data, bins, weights=weights, color='#1aff8c')
+        title = 'State: {}. {}'.format(self.winfo_toplevel().parent.settings.state, title_str)
+        format_chart(fig, ax, title, self.dark_bg, 'white')
+        chart_container = ChartContainer(self.histogram_frame, fig, self.dark_bg)
+        chart_container.pack()
 
 
 class ResultsSummary(Frame):
@@ -1616,9 +1711,9 @@ class CreateToolTip(object):
 # The following classes are used so that style options don't have to be reentered for each widget that should be styled
 # a certain way.
 class MSButton(Button):
-    def __init__(self, parent=None, background='#0074BF', font='-size 12', width=8, **kwargs):
+    def __init__(self, parent=None, background='#0074BF', font='-size 12', width=8, pady=0, **kwargs):
         super().__init__(parent, foreground='#FFFFFF', background=background, font=font, width=width,
-                         relief='flat', activebackground='#FFFFFF', pady=0, bd=0, **kwargs)
+                         relief='flat', activebackground='#FFFFFF', pady=pady, bd=0, **kwargs)
 
 
 class MSRunButton(Button):
