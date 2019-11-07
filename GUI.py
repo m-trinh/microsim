@@ -43,7 +43,7 @@ class MicrosimGUI(Tk):
         self.showing_advanced = BooleanVar(value=False)
         self.advanced_switch = Button(self.content, text="Advanced", command=self.toggle_advanced_parameters,
                                       font="-size 10", bg='#d9d9d9', fg='#4d4d4d', padx=6, pady=0)
-        self.run_button = MSRunButton(self.content, text="Run", command=self.__run_simulation)
+        self.run_button = MSRunButton(self.content, text="Run", height=1, command=self.__run_simulation)
 
         # Add callbacks that will run when certain variables are changed
         self.__add_variable_callbacks()
@@ -108,6 +108,8 @@ class MicrosimGUI(Tk):
             'state': StringVar(),
             'simulation_method': StringVar(),
             'existing_program': StringVar(),
+            'engine_type': StringVar(),
+            'r_path': StringVar(),
             'benefit_effect': BooleanVar(value=d.benefit_effect),
             'calibrate': BooleanVar(value=d.calibrate),
             'clone_factor': IntVar(value=d.clone_factor),
@@ -181,11 +183,13 @@ class MicrosimGUI(Tk):
 
     def on_close(self):
         for w in self.progress_windows:
+            w.quit()
             w.destroy()
         for w in self.results_windows:
+            w.quit()
             w.destroy()
+        self.quit()
         self.destroy()
-        exit(0)
 
     def set_existing_parameters(self, *_):
         # Change all relevant parameters to match an existing state program
@@ -337,28 +341,6 @@ class MicrosimGUI(Tk):
 
         return SimulationEngine(st, yr, fps_in, fps_out, clf_name, prog_para, engine_type=engine_type, q=q)
 
-    def browse_file(self, file_input):
-        # Open a file dialogue where user can choose a file. Possible options are limited to CSV and Excel files.
-        file_name = filedialog.askopenfilename(initialdir=self.cwd, filetypes=self.spreadsheet_ftypes)
-        file_input.delete(0, END)  # Clear current value in entry widget
-        file_input.insert(0, file_name)  # Add user-selected value to entry widget
-
-    def browse_directory(self, directory_input):
-        # Open a file dialogue where user can choose a directory.
-        directory_name = filedialog.askdirectory(initialdir=self.cwd)
-        directory_input.delete(0, END)  # Clear current value in entry widget
-        directory_input.insert(0, directory_name)  # Add user-selected value to entry widget
-
-    def save_file(self, figure):
-        filename = filedialog.asksaveasfilename(defaultextension='.png', initialdir=self.cwd,
-                                                filetypes=[('PNG', '.png'), ('PDF', '*.pdf'), ('PGF', '*.pgf'),
-                                                           ('EPS', '*.eps'), ('PS', '*.ps'), ('Raw', '*.raw'),
-                                                           ('RGBA', '*.rgba'), ('SVG', '*.svg'), ('SVGZ', '*.svgz')])
-        if filename is None:
-            return
-
-        figure.savefig(filename, facecolor=self.dark_bg, edgecolor='white')
-
     def check_file_entries(self, *_):
         if self.variables['fmla_file'].get() and self.variables['acs_directory'].get() and \
                 self.variables['output_directory'].get():
@@ -498,7 +480,7 @@ class GeneralSettingsFrame(Frame):
         self.fmla_label = TipLabel(self, tip, text="FMLA File:", bg=self.dark_bg, fg=self.light_font, anchor=N)
         self.fmla_input = MSGeneralEntry(self, textvariable=self.variables['fmla_file'])
         self.fmla_button = MSButton(self, text="Browse",
-                                    command=lambda: self.browse_file(self.fmla_input))
+                                    command=lambda: self.browse_file(self.fmla_input, self.spreadsheet_ftypes))
         self.fmla_button.config(width=None)
 
         # ------------------------------------------------ ACS File -------------------------------------------------
@@ -548,6 +530,20 @@ class GeneralSettingsFrame(Frame):
                                                    state="readonly", width=5, values=list(DEFAULT_STATE_PARAMS.keys()))
         self.existing_program_input.current(0)
 
+        # ----------------------------------------------- Engine Type -----------------------------------------------
+        tip = 'Choose between the Python and R model.'
+        self.engine_type_label = TipLabel(self, tip, text='Engine Type:', bg=self.dark_bg, fg=self.light_font)
+        self.engine_type_input = ttk.Combobox(self, textvariable=self.variables['engine_type'], state="readonly",
+                                              width=7, values=['Python', 'R'])
+        self.engine_type_input.current(0)
+
+        tip = 'The Rscript path on your system.'
+        self.r_path_label = TipLabel(self, tip, text="Rscript Path:", bg=self.dark_bg, fg=self.light_font)
+        self.r_path_input = MSGeneralEntry(self, textvariable=self.variables['r_path'])
+        self.r_path_button = MSButton(self, text="Browse",
+                                      command=lambda: self.browse_file(self.r_path_input, [('Rscript', 'Rscript.exe')]))
+        self.variables['engine_type'].trace('w', self.toggle_r_path)
+
         # Add the input widgets to the parent widget
         self.row_padding = 4
         self.fmla_label.grid(column=0, row=0, sticky=W, pady=self.row_padding)
@@ -586,16 +582,24 @@ class GeneralSettingsFrame(Frame):
         # self.detail_input.grid_forget()
         self.simulation_method_label.grid_forget()
         self.simulation_method_input.grid_forget()
+        self.engine_type_label.grid_forget()
+        self.engine_type_input.grid_forget()
+        self.r_path_label.grid_forget()
+        self.r_path_input.grid_forget()
+        self.r_path_button.grid_forget()
 
     def show_advanced_parameters(self):
         # self.detail_label.grid(column=0, row=3, sticky=W, pady=self.row_padding)
         # self.detail_input.grid(column=1, row=3, sticky=W, padx=8, pady=self.row_padding)
         self.simulation_method_label.grid(column=0, row=6, sticky=W, pady=self.row_padding)
         self.simulation_method_input.grid(column=1, row=6, sticky=W, padx=8, pady=self.row_padding)
+        self.engine_type_label.grid(column=0, row=7, sticky=W, pady=self.row_padding)
+        self.engine_type_input.grid(column=1, row=7, sticky=W, padx=8, pady=self.row_padding)
+        self.toggle_r_path()
 
-    def browse_file(self, file_input):
+    def browse_file(self, file_input, filetypes):
         # Open a file dialogue where user can choose a file. Possible options are limited to CSV and Excel files.
-        file_name = filedialog.askopenfilename(initialdir=self.cwd, filetypes=self.spreadsheet_ftypes)
+        file_name = filedialog.askopenfilename(initialdir=self.cwd, filetypes=filetypes)
         file_input.delete(0, END)  # Clear current value in entry widget
         file_input.insert(0, file_name)  # Add user-selected value to entry widget
 
@@ -604,6 +608,17 @@ class GeneralSettingsFrame(Frame):
         directory_name = filedialog.askdirectory(initialdir=self.cwd)
         directory_input.delete(0, END)  # Clear current value in entry widget
         directory_input.insert(0, directory_name)  # Add user-selected value to entry widget
+
+    def toggle_r_path(self, *_):
+        print(self.variables['r_path'].get())
+        if self.variables['engine_type'].get() == 'R':
+            self.r_path_label.grid(column=0, row=8, sticky=W, pady=self.row_padding)
+            self.r_path_input.grid(column=1, row=8, padx=8, sticky=(E, W), pady=self.row_padding)
+            self.r_path_button.grid(column=4, row=8, pady=self.row_padding)
+        else:
+            self.r_path_label.grid_forget()
+            self.r_path_input.grid_forget()
+            self.r_path_button.grid_forget()
 
 
 class SettingsNotebook(ttk.Notebook):
