@@ -3,6 +3,8 @@ from tkinter import ttk, filedialog, messagebox
 import os
 import sys
 import multiprocessing
+import subprocess
+import ast
 import queue
 import random
 import numpy as np
@@ -68,6 +70,7 @@ class MicrosimGUI(Tk):
         self.variables['fmla_file'].set('./data/fmla_2012/fmla_2012_employee_restrict_puf.csv')
         self.variables['acs_directory'].set('./data/acs')
         self.variables['output_directory'].set('./output')
+        self.variables['r_path'].set('/Users/mtrinh/R-3.6.1/bin/Rscript.exe')
         # self.test_result_output()
 
     def __create_attributes(self):
@@ -215,6 +218,12 @@ class MicrosimGUI(Tk):
             return
 
         settings = self.__create_settings()
+        if settings.engine_type == 'Python':
+            self.__run_simulation_python(settings)
+        elif settings.engine_type == 'R':
+            self.__run_simulation_r(settings)
+
+    def __run_simulation_python(self, settings):
         if settings.random_seed is not None and settings.random_seed != '':
             random.seed(settings.random_seed)
             np.random.seed(settings.random_seed)
@@ -238,15 +247,31 @@ class MicrosimGUI(Tk):
 
         self.counterfactual_se = counterfactual_se
         self.run_button.config(state=DISABLED, bg='#99d6ff')
-        progress_window = ProgressWindow(self, se, counterfactual_se, policy_se)
+        progress_window = ProgressWindow(self, engine_type='Python', se=se, counterfactual_se=counterfactual_se,
+                                         policy_sim_se=policy_se)
         self.progress_windows.append(progress_window)
         # Run model
-        engine_process = multiprocessing.Process(None, target=run_engines, args=(se, counterfactual_se, policy_se, q))
-        engine_process.start()
+        self.engine_process = multiprocessing.Process(None, target=run_engines, args=(se, counterfactual_se, policy_se, q))
+        self.engine_process.start()
 
         progress_window.update_progress(q)
 
+    def __run_simulation_r(self, settings):
+        progress_file = './log/progress_{}.txt'.format(datetime.datetime.now().strftime('%Y%m%d%H%M%S%f'))
+        command = create_r_command(settings, progress_file)
+        counterfactual_command = create_r_command(generate_default_state_params(settings), progress_file)
+        policy_command = create_r_command(generate_generous_params(settings), progress_file)
+        open(progress_file, 'w+').close()
+        self.engine_process = multiprocessing.Process(None, target=run_engines_r, args=(command, counterfactual_command,
+                                                                                        policy_command))
+        self.engine_process.start()
+
+        progress_window = ProgressWindow(self, engine_type='R')
+        with open(progress_file, 'r') as f:
+            progress_window.update_progress_r(f)
+
     def show_results(self):
+        self.engine_process.terminate()
         # compute program costs
         print('Showing results')
         costs = self.se.get_cost_df()
@@ -610,7 +635,6 @@ class GeneralSettingsFrame(Frame):
         directory_input.insert(0, directory_name)  # Add user-selected value to entry widget
 
     def toggle_r_path(self, *_):
-        print(self.variables['r_path'].get())
         if self.variables['engine_type'].get() == 'R':
             self.r_path_label.grid(column=0, row=8, sticky=W, pady=self.row_padding)
             self.r_path_input.grid(column=1, row=8, padx=8, sticky=(E, W), pady=self.row_padding)
@@ -1578,7 +1602,7 @@ class ABFResultsSummary(Frame):
 
 
 class ProgressWindow(Toplevel):
-    def __init__(self, parent, se, counterfactual_se=None, policy_sim_se=None):
+    def __init__(self, parent, engine_type='Python', se=None, counterfactual_se=None, policy_sim_se=None):
         super().__init__(parent)
         self.icon = PhotoImage(file='impaq_logo.gif')
         self.tk.call('wm', 'iconphoto', self._w, self.icon)
@@ -1618,22 +1642,42 @@ class ProgressWindow(Toplevel):
     def update_progress(self, q, last_progress=0):
         try:  # Try to check if there is data in the queue
             update = q.get_nowait()
-
-            if update['type'] == 'done':
+            done, last_progress = self.parse_update(update, last_progress)
+            if done:
                 self.parent.show_results()
-            elif update['type'] == 'progress':
-                self.update_idletasks()
-                progress = update['value']
-                self.progress.set(last_progress + progress / self.engines)
-                if progress == 100:
-                    last_progress = self.progress.get()
-                self.after(500, self.update_progress, q, last_progress)
-            elif update['type'] == 'message':
-                self.update_idletasks()
-                self.add_update(update['value'], update['engine'])
+            else:
                 self.after(500, self.update_progress, q, last_progress)
         except queue.Empty:
             self.after(500, self.update_progress, q, last_progress)
+
+    def update_progress_r(self, progress_file, last_progress=0):
+        while True:
+            line = progress_file.readline()
+            if line == '':
+                self.after(500, self.update_progress_r, progress_file, last_progress)
+            else:
+                update = ast.literal_eval(line)
+                done, last_progress = self.parse_update(update, last_progress)
+                if done:
+                    self.parent.show_results()
+                else:
+                    self.after(500, self.update_progress_r, progress_file, last_progress)
+
+    def parse_update(self, update, last_progress):
+        done = False
+        if update['type'] == 'done':
+            done = True
+        elif update['type'] == 'progress':
+            self.update_idletasks()
+            progress = update['value']
+            self.progress.set(last_progress + progress / self.engines)
+            if progress == 100:
+                last_progress = self.progress.get()
+        elif update['type'] == 'message':
+            self.update_idletasks()
+            self.add_update(update['value'], update['engine'])
+
+        return done, last_progress
 
     def add_update(self, update, engine='Main'):
         label = Message(self.updates, text=engine + ': ' + update, bg=self.parent.notebook_bg, fg='#006600',
@@ -1773,3 +1817,9 @@ def run_engines(se, counterfactual_se, policy_se, q):
         policy_se.run()
 
     q.put({'type': 'done', 'value': 'done'})
+
+
+def run_engines_r(command, counterfactual_command, policy_command):
+    subprocess.call(command, shell=True)
+    subprocess.call(counterfactual_command, shell=True)
+    subprocess.call(policy_command, shell=True)
