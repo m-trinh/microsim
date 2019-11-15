@@ -9,7 +9,7 @@ import sklearn.linear_model
 import mord
 import json
 from time import time
-from _5a_aux_functions import simulate_wof, get_marginal_probs, get_adj_cps, get_adj_ups, fillna_binary
+from _5a_aux_functions import fillna_binary, get_multiple_leave_vars
 
 class DataCleanerFMLA:
 
@@ -193,52 +193,8 @@ class DataCleanerFMLA:
         # leave reason for most recent leave
         d['reason_take'] = np.where((np.isnan(d['A20']) == False) & (d['A20'] == 2), d['A5_2_CAT'], d['A5_1_CAT'])
 
-        # leave reason for most recent leave (revised)
-        d['reason_take_rev'] = np.where((np.isnan(d['A20']) == False) & (d['A20'] == 2), d['A5_2_CAT_REV'], d['A5_1_CAT_rev'])
-
-        # taken doctor
-        d['YNdoctor_take'] = np.where((np.isnan(d['A20']) == False) & (d['A20'] == 2), d['A11_2'], d['A11_1'])
-        d['doctor_take'] = np.where(d['YNdoctor_take'] == 1, 1, 0)
-        d['doctor_take'] = np.where(np.isnan(d['YNdoctor_take']), np.nan, d['doctor_take'])
-
-        # taken hospital
-        d['YNhospital_take'] = np.where((np.isnan(d['A20']) == False) & (d['A20'] == 2), d['A12_2'], d['A12_1'])
-        d['hospital_take'] = np.where(d['YNhospital_take'] == 1, 1, 0)
-        d['hospital_take'] = np.where(np.isnan(d['YNhospital_take']), np.nan, d['hospital_take'])
-        d['hospital_take'] = np.where(np.isnan(d['hospital_take']) & (d['doctor_take'] == 0), 0, d['hospital_take'])
-
-        # need doctor
-        d['doctor_need'] = np.where(d['B12_1'] == 1, 1, 0)
-        d['doctor_need'] = np.where(np.isnan(d['B12_1']), np.nan, d['doctor_need'])
-
-        # need hospital
-        d['hospital_need'] = np.where(d['B13_1'] == 1, 1, 0)
-        d['hospital_need'] = np.where(np.isnan(d['B13_1']), np.nan, d['hospital_need'])
-        d['hospital_need'] = np.where(np.isnan(d['hospital_need']) & (d['doctor_need'] == 0), 0, d['hospital_need'])
-
-        # taken or needed doctor or hospital for leave category
-        d['doctor1'] = np.where((np.isnan(d['LEAVE_CAT']) == False) & (d['LEAVE_CAT'] == 2), d['doctor_need'], d['doctor_take'])
-        d['doctor2'] = np.where((np.isnan(d['LEAVE_CAT']) == False) & ((d['LEAVE_CAT'] == 2) | (d['LEAVE_CAT'] == 4)),
-                                d['doctor_need'], d['doctor_take'])
-
-        d['hospital1'] = np.where((np.isnan(d['LEAVE_CAT']) == False) & (d['LEAVE_CAT'] == 2), d['hospital_need'],
-                                  d['hospital_take'])
-        d['hospital2'] = np.where((np.isnan(d['LEAVE_CAT']) == False) & ((d['LEAVE_CAT'] == 2) | (d['LEAVE_CAT'] == 4)),
-                                  d['hospital_need'], d['hospital_take'])
-
-        d['doctor'] = np.where(d['doctor_take']==1, 1, 0)
-        d['doctor'] = np.where(d['doctor_need']==1, 1, d['doctor'])
-        d['doctor'] = np.where((d['doctor_take'].isna()) & (d['doctor_need'].isna()), np.nan, d['doctor'])
-
-        d['hospital'] = np.where(d['hospital_take']==1, 1, 0)
-        d['hospital'] = np.where(d['hospital_need']==1, 1, d['hospital'])
-        d['hospital'] = np.where((d['hospital_take'].isna()) & (d['hospital_need'].isna()), np.nan, d['hospital'])
-
         # length of leave for most recent leave
         d['length'] = np.where((np.isnan(d['A20']) == False) & (d['A20'] == 2), d['A19_2_CAT_rev'], d['A19_1_CAT_rev'])
-        d['lengthsq'] = np.array(d['length']) ** 2
-        d['lnlength'] = np.log(d['length'])
-        d['lnlengthsq'] = np.log(d['length']) ** 2
 
         # any pay received
         d['anypay'] = np.where(d['A45'] == 1, 1, 0)
@@ -257,28 +213,6 @@ class DataCleanerFMLA:
         d['recStatePay'] = np.where(np.isnan(d['recStateFL']) | np.isnan(d['recStateDL']), np.nan, d['recStatePay'])
 
         # --------------------------
-        # Leave taking variables
-        # --------------------------
-
-        # fully paid
-        d['fullyPaid'] = np.where(d['A49'] == 1, 1, 0)
-        d['fullyPaid'] = np.where(np.isnan(d['A49']), np.nan, d['fullyPaid'])
-
-        # longer leave if more pay
-        d['longerLeave'] = np.where(d['A55'] == 1, 1, 0)
-        d['longerLeave'] = np.where(np.isnan(d['A55']), np.nan, d['longerLeave'])
-
-        # could not afford to take leave
-        d['unaffordable'] = np.where(d['B15_1_CAT'] == 5, 1, 0)
-        d['unaffordable'] = np.where(np.isnan(d['B15_1_CAT']), np.nan, d['unaffordable'])
-
-        # weights
-        w_emp = np.mean(d[d['LEAVE_CAT'] == 3]['weight'])
-        w_leave = np.mean(d[d['LEAVE_CAT'] != 3]['weight'])
-        d['fixed_weight'] = np.where(d['LEAVE_CAT'] == 3, w_emp, w_leave)
-        d['freq_weight'] = np.round(d['weight'])
-
-        # --------------------------
         # dummies for leave type
         # --------------------------
 
@@ -288,12 +222,6 @@ class DataCleanerFMLA:
         # (3) taking or needing a leave
 
         # maternity disability
-        # d['reason_take'] = np.where((np.isnan(d['A20'])==False) & (d['A20']==2),d['A5_2_CAT'],d['A5_1_CAT'])
-        # if A20 = 1 or missing the go to A5_1_CAT for most recent leave
-        # if A20 = 2 the go to A5_2_CAT for most recent leave (no such cases in FMLA 2012)
-
-        # d['take_matdis'] = np.where(((d['A5_1_CAT']==21)&(d['A11_1']==1)&(d['GENDER_CAT']==2))&((d['A20']!=2) | (d['A20'].isna())) | (d['A5_1_CAT_rev']==32),1,0)
-        # d['take_matdis'] = np.where(((d['A5_2_CAT']==21)&(d['A11_1']==1)&(d['GENDER_CAT']==2))&((d['A20']==1)) | (d['A5_1_CAT_rev']==32),1,0)
         d['take_matdis'] = np.where(
             (((d['A5_1_CAT'] == 21) & (d['A11_1'] == 1) & (d['GENDER_CAT'] == 2)) | (d['A5_1_CAT_rev'] == 32)) & (
                 (d['A20'] != 2) | (d['A20'].isna())), 1, 0)
@@ -357,8 +285,6 @@ class DataCleanerFMLA:
         d['need_own'] = np.where(d['B6_1_CAT'] == 1, 1, 0)
         d['need_own'] = np.where(d['B6_1_CAT'].isna(), np.nan, d['need_own'])
         # multiple leaves - if one leave is Own the other NA, need_own is NA
-        # d['need_own'] = np.where((d['B6_1_CAT'].isna()) & (d['B6_2_CAT']!=1), np.nan, d['need_own'])
-        # d['need_own'] = np.where((d['B6_1_CAT']!=1) & (d['B6_2_CAT'].isna()), np.nan, d['need_own'])
         d['need_own'] = np.where(np.isnan(d['need_own']) & ((d['LEAVE_CAT'] == 1) | (d['LEAVE_CAT'] == 3)), 0, d['need_own'])
 
         d['type_own'] = np.where((d['take_own'] == 1) | (d['need_own'] == 1), 1, 0)
@@ -374,8 +300,6 @@ class DataCleanerFMLA:
         d['need_illchild'] = np.where(np.isnan(d['B6_1_CAT']), np.nan, d['need_illchild'])
 
         # multiple leaves - if one leave is not Illchild the other NA, need_illchild is NA
-        # d['need_illchild'] = np.where((d['B6_1_CAT'].isna()) & (d['B6_2_CAT']!=11), np.nan, d['need_illchild'])
-        # d['need_illchild'] = np.where((d['B6_1_CAT']!=11) & (d['B6_2_CAT'].isna()), np.nan, d['need_illchild'])
         d['need_illchild'] = np.where(np.isnan(d['need_illchild']) & ((d['LEAVE_CAT'] == 1) | (d['LEAVE_CAT'] == 3)), 0,
                                       d['need_illchild'])
 
@@ -425,55 +349,6 @@ class DataCleanerFMLA:
         d['taker'] = d[['take_%s' % t for t in types]].apply(lambda x: max(x), axis=1)
         d['needer'] = d[['need_%s' % t for t in types]].apply(lambda x: max(x), axis=1)
 
-
-        # number of reasons leaves taken - need to consolidate following
-        # A5_1_CAT: loop 1 taker reason type
-        # A5_2_CAT: loop 2 taker reason type
-        # A4a_CAT: number of taker reasons
-
-        # get total of take reasons(out of 6) inferred from A5_1_CAT and A5_2_CAT
-        d = d.rename(columns={'A5_2_CAT_REV':'A5_2_CAT_rev'})
-        for lp in ['1', '2']:
-            d['take_any6_loop%s' % lp] = 0
-            d['take_any6_loop%s' % lp] = np.where((d['A5_%s_CAT' % lp] == 1) |
-                                                  (d['A5_%s_CAT' % lp] == 11) |
-                                                  (d['A5_%s_CAT' % lp] == 12) |
-                                                  (d['A5_%s_CAT' % lp] == 13) |
-                                                  (d['A5_%s_CAT' % lp] == 21) |
-                                                  (d['A5_%s_CAT_rev' % lp]==32 ), 1, 0)
-        d['take_any6'] = d['take_any6_loop1'] + d['take_any6_loop2']
-        # make sure num_leaves_taken is at least take_any6 above
-        d['num_leaves_taken'] = d['A4a_CAT']
-        d['num_leaves_taken'] = np.where(d['num_leaves_taken'].isna(), 0, d['num_leaves_taken'])
-        d['num_leaves_taken'] = np.where(d['num_leaves_taken'] < d['take_any6'], d['take_any6'], d['num_leaves_taken'])
-
-
-        # number of reasons leaves needed - need to consolidate following
-        # B6_1_CAT: loop 1 needer reason type
-        # B6_2_CAT: loop 2 needer reason type
-        # B5_CAT: number of times needing leaves past 12m (best approximation of number of reasons in data)
-
-        # get total of need reasons(out of 6) inferred from B6_1_CAT and B6_2_CAT
-        for lp in ['1', '2']:
-            d['need_any6_loop%s' % lp] = 0
-            d['need_any6_loop%s' % lp] = np.where((d['B6_%s_CAT' % lp] == 1) |
-                                                  (d['B6_%s_CAT' % lp] == 11) |
-                                                  (d['B6_%s_CAT' % lp] == 12) |
-                                                  (d['B6_%s_CAT' % lp] == 13) |
-                                                  (d['B6_%s_CAT' % lp] == 21), 1, 0)
-        d['need_any6'] = d['need_any6_loop1'] + d['need_any6_loop2']
-
-        # make sure num_leaves_need is at least need_any6
-        d['num_leaves_need'] = d['B5_CAT']
-        d['num_leaves_need'] = np.where(d['num_leaves_need'].isna(), 0, d['num_leaves_need'])
-        d['num_leaves_need'] = np.where(d['num_leaves_need'] < d['need_any6'], d['need_any6'], d['num_leaves_need'])
-
-        # most recent leave length by leave type
-        types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
-        for t in types:
-            d['length_%s' % t] = np.where(d['take_%s' % t] == 1, d['length'], 0)
-            d['length_%s' % t] = np.where(d['take_%s' % t].isna(), np.nan, d['length_%s' % t])
-
         # most recent take/need leave type in 1 col
 
         d['take_type'] = np.nan
@@ -482,12 +357,6 @@ class DataCleanerFMLA:
         d['need_type'] = np.nan
         for t in types:
             d.loc[(d['need_type'].isna()) & (d['need_%s' % t] == 1), 'need_type'] = t
-
-        # multiple leaver (taker/needer)
-        d['multiple'] = np.nan
-        d['multiple'] = np.where(d['LEAVE_CAT'] != 3, 0, d['multiple'])
-        d['multiple'] = np.where((d['A4_CAT'].notna()) & (d['A4_CAT'] >= 2), 1, d['multiple'])
-        d['multiple'] = np.where((d['B5b_CAT'].notna()) & (d['B5b_CAT'] >= 2), 1, d['multiple'])
 
         # proportion of pay received from employer (mid point of ranges provided in FMLA)
         d['prop_pay'] = np.where(d['A50'] == 1, 0.125, np.nan)
@@ -498,20 +367,19 @@ class DataCleanerFMLA:
         d['prop_pay'] = np.where(d['A49'] == 1, 1, d['prop_pay'])
         d['prop_pay'] = np.where(d['A45'] == 2, 0, d['prop_pay'])
 
-        # Benefits received as proportion of pay
-        # baseline is employer-provided pay: starting at 0, will be imputed
 
-        d['benefit_prop'] = 0
-        # Leave Program Participation
-        # baseline is absence of program, so this will start as a nonparticipant
-        d['particip'] = 0
-        # Cost to program as proportion of pay
-        # baseline is 0
-        d['cost_prop'] = 0
+
+        # --------------------------
+        # Indicator of cannot afford taking more leaves when needed
+        # a direct indicator from FMLA data
+        # --------------------------
+        d['unaffordable'] = np.where(d['B15_1_CAT'] == 5, 1, 0)
+        d['unaffordable'] = np.where(np.isnan(d['B15_1_CAT']), np.nan, d['unaffordable'])
 
         # -------------
         # The rest of the code in this function creates a variable 'resp_len'
-        # which will flag 0/1 for a worker that is likely to a more favourable leave program
+        # an alternative and more thorough version of the 'unaffordable' var above
+        # 'resp_len' will flag 0/1 for a worker that is likely to a more favourable leave program
         # by increasing leave length. It is used to help simulate counterfactual leave
         # for a program that increases wage replacement
         # -------------
@@ -559,311 +427,8 @@ class DataCleanerFMLA:
         # with no evidence in data of need solvable / unsolvable by $, assume solvable to be conservative
         d.loc[d['resp_len'].isna(), 'resp_len'] = 1
 
-        # Fill in multiple taker/needer reason types using info from rest of loops
-        # fill in for multiple takers - first we need reason for non-recent 2nd leave (longest). This is in loop 1 if A20=2
-        # if this reason is any6 and differs from most recent reason then fill in
-        # separate New Child code into matdis and bond
-
-        # For take_type2, fill in only if take_type (most recent type) is non-missing
-
-        dctr = {1: 'own',
-                11: 'illchild',
-                12: 'illspouse',
-                13: 'illparent',
-                21: 'New Child'}
-        d['take_type2'] = np.nan
-        d.loc[(d['A20'] == 2)
-              & (d['take_any6_loop1'] == 1) & (d['take_any6_loop2'] == 1)
-              & (d['A5_1_CAT'] != d['A5_2_CAT']) & (d['take_type'].notna()), 'take_type2'] = \
-            d.loc[(d['A20'] == 2)
-                  & (d['take_any6_loop1'] == 1) & (d['take_any6_loop2'] == 1)
-                  & (d['A5_1_CAT'] != d['A5_2_CAT']) & (d['take_type'].notna()), 'A5_1_CAT'].apply(lambda x: dctr[x])
-        d.loc[((d['take_type2'] == 'New Child')
-               & (d['A11_1'] == 1)
-               & (d['GENDER_CAT'] == 2))
-              | ((d['take_type2'] == 'New Child') & (d['A5_1_CAT_rev'] == 32)), 'take_type2'] = 'matdis'
-        d.loc[(d['take_type2'] == 'New Child'), 'take_type2'] = 'bond'
-
-        # fill in for multiple needers - non-recent 2nd leave is in need-loop 2
-        # this reason is any6 and differs from most recent reason then fill in
-        # separate New Child code into matdis and bond
-        d['need_type2'] = np.nan
-        d.loc[((d['need_any6_loop1'] == 1) & (d['need_any6_loop2'] == 1)
-              & (d['B6_1_CAT'] != d['B6_2_CAT'])) & (d['need_type'].notna()), 'need_type2'] = \
-            d.loc[((d['need_any6_loop1'] == 1) & (d['need_any6_loop2'] == 1)
-                  & (d['B6_1_CAT'] != d['B6_2_CAT'])) & (d['need_type'].notna()), 'B6_1_CAT'].apply(lambda x: dctr[x])
-        d.loc[((d['need_type2'] == 'New Child')
-               & (d['B12_1'] == 1)
-               & (d['GENDER_CAT'] == 2))
-              | ((d['need_type2'] == 'New Child') & (d['B6_1_CAT_rev'] == 32)), 'need_type2'] = 'matdis'
-        d.loc[(d['need_type2'] == 'New Child'), 'need_type2'] = 'bond'
-
-        # Check why some obs have missing recent take_type
-        #[check] print(d[(d['take_any6']==1) & (d['take_type'].isna())][['take_any6', 'take_type', 'A5_1_CAT', 'A5_2_CAT', 'A20']])
-        # because they all have A20 = 2 and when searching for recent leave from loop 2, the type is 'other' or nan
-        # for them we use A5_1_CAT as most recent leave taken, and breakdown New Child into matdis and bond using loop1 info
-        d.loc[(d['take_any6']==1) & (d['take_type'].isna()), 'take_type'] = \
-        d.loc[(d['take_any6']==1) & (d['take_type'].isna()), 'A5_1_CAT'].apply(lambda x: dctr[x])
-        d.loc[((d['take_type'] == 'New Child')
-               & (d['A11_1'] == 1)
-               & (d['GENDER_CAT'] == 2)), 'take_type'] = 'matdis'
-        d.loc[(d['take_type'] == 'New Child'), 'take_type'] = 'bond'
-        # check
-        #[check] print(d[(d['take_any6']==1) & (d['take_type'].isna())][['take_any6', 'take_type', 'A5_1_CAT', 'A5_2_CAT', 'A20']])
-
-        # similarly, identified following needers
-        #[check] print(d[(d['need_any6']==1) & (d['need_type'].isna())][['need_any6', 'need_type', 'B6_1_CAT', 'B6_2_CAT']])
-        # similarly, force most recent leave type for them, by using B6_2_CAT
-        d.loc[(d['need_any6']==1) & (d['need_type'].isna()), 'need_type'] = \
-        d.loc[(d['need_any6']==1) & (d['need_type'].isna()), 'B6_2_CAT'].apply(lambda x: dctr[x])
-        d.loc[((d['need_type'] == 'New Child')
-               & (d['B12_1'] == 1)
-               & (d['GENDER_CAT'] == 2)), 'need_type'] = 'matdis'
-        d.loc[(d['need_type'] == 'New Child'), 'need_type'] = 'bond'
-        # check
-        #[check] print(d[(d['need_any6']==1) & (d['need_type'].isna())][['need_any6', 'need_type', 'B6_1_CAT', 'B6_2_CAT']])
-
-        # Check: so far for take_any6 > 0, take_type and take_type2 should be all defined for num_leaves_taken = 1 or 2
-        d[(d['take_any6']>0) & ((d['num_leaves_taken']==1) | (d['num_leaves_taken']==2))]['take_type'].isna().value_counts()
-        d[(d['take_any6']>0) & (d['num_leaves_taken']==2)]['take_type2'].isna().value_counts()
-
-        d[(d['need_any6']==1) & ((d['num_leaves_need']==1) | (d['num_leaves_need']==2))]['need_type'].isna().value_counts()
-
-        # Fill in for rest of leave reasons for multiple leavers/needers using imputation
-            # First estimate distribution
-
-            # -------------
-            # Conditional prob of other leave types of another leave if another leave exists, given a known leave type
-            # These conditional probs will be applied recursively to simulate leave types for multiple leavers
-            # e.g. given the recent take_type=matdis, nl =2, need to simulate 1 type from the other 5 types << NT know pr(type | matdis)
-            # -------------
-        dm = d[(d['take_any6'] > 1) & (d['take_type'].notna()) & (d['A20'] == 2) & (d['A5_1_CAT'].notna())]
-        dcp = {}
-        for t in types:
-            nums = np.array([sum(dm[(dm['take_type'] == t) & (dm['take_type2'] == x)]['weight']) for x in types])
-            nums = np.where(nums == 0, 10, nums)  # assign small weight (10 ppl) as total workers with take_type = t
-                                                  # and take_type2 = x to avoid zero conditional probs, which may cause
-                                                  # 'no-further-simulation' issue when recursively simulating
-                                                  # multiple leave types
-            ps = nums / sum(nums)
-            dcp[t] = ps
-        # Normalize to make sure probs are conditional on OTHER types, prob(next leave type = t | current type = t)=0 for all t
-        for type, ps in dcp.items():
-            i = types.index(type)
-            ps[i] = 0
-            ps = ps / ps.sum()
-            dcp[type] = ps
-            i += 1
-        dict_dcp = dcp
-        dcp = pd.DataFrame.from_dict(dcp, orient='index')
-        dcp.columns = [t for t in types]
-        dcp = dcp.sort_index()
-        dcp = dcp.sort_index(axis=1)
-        dcp.to_csv('./data/fmla_2012/conditional_probs_leavetypes.csv', index=True)
-        otypes = list(dcp.columns) # types in alphabetical order
-
-        # -------------
-        # Unconditional prob of taking leaves if leave type is unknown
-        # this will be used to simulate types of multi-leavers if missing types for all leaves
-        # possible if multi-leavers and reported loop-1/2 types are out of the 6 types
-        # -------------
-        dict_dup = {}
-        denom = 0
-        for t in dcp.columns:
-            num = d[d['take_%s' % t]==1]['weight'].sum()
-            denom += num # build denom this way so that ratios sum up to 1
-        ups = [] # unconditional probs of taken types in order of dcp.columns (alphabetical)
-        for t in dcp.columns:
-            num = d[d['take_%s' % t] == 1]['weight'].sum()
-            dict_dup[t] = num / denom
-            ups.append(num/denom)
-
-        # Impute rest type info not in survey loops, up to num_leaves_taken/need
-
-        # Before imputing leave types, consolidate num_leaves_taken/need - among 2 loops some reported types out of the 6 types
-        # For these workers reduce num_leaves accordingly
-        d['num_leaves_taken_adj'] = d['num_leaves_taken']
-        d.loc[(d['num_leaves_taken']==1) & (d['take_type'].isna()), 'num_leaves_taken_adj'] = 0
-        for n in range(2, 7):
-            d.loc[(d['num_leaves_taken'] == n) & (d['take_type'].isna()), 'num_leaves_taken_adj'] = n-2  # if take_type is nan, then
-            #  take_type2 by definition would be nan too, reduce num_leaves by 2
-            d.loc[(d['num_leaves_taken'] == n) & (d['take_type'].notna()) & (d['take_type2'].isna()), 'num_leaves_taken_adj'] = n-1
-        d['num_leaves_taken'] = d['num_leaves_taken_adj']
-        # Similarly reduce for num_leaves_need
-        d.loc[(d['num_leaves_need']==1) & (d['need_type'].isna()), 'num_leaves_taken'] = 0
-        for n in range(2, 7):
-            d.loc[(d['num_leaves_need'] == n) & (d['need_type'].isna()), 'num_leaves_need'] = n-2  # if need_type is nan, then
-            #  need_type2 by definition would be nan too, reduce num_leaves by 2
-            d.loc[(d['num_leaves_need'] == n) & (d['need_type'].notna()) & (d['need_type2'].isna()), 'num_leaves_need'] = n-1
-        # Further cap num_leaves wrt logical restrictions
-        # if male - excl. matdis
-        # if nospouse (nevermarried, separated, divorced, widowed) - excl. illspouse
-        # if nochildren - excl. bond
-
-        d['max_num_leaves'] = 6
-        d.loc[d['male']==1, 'max_num_leaves'] = d.loc[d['male']==1, 'max_num_leaves'] - 1
-        d.loc[d['nospouse']==1, 'max_num_leaves'] = d.loc[d['nospouse']==1, 'max_num_leaves'] - 1
-        d.loc[d['nochildren']==1, 'max_num_leaves'] = d.loc[d['nochildren']==1, 'max_num_leaves'] - 1
-        d['num_leaves_taken'] = d[['num_leaves_taken', 'max_num_leaves']].apply(lambda x: min(x), axis=1)
-        d['num_leaves_need'] = d[['num_leaves_need', 'max_num_leaves']].apply(lambda x: min(x), axis=1)
-
-
-
-        # Impute leave types for multiple leaves - note that in general we have to do this for num_leaves = 1, 2, ... , 6
-        # because the adjusted num_leaves = 1 can come from original num_leaves = 3 but with both reported loops having types
-        # out of the 6 main types
-        chars = ['male', 'nospouse', 'nochildren']
-        # Impute for take types
-        # Impute types for most recent take_type for num_leaves_taken = 1...6
-        for nlt in range(1, 7):
-            L = len(d.loc[(d['num_leaves_taken']==nlt) & (d['take_type'].isna())])
-            if L > 0:
-                d.loc[(d['num_leaves_taken'] == nlt) & (d['take_type'].isna()), 'take_type'] = \
-                    d.loc[(d['num_leaves_taken'] == nlt) & (d['take_type'].isna()), chars].\
-                        apply(lambda x: dcp.columns[simulate_wof(get_adj_ups(ups, x))], axis=1)
-            else:
-                pass
-
-        # Impute types for 2nd most recent take_type2 for num_leaves_taken = 2...6
-        for nlt in range(2, 7):
-            L = len(d.loc[(d['num_leaves_taken']==nlt) & (d['take_type'].notna()) & (d['take_type2'].isna())])
-            if L > 0:
-                d.loc[(d['num_leaves_taken'] == nlt) & (d['take_type'].notna()) & (d['take_type2'].isna()), 'take_type2'] = \
-                    d.loc[(d['num_leaves_taken'] == nlt) & (d['take_type'].notna()) & (d['take_type2'].isna()), ['take_type'] + chars].\
-                        apply(lambda x: dcp.columns[simulate_wof(get_adj_cps(dcp, x[1:])[x[0]])], axis=1)
-            else:
-                pass
-
-        # Impute types for 3rd most recent take_type3 for num_leaves_taken = 3...6
-        # when impute need to discard candidate types that have been reported / imputed in exising leaves
-        d['take_type3']=np.nan
-        for nlt in range(3, 7):
-            L = len(d.loc[(d['num_leaves_taken']==nlt) & (d['take_type2'].notna()) & (d['take_type3'].isna())])
-            if L > 0:
-                d.loc[(d['num_leaves_taken'] == nlt) & (d['take_type2'].notna()) & (d['take_type3'].isna()), 'take_type3'] = \
-                    d.loc[(d['num_leaves_taken'] == nlt) & (d['take_type2'].notna()) & (d['take_type3'].isna()), ['take_type', 'take_type2'] + chars].\
-                        apply(lambda x: dcp.columns[simulate_wof(get_marginal_probs(get_adj_cps(dcp, x[2:])[x[1]], [otypes.index(x[0]), otypes.index(x[1])]))], axis=1)
-            else:
-                pass
-
-        # Impute types for 4th most recent take_type4 for num_leaves_taken = 4...6
-        # when impute need to discard candidate types that have been reported / imputed in exising leaves
-        d['take_type4']=np.nan
-        for nlt in range(4, 7):
-            L = len(d.loc[(d['num_leaves_taken']==nlt) & (d['take_type3'].notna()) & (d['take_type4'].isna())])
-            if L > 0:
-                d.loc[(d['num_leaves_taken'] == nlt) & (d['take_type3'].notna()) & (d['take_type4'].isna()), 'take_type4'] = \
-                    d.loc[(d['num_leaves_taken'] == nlt) & (d['take_type3'].notna()) & (d['take_type4'].isna()), ['take_type', 'take_type2', 'take_type3']+chars].\
-                        apply(lambda x: dcp.columns[simulate_wof(get_marginal_probs(get_adj_cps(dcp, x[3:])[x[2]], [otypes.index(x[k]) for k in range(3)]))], axis=1)
-            else:
-                pass
-
-        # Impute types for 5th most recent take_type5 for num_leaves_taken = 5, 6
-        # when impute need to discard candidate types that have been reported / imputed in exising leaves
-        d['take_type5']=np.nan
-        for nlt in range(5, 7):
-            L = len(d.loc[(d['num_leaves_taken']==nlt) & (d['take_type4'].notna()) & (d['take_type5'].isna())])
-            if L > 0:
-                d.loc[(d['num_leaves_taken'] == nlt) & (d['take_type4'].notna()) & (d['take_type5'].isna()), 'take_type5'] = \
-                    d.loc[(d['num_leaves_taken'] == nlt) & (d['take_type4'].notna()) & (d['take_type5'].isna()), ['take_type', 'take_type2', 'take_type3', 'take_type4']+chars].\
-                        apply(lambda x: dcp.columns[simulate_wof(get_marginal_probs(get_adj_cps(dcp, x[:4])[x[3]], [otypes.index(x[k]) for k in range(4)]))], axis=1)
-            else:
-                pass
-
-        # Impute types for last take_type6 for num_leaves_taken = 6
-        # this is just the only left leave type not selected by previous simulation
-        # no logical restriction needed if all 6 types exist
-        d['take_type6']=np.nan
-        L = len(d.loc[(d['num_leaves_taken']==6) & (d['take_type5'].notna()) & (d['take_type6'].isna())])
-        if L > 0:
-            d.loc[(d['num_leaves_taken'] == 6) & (d['take_type5'].notna()) & (d['take_type6'].isna()), 'take_type6'] = \
-            d.loc[(d['num_leaves_taken'] == 6) & (d['take_type5'].notna()) & (d['take_type6'].isna()), ['take_type', 'take_type2', 'take_type3', 'take_type4', 'take_type5']] \
-            .apply(lambda x: list(set(otypes) - set(x))[0], axis=1)
-        else:
-            pass
-
-        # Impute for need types
-        # B6_1_CAT has enough obs so use need type-based ups as unconditional prob vector
-        # B6_2_CAT has too few obs so keep using take type-based dcp as conditional prob matrix
-        dict_dup = {}
-        denom = 0
-        for t in dcp.columns:
-            num = d[d['need_%s' % t]==1]['weight'].sum()
-            denom += num # build denom this way so that ratios sum up to 1
-        ups = [] # unconditional probs of need types in order of dcp.columns (alphabetical)
-        for t in dcp.columns:
-            num = d[d['need_%s' % t] == 1]['weight'].sum()
-            dict_dup[t] = num / denom
-            ups.append(num/denom)
-
-        # Impute types for most recent need_type for num_leaves_need = 1...6
-        for nlt in range(1, 7):
-            L = len(d.loc[(d['num_leaves_need']==nlt) & (d['need_type'].isna())])
-            if L > 0:
-                d.loc[(d['num_leaves_need'] == nlt) & (d['need_type'].isna()), 'need_type'] = \
-                    d.loc[(d['num_leaves_need'] == nlt) & (d['need_type'].isna()), chars].\
-                        apply(lambda x: dcp.columns[simulate_wof(get_adj_ups(ups, x))], axis=1)
-            else:
-                pass
-
-        # Impute types for 2nd most recent need_type2 for num_leaves_taken = 2...6
-        for nlt in range(2, 7):
-            L = len(d.loc[(d['num_leaves_need']==nlt) & (d['need_type'].notna()) & (d['need_type2'].isna())])
-            if L > 0:
-                d.loc[(d['num_leaves_need'] == nlt) & (d['need_type'].notna()) & (d['need_type2'].isna()), 'need_type2'] = \
-                    d.loc[(d['num_leaves_need'] == nlt) & (d['need_type'].notna()) & (d['need_type2'].isna()), ['need_type'] + chars].\
-                        apply(lambda x: dcp.columns[simulate_wof(get_adj_cps(dcp, x[1:])[x[0]])], axis=1)
-            else:
-                pass
-
-        # Impute types for 3rd most recent need_type3 for num_leaves_taken = 3...6
-        # when impute need to discard candidate types that have been reported / imputed in existing leaves
-        d['need_type3']=np.nan
-        otypes = list(dcp.columns) # types in alphabetical order
-        for nlt in range(3, 7):
-            L = len(d.loc[(d['num_leaves_need']==nlt) & (d['need_type2'].notna()) & (d['need_type3'].isna())])
-            if L > 0:
-                d.loc[(d['num_leaves_need'] == nlt) & (d['need_type2'].notna()) & (d['need_type3'].isna()), 'need_type3'] = \
-                    d.loc[(d['num_leaves_need'] == nlt) & (d['need_type2'].notna()) & (d['need_type3'].isna()), ['need_type', 'need_type2']+chars].\
-                        apply(lambda x: dcp.columns[simulate_wof(get_marginal_probs(get_adj_cps(dcp, x[2:])[x[1]], [otypes.index(x[0]), otypes.index(x[1])]))], axis=1)
-            else:
-                pass
-
-        # Impute types for 4th most recent need_type4 for num_leaves_taken = 4...6
-        # when impute need to discard candidate types that have been reported / imputed in existing leaves
-        d['need_type4']=np.nan
-        for nlt in range(4, 7):
-            L = len(d.loc[(d['num_leaves_need']==nlt) & (d['need_type3'].notna()) & (d['need_type4'].isna())])
-            if L > 0:
-                d.loc[(d['num_leaves_need'] == nlt) & (d['need_type3'].notna()) & (d['need_type4'].isna()), 'need_type4'] = \
-                    d.loc[(d['num_leaves_need'] == nlt) & (d['need_type3'].notna()) & (d['need_type4'].isna()), ['need_type', 'need_type2', 'need_type3']+chars].\
-                        apply(lambda x: dcp.columns[simulate_wof(get_marginal_probs(get_adj_cps(dcp, x[3:])[x[2]], [otypes.index(x[k]) for k in range(3)]))], axis=1)
-            else:
-                pass
-
-        # Impute types for 5th most recent need_type5 for num_leaves_taken = 5, 6
-        # when impute need to discard candidate types that have been reported / imputed in existing leaves
-        d['need_type5']=np.nan
-        for nlt in range(5, 7):
-            L = len(d.loc[(d['num_leaves_need']==nlt) & (d['need_type4'].notna()) & (d['need_type5'].isna())])
-            if L > 0:
-                d.loc[(d['num_leaves_need'] == nlt) & (d['need_type4'].notna()) & (d['need_type5'].isna()), 'need_type5'] = \
-                    d.loc[(d['num_leaves_need'] == nlt) & (d['need_type4'].notna()) & (d['need_type5'].isna()), ['need_type', 'need_type2', 'need_type3', 'need_type4']+chars].\
-                        apply(lambda x: dcp.columns[simulate_wof(get_marginal_probs(get_adj_cps(dcp, x[4:])[x[3]], [otypes.index(x[k]) for k in range(4)]))], axis=1)
-            else:
-                pass
-
-        # Impute types for last need_type6 for num_leaves_need = 6
-        # this is just the only left leave type not selected by previous simulation
-        # no logical restriction needed if all 6 types exist
-        d['need_type6']=np.nan
-        L = len(d.loc[(d['num_leaves_need']==6) & (d['need_type5'].notna()) & (d['need_type6'].isna())])
-        if L > 0:
-            d.loc[(d['num_leaves_need'] == 6) & (d['need_type5'].notna()) & (d['need_type6'].isna()), 'need_type6'] = \
-            d.loc[(d['num_leaves_need'] == 6) & (d['need_type5'].notna()) & (d['need_type6'].isna()), ['need_type', 'need_type2', 'need_type3', 'need_type4', 'need_type5']] \
-            .apply(lambda x: list(set(otypes) - set(x))[0], axis=1)
-        else:
-            pass
+        # optional - get multiple leave type variables
+        #d = get_multiple_leave_vars(d, types)
 
         # Save data
         d.to_csv(self.fp_fmla_out, index=False)
@@ -981,11 +546,7 @@ class DataCleanerFMLA:
         with open(fp_length_distribution_out, 'w') as f:
             json.dump(dct, f, sort_keys=True, indent=4)
             f.close()
-        #
-        # jsn = json.dumps(dct)
-        # f = open(fp_length_distribution_out, 'w')
-        # f.write(jsn)
-        # f.close()
+
         print('File saved: leave distribution estimated from FMLA data.')
         return None
 

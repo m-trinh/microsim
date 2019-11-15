@@ -17,8 +17,8 @@ st = 'ri'
 yr = 16
 fp_fmla_in = './data/fmla_2012/fmla_2012_employee_restrict_puf.csv'
 fp_cps_in = './data/cps/CPS2014extract.csv'
-fp_acsh_in = './data/acs/household_files'
-fp_acsp_in = './data/acs/person_files'
+fp_acsh_in = './data/acs/pow_household_files'
+fp_acsp_in = './data/acs/pow_person_files'
 acs_weight_multiplier = 1.0217029934467345 # see project acs_all
 fp_fmla_out = './data/fmla_2012/fmla_clean_2012.csv'
 fp_cps_out = './data/cps/cps_for_acs_sim.csv'
@@ -65,14 +65,20 @@ incl_empgov_st = True
 incl_empgov_loc = True
 incl_empself = False
 sim_method = 'Logistic Regression'
+needers_fully_participate = False
+state_of_work = True
+clone_factor = 1
+dual_receivers_share = 0.6
 
 prog_para = [elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp, wkbene_cap, d_maxwk, d_takeup,
-             incl_empgov_fed, incl_empgov_st, incl_empgov_loc, incl_empself, sim_method]
+             incl_empgov_fed, incl_empgov_st, incl_empgov_loc, incl_empself, sim_method, needers_fully_participate,
+             state_of_work, clone_factor, dual_receivers_share]
 
 # initiate instances
 se = SimulationEngine(st, yr, fps_in, fps_out, clf_name, prog_para, engine_type='Main')
 # clean data
 se.prepare_data()
+
 # get_acs_simulated
 
 # Read in cleaned ACS and FMLA data, and FMLA-based length distribution
@@ -401,3 +407,152 @@ print(message)
 se.__put_queue({'type': 'progress', 'engine': se.engine_type, 'value': 100})
 se.__put_queue({'type': 'message', 'engine': se.engine_type, 'value': message})
 return out  # df of leave type specific costs and total cost, along with ci's
+
+#########################################
+# check post-sim ACS against state data
+# RI rules: http://www.dlt.ri.gov/tdi/tdifaqs.htm
+# RI data: http://www.dlt.ri.gov/lmi/pdf/tdi/2018.pdf (earlier years URL 201X available)
+#########################################
+# read in post-sim acs
+tags = {}
+tags['logit'] = '20191114_152350'
+tags['ridge'] = '20191114_152939'
+tags['knn'] = '20191114_153443'
+tags['nb'] = '20191114_153643'
+tags['svm'] = '20191114_153825'
+tags['rf'] = '20191114_154830'
+
+types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
+takeups=dict(zip(types, [0.043, 0.033, 0.014, 0.001, 0.002, 0.001])) # using 2018 RI data / ACS eligible pop
+
+
+for k, v in tags.items():
+    print('--- BELOW ARE FOR sim_method = %s -----------------------------------' % k)
+    acs = pd.read_csv('./output/output_%s_Main/acs_sim_%s.csv' % (v, v))
+
+    # get average leave length in weeks
+    for t in types:
+        print('Average cp-len in weeks for type %s = %s' % (t, (acs[acs['cpl_%s' % t] > 0]['cpl_%s' % t] / 5).mean()))
+
+
+    # get total population with cp-len>0 and takeup_type=1 for each leave type
+    for t in types:
+        dx = acs[(acs['takeup_%s' % t]==1)]['PWGTP'].sum()
+        #print('Pop with cp-len >0 and takeup=1 for type %s = %s' % (t, dx))
+        s_positive_cpl = acs[acs['cpl_%s' % t] > 0]['PWGTP'].sum() / acs['PWGTP'].sum()
+        #print('s_positive_cpl = %s' % round(s_positive_cpl, 4))
+        takeup = takeups[t]
+        takeup = min(s_positive_cpl, takeup)
+        p_draw = takeup / s_positive_cpl
+        target = sum(acs[acs['cpl_%s' % t] > 0]['PWGTP']) * p_draw
+
+        #print('acs shape =\n', acs.shape)
+        print('sum(acs[acs[\'cpl_s\'] > 0][\'PWGTP\']) = %s' % (sum(acs[acs['cpl_%s' % t] > 0]['PWGTP'])))
+        #print('acs[\'PWGTP\'].sum() = %s' % (acs['PWGTP'].sum()))
+        print('s_positive_cpl = %s' % s_positive_cpl)
+        print('takeup = %s' % takeup)
+        print('p_draw = %s' % round(p_draw, 4))
+        # target = sum(acs[acs['cpl_%s' % t] > 0]['PWGTP']) * takeup * acs['PWGTP'].sum() / acs[acs['cpl_%s' % t] > 0]['PWGTP'].sum()
+        print('target pop = %s' % int(target))
+        # print('Age distribution: (min, mean, max) = (%s, %s, %s)' %
+        #       (acs[acs['cpl_%s' % t]>0].age.min(), acs[acs['cpl_%s' % t]>0].age.mean(), acs[acs['cpl_%s' % t]>0].age.max()))
+
+    # get number of takers/needers
+    for t in types:
+        n_taker = acs[acs['take_%s' % t]==1]['PWGTP'].sum()
+        n_needer = acs[acs['need_%s' % t]==1]['PWGTP'].sum()
+        print('[%s] Taker/Needer pops = (%s, %s)' % (t, n_taker, n_needer))
+
+
+    # get total population with cp-len>0 for each leave type
+    for t in types:
+        dx = acs[(acs['cpl_%s' % t] > 0)]['PWGTP'].sum()
+        print('Pop with cp-len >0 for type %s = %s' % (t, dx))
+
+
+
+# get average payment per week
+# apply weekly benefit bounds
+# apply child dependency add-up (up to 5 children, max(10, 7% bene rate), add-up until rrp=1)
+wkbene_bounds = [98, 867]
+rrp = 0.6
+acs['rrp'] = rrp
+acs.loc[acs['ndep_kid']>0, 'rrp'] = [min(1, rrp + 0.07*min(x, 5)) for x in acs.loc[acs['ndep_kid']>0, 'ndep_kid']]
+for t in types:
+    v = [max(min(x, wkbene_bounds[1]), min(x, wkbene_bounds[0])) for x in
+         ((acs['cpl_%s' % t] / 5) * (acs['wage12'] / acs['wkswork'] * rrp))]
+    acs['wkbene_%s' % t] = v
+    print('Average weekly benefit for type %s = %s ' % (t, acs[acs['wkbene_%s' % t]>0]['wkbene_%s' % t].mean()))
+
+
+# get average leave length in weeks
+for t in types:
+    print('Average cp-len in weeks for type %s = %s' % (t, (acs[acs['cpl_%s' % t]>0]['cpl_%s' % t] / 5).mean()))
+
+for t in types:
+    print('Average mn-len in weeks for type %s = %s' % (t, (acs[acs['mnl_%s' % t]>0]['mnl_%s' % t] / 5).mean()))
+
+# get share and level of pop with positive cp-len
+for t in types:
+    num = acs[acs['cpl_%s' % t]>0]['PWGTP'].sum()
+    s_pos_cpl =  num / acs['PWGTP'].sum()
+    print('Share of pop with positive cpl_%s = %s. Level = %s' % (t, round(s_pos_cpl, 2), num))
+
+# get total program payment to recipients, by leave type
+cost = 0
+for t in types:
+    cost_type = (acs['wkbene_%s' % t] * acs['cpl_%s' % t] / 5 * acs['takeup_%s' % t] * acs['PWGTP']).sum()/10**6
+    print('Annual cost of type %s = %s' % (t, round(cost_type, 1)))
+    cost += cost_type
+print('Total cost = %s' % cost)
+
+# get total approved claims based on takeup_type vars
+n_claims = 0
+for t in types:
+    n_claims_type = acs[(acs['cpl_%s' % t]>0) & (acs['takeup_%s' % t]==1)]['PWGTP'].sum()
+    print('Total program claims for type %s = %s' % (t, n_claims_type))
+    n_claims += n_claims_type
+print('Total claims = %s' % n_claims)
+
+# get relative cases of own and matdis using FMLA data
+# in principle we restrict to workers receiving state pay to compute this ratio
+# but recStatePay=1 only gives 96 rows in FMLA, with 6 take_matdis=1 and 64 take_own=1
+# using recStatePay=0/1 to compute the ratio - get similar ratio, so perhaps own/matdis constrained by no-program similarly
+d = pd.read_csv('./data/fmla_2012/fmla_clean_2012.csv')
+n_take_own = d[(d['recStatePay']==1) & (d['take_own']==1)]['weight'].sum()
+n_take_matdis = d[(d['recStatePay']==1) & (d['take_matdis']==1)]['weight'].sum()
+print('Proportion of take_own in own + matdis = %s' % round(100*n_take_own/ (n_take_own + n_take_matdis), 1))
+'''
+RI sim results -
+
+Share of pop with positive cpl_own = 0.59. Level = 67411
+Share of pop with positive cpl_matdis = 0.11. Level = 12544
+Share of pop with positive cpl_bond = 0.13. Level = 15235
+Share of pop with positive cpl_illchild = 0.15. Level = 16854
+Share of pop with positive cpl_illspouse = 0.11. Level = 13166
+Share of pop with positive cpl_illparent = 0.18. Level = 20394
+
+
+RI 2018 data (approved cases only, excluding lending cases):
+http://www.dlt.ri.gov/lmi/pdf/tdi/2018.pdf
+
+claims for own = 29000 * 0.8 = 23200 (0.8 estimated using FMLA data)
+claims for matdis = 29000 - 23200 = 5800
+--- subtotal (own + matdis claims) = 29000 (own condition, 30 week coverage)
+claims for bond = 5250
+claims for illchild = 200 (spouse can help out)
+claims for illspouse = 750 (spouse ill)
+claims for illparent = 375 (spouse can help out)
+
+so for testing set following take up rates (=n_claims / total eligible pop)
+these numbers are independent from sim results since both n_claims and eligible pop are just data
+
+[round(x, 3) for x in np.array([23200, 5800, 5250, 200, 750, 375])/383712]
+
+
+vs = [0.06, 0.015, 0.014, 0.001, 0.002, 0.001]
+takeups = dict(zip(types, vs))
+
+'''
+
+
