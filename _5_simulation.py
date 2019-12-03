@@ -17,6 +17,7 @@ chris zhang 11/12/2019
 # logit does not sim enough takers/needers to reach required takeup in RI. Other methods okay
 # Applied logic control - age range of taker/needer of matdis, bond (set max to 50)
 
+# TODO: add covelig (FMLA unpaid) to fmla/acs train/sim, use Luke's xvars to check logit taker/needer RI results
 # TODO: check diff MLs performance on predicting number of weeks (pmts) for RI/NJ/CA data
 # TODO: adopt needers_fully_part
 # TODO: add clonefactor and weightfactor paras to match R model. With cloned ACS persons can get more granular y_hat's.
@@ -413,7 +414,7 @@ class SimulationEngine:
         # col_w = weight column, PWGTP for main, or PWGTPx for x-th rep weight in ACS data
 
         # We first append acs_neither_taker_needer back to post-sim acs, so we'll work with a common population
-        acs = acs_taker_needer.append(acs_neither_taker_needer) # for new cols not in acs_neither_taker_needer, will create nan
+        acs = acs_taker_needer.append(acs_neither_taker_needer, sort=True) # for new cols not in acs_neither_taker_needer, will create nan
         # drop takeup flag cols if any
         for c in ['takeup_%s' % x for x in self.types]:
             if c in acs.columns:

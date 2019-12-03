@@ -33,27 +33,26 @@ class DataCleanerFMLA:
 
         # FMLA eligible worker
         d['eligworker'] = np.nan
-        # eligible workers
+        # eligible workers - same company past year (E13), and FT or 1250+ hours
         d.loc[(d['E13'] == 1) & ((d['E14'] == 1) | ((d['E15_CAT'] >= 5) & (d['E15_CAT'] <= 8))), 'eligworker'] = 1
-        # ineligible workers
+        # ineligible workers - different company, or part time and <1250 hours
         d.loc[(d['E13'].notna()) & (d['E13'] != 1), 'eligworker'] = 0  # E13 same job past year fails
         d.loc[(d['E14'].notna()) & (d['E14'] != 1)
               & (d['E15_CAT'].notna()) & (
                   (d['E15_CAT'] < 5) | (d['E15_CAT'] > 8)), 'eligworker'] = 0  # E14 (FT) and E15 (hrs) fails
 
-        # Covered workplace
+        # Covered workplace (E11:50+ workers on site, E12: #workers within 75 miles)
         d['covwrkplace'] = np.where((d['E11'] == 1) | ((d['E12'] >= 6) & (d['E12'] <= 9)), 1, 0)
         d['covwrkplace'] = np.where(np.isnan(d['covwrkplace']), 0, d['covwrkplace'])
-        d['cond1'] = np.where(np.isnan(d['E11']) & np.isnan(d['E12']), 1, 0)
-        d['cond2'] = np.where((d['E11'] == 2) & (np.isnan(d['E11']) == False) & np.isnan(d['E12']), 1, 0)
-        d['miscond'] = np.where((d['cond1'] == 1) | (d['cond2'] == 1), 1, 0)
+        d['cond1'] = np.where(np.isnan(d['E11']) & np.isnan(d['E12']), 1, 0) # E11 and E12 missing
+        d['cond2'] = np.where((d['E11'] == 2) & (np.isnan(d['E11']) == False) & np.isnan(d['E12']), 1, 0) # E11=No, E12 missing
+        d['miscond'] = np.where((d['cond1'] == 1) | (d['cond2'] == 1), 1, 0) # E11=miss/No, E12 missing
         d['covwrkplace'] = np.where(d['miscond'] == 1, np.nan, d['covwrkplace'])
 
         # Covered and eligible
+        # set to 1 if both workplace and worker covered, set to nan if either missing
         d['coveligd'] = np.where((d['covwrkplace'] == 1) & (d['eligworker'] == 1), 1, 0)
-        d['coveligd'] = np.where(np.isnan(d['covwrkplace']) & np.isnan(d['eligworker']), np.nan, d['coveligd'])
-        d['coveligd'] = np.where(np.isnan(d['covwrkplace']) & (d['eligworker'] == 1), np.nan, d['coveligd'])
-        d['coveligd'] = np.where((d['covwrkplace'] == 1) & np.isnan(d['eligworker']), np.nan, d['coveligd'])
+        d['coveligd'] = np.where((np.isnan(d['covwrkplace'])) | (np.isnan(d['eligworker'])), np.nan, d['coveligd'])
 
         # Hourly worker
         d['hourly'] = np.where(d['E9_1'] == 2, 1, 0)
@@ -194,7 +193,9 @@ class DataCleanerFMLA:
         d['reason_take'] = np.where((np.isnan(d['A20']) == False) & (d['A20'] == 2), d['A5_2_CAT'], d['A5_1_CAT'])
 
         # length of leave for most recent leave
+        # cap at 365-52*2 = 261 work days a year
         d['length'] = np.where((np.isnan(d['A20']) == False) & (d['A20'] == 2), d['A19_2_CAT_rev'], d['A19_1_CAT_rev'])
+        d['length'] = [min(x, 261) for x in d['length']]
 
         # any pay received
         d['anypay'] = np.where(d['A45'] == 1, 1, 0)

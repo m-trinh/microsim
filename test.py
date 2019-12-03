@@ -415,12 +415,12 @@ return out  # df of leave type specific costs and total cost, along with ci's
 #########################################
 # read in post-sim acs
 tags = {}
-tags['logit'] = '20191114_152350'
-tags['ridge'] = '20191114_152939'
-tags['knn'] = '20191114_153443'
-tags['nb'] = '20191114_153643'
-tags['svm'] = '20191114_153825'
-tags['rf'] = '20191114_154830'
+tags['logit'] = '20191125_161045'
+# tags['ridge'] = '20191114_152939'
+# tags['knn'] = '20191114_153443'
+# tags['nb'] = '20191114_153643'
+# tags['svm'] = '20191114_153825'
+# tags['rf'] = '20191114_154830'
 
 types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
 takeups=dict(zip(types, [0.043, 0.033, 0.014, 0.001, 0.002, 0.001])) # using 2018 RI data / ACS eligible pop
@@ -429,11 +429,35 @@ takeups=dict(zip(types, [0.043, 0.033, 0.014, 0.001, 0.002, 0.001])) # using 201
 for k, v in tags.items():
     print('--- BELOW ARE FOR sim_method = %s -----------------------------------' % k)
     acs = pd.read_csv('./output/output_%s_Main/acs_sim_%s.csv' % (v, v))
-
-    # get average leave length in weeks
+    # get average leave lengths
     for t in types:
-        print('Average cp-len in weeks for type %s = %s' % (t, (acs[acs['cpl_%s' % t] > 0]['cpl_%s' % t] / 5).mean()))
-
+        avg_len = (np.average(np.array(acs[acs['cpl_%s' % t] > 0]['cpl_%s' % t]), weights=acs[acs['cpl_%s' % t] > 0]['PWGTP']))
+        avg_len = round(avg_len, 3)
+        print('Average cp-len in days for type %s = %s'
+              % (t, avg_len))
+    for t in types:
+        acs.loc[acs['cpl_%s' % t].isna(), 'cpl_%s' % t] = 0
+        avg_len = (np.average(np.array(acs['cpl_%s' % t]), weights=acs['PWGTP']))
+        avg_len = round(avg_len, 3)
+        print('Average UNCOND\' cp-len in days for type %s = %s'
+              % (t, avg_len))
+# sumstats for mn-len
+for k, v in tags.items():
+    print('--- BELOW ARE FOR sim_method = %s -----------------------------------' % k)
+    acs = pd.read_csv('./output/output_%s_Main/acs_sim_%s.csv' % (v, v))
+    # get average leave lengths
+    for t in types:
+        avg_len = (
+        np.average(np.array(acs[acs['mnl_%s' % t] > 0]['mnl_%s' % t]), weights=acs[acs['mnl_%s' % t] > 0]['PWGTP']))
+        avg_len = round(avg_len, 3)
+        print('Average mn-len in days for type %s = %s'
+              % (t, avg_len))
+    for t in types:
+        acs.loc[acs['mnl_%s' % t].isna(), 'mnl_%s' % t] = 0
+        avg_len = (np.average(np.array(acs['mnl_%s' % t]), weights=acs['PWGTP']))
+        avg_len = round(avg_len, 3)
+        print('Average UNCOND\' mn-len in days for type %s = %s'
+              % (t, avg_len))
 
     # get total population with cp-len>0 and takeup_type=1 for each leave type
     for t in types:
@@ -556,3 +580,20 @@ takeups = dict(zip(types, vs))
 '''
 
 
+### check R results
+for k, v in tags.items():
+    print('--- R RESULTS ---')
+    print('--- BELOW ARE FOR sim_method = %s -----------------------------------' % k)
+    acs = pd.read_csv('./from_luke/RI_sim.csv')
+    # get average leave lengths
+    for t in types:
+        avg_len = (np.average(np.array(acs[acs['mnl_%s' % t] > 0]['mnl_%s' % t]), weights=acs[acs['mnl_%s' % t] > 0]['PWGTP']))
+        avg_len = round(avg_len, 3)
+        print('Average mn-len in days for type %s = %s'
+              % (t, avg_len))
+    for t in types:
+        acs.loc[acs['mnl_%s' % t].isna(), 'mnl_%s' % t] = 0
+        avg_len = (np.average(np.array(acs['mnl_%s' % t]), weights=acs['PWGTP']))
+        avg_len = round(avg_len, 3)
+        print('Average UNCOND\' mn-len in days for type %s = %s'
+              % (t, avg_len))
