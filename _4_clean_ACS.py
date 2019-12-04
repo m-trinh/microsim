@@ -320,6 +320,11 @@ class DataCleanerACS:
             clf = mord.LogisticAT().fit(X, y)
             d['empsize'] = pd.Series(clf.predict(Xd), index=d.index)
 
+            # Based on ACS raw and CPS-imputation, get FMLA-coverage indicator coveligd
+            d['coveligd'] = np.where((d['oneemp']==1) &
+                                     (d['wkhours']*d['wkswork']>=1250) &
+                                     (d['empsize']>=3), 1, 0)
+
             # -------------------------- #
             # Save the resulting dataset
             # -------------------------- #
@@ -334,6 +339,7 @@ class DataCleanerACS:
                     'married', 'partner', 'separated', 'divorced', 'widowed', 'nevermarried',
                     'asian', 'black', 'white', 'native', 'other', 'hisp',
                     'fem_cu6', 'fem_cu6and617', 'fem_c617', 'fem_nochild',
+                    'coveligd',
                     'ESR', 'COW'  # original ACS vars for restricting samples later
                     ]
             cols += ['ind_%s' % x for x in range(1, 14)]

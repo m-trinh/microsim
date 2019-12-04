@@ -1,10 +1,14 @@
 .idea/
 __pycache__
 data/*
+from_luke/*
 output/*
+r_engine/*
 build/*
 dist/*
 hook-sklearn.py
 Microsimulator.spec
 *.exe
 log/*
+*.zip
+*.xlsx
