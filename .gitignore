@@ -7,3 +7,4 @@ dist/*
 hook-sklearn.py
 Microsimulator.spec
 *.exe
+log/*

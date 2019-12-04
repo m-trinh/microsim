@@ -478,7 +478,7 @@ class MicrosimGUI(Tk):
         self.settings_notebook.show_advanced_parameters()
 
     def toggle_advanced_parameters(self):
-        height_change = 65
+        height_change = 100
         if self.showing_advanced.get():
             self.showing_advanced.set(False)
             self.advanced_switch.config(relief="raised", bg='#d9d9d9')

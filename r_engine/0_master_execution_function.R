@@ -46,7 +46,7 @@ policy_simulation <- function(saveCSV=FALSE,
                               elig_rule_logic= '(earnings & weeks & ann_hours & minsize)',
                               formula_prop_cuts=NULL, formula_value_cuts=NULL, formula_bene_levels=NULL,
                               weightfactor=1, output=NULL, output_stats=NULL, random_seed=123,
-                              SMOTE=FALSE) { # SMOTE still under construction, should remain false) {
+                              SMOTE=FALSE, engine_type='Main', progress_file=NULL) { # SMOTE still under construction, should remain false) {
   
   
   ####################################
@@ -143,6 +143,13 @@ policy_simulation <- function(saveCSV=FALSE,
   if (!is.null(sample_prop) & !is.null(sample_num)) {
     d_acs <- sample_acs(d_acs, sample_prop=sample_prop, sample_num=sample_num)  
   }
+
+  if (!is.null(progress_file)) {
+    message <- paste0('{"type": "message", "engine": "' engine_type, '", "value": "Cleaned data files before CPS imputation."}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+    message <- paste0('{"type": "progress", "engine": "' engine_type, '", "value": 10}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+  }
   #========================================
   # 2. Pre-imputation 
   #========================================
@@ -164,6 +171,12 @@ policy_simulation <- function(saveCSV=FALSE,
   # intra-fmla imputation for additional leave taking and needings
   d_fmla <- impute_intra_fmla(d_fmla, intra_impute)
 
+  if (!is.null(progress_file)) {
+    message <- paste0('{"type": "message", "engine": "' engine_type, '", "value": "Impute leave taken and needed."}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+    message <- paste0('{"type": "progress", "engine": "' engine_type, '", "value": 20}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+  }
   # OUTPUT: FMLA data with modified take_ and need_ vars for those with additional leaves
   
   # option to apply SMOTE to d_fmla data set to correct for class imbalance of each leave type
