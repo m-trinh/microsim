@@ -20,7 +20,7 @@ from time import time
 
 class DataCleanerACS:
 
-    def __init__(self, st, yr, fp_h, fp_p, fp_out, state_of_work, adjinc=1022342):
+    def __init__(self, st, yr, fp_h, fp_p, fp_out, state_of_work, random_state, adjinc=1022342):
         '''
         :param st: state name, e.g.'ma'
         :param yr: end year of 5-year ACS, e.g. 2016
@@ -37,6 +37,7 @@ class DataCleanerACS:
         self.fp_p = fp_p
         self.fp_out = fp_out
         self.state_of_work = state_of_work
+        self.random_state = random_state
         self.adjinc = adjinc
         # a dict from st to state code (e.g. 'ri' to 44, 'ca' to 6)
         self.dct_st = dict(zip(
@@ -300,7 +301,7 @@ class DataCleanerACS:
                     ['occ_%s' % x for x in range(1, 11)]]
             w = cps['marsupwt']
             # Xd = fillna_binary(d[X.columns])
-            Xd = fillna_df(d[X.columns])
+            Xd = fillna_df(d[X.columns], self.random_state)
             # paid hourly
             y = cps['hourly']
             clf = sklearn.linear_model.LogisticRegression(solver='liblinear').fit(X, y, sample_weight=w)
