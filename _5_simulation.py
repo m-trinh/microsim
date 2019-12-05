@@ -58,7 +58,7 @@ class SimulationEngine:
         self.fp_fmla_out = fps_out[0]
         self.fp_cps_out = fps_out[1]
         self.fp_acs_out = fps_out[2] # directory only for cleaned ACS file
-        self.fp_length_distribution_out = fps_out[3]
+        self.fp_length_distribution_out = fps_out[3] # fp to length distributions in days estimated from restricted FMLA
         self.clf_name = clf_name
         self.elig_wage12 = prog_para[0] # min annual wage
         self.elig_wkswork = prog_para[1] # min annual work weeks
@@ -114,7 +114,7 @@ class SimulationEngine:
         os.makedirs(self.output_directory)
 
         # save meta file of program parameters
-        para_labels = ['State', 'Year',
+        para_labels = ['State', 'Year', 'Place of Work',
                        'Minimum Annual Wage','Minimum Annual Work Weeks','Minimum Annual Work Hours',
                        'Minimum Employer Size','Proposed Wage Replacement Ratio','Weekly Benefit Cap',
                        'Include Goverment Employees, Federal',
@@ -122,14 +122,18 @@ class SimulationEngine:
                        'Include Goverment Employees, Local',
                        'Include Self-employed',
                        'Simulation Method',
-                       'Clone Factor']
+                       'Share of Dual Receivers',
+                       'Clone Factor',
+                       'Random Seed']
         para_labels_m = ['Maximum Week of Benefit Receiving',
                          'Take Up Rates'] # type-specific parameters
 
-        para_values = [self.st.upper(),self.yr + 2000,
+        para_values = [self.st.upper(),self.yr + 2000, self.state_of_work,
                        self.elig_wage12,self.elig_wkswork,self.elig_yrhours,self.elig_empsize,self.rrp,self.wkbene_cap,
-                       self.incl_empgov_fed, self.incl_empgov_st,self.incl_empgov_loc,self.incl_empself, self.clf_name,
-                       self.clone_factor]
+                       self.incl_empgov_fed, self.incl_empgov_st,self.incl_empgov_loc,self.incl_empself,
+                       self.clf_name,
+                       self.dual_receivers_share,
+                       self.clone_factor, self.random_seed]
         para_values_m = [self.d_maxwk, self.d_takeup]
 
         d = pd.DataFrame(para_values, index=para_labels)
@@ -157,10 +161,10 @@ class SimulationEngine:
         self.__put_queue({'type': 'progress', 'engine': self.engine_type, 'value': 20})
         self.__put_queue({'type': 'message', 'engine': self.engine_type,
                           'value': 'File saved: clean FMLA data file after CPS imputation.'})
-        dcf.get_length_distribution(self.fp_length_distribution_out)
-        self.__put_queue({'type': 'progress', 'engine': self.engine_type, 'value': 25})
-        self.__put_queue({'type': 'message', 'engine': self.engine_type,
-                          'value': 'File saved: leave distribution estimated from FMLA data.'})
+        # dcf.get_length_distribution(self.fp_length_distribution_out)
+        # self.__put_queue({'type': 'progress', 'engine': self.engine_type, 'value': 25})
+        # self.__put_queue({'type': 'message', 'engine': self.engine_type,
+        #                   'value': 'File saved: leave distribution estimated from FMLA data.'})
 
         self.__put_queue({'type': 'message', 'engine': self.engine_type,
                           'value': 'Cleaning ACS data. State chosen = RI. Chunk size = 100000 ACS rows'})
@@ -586,7 +590,16 @@ class SimulationEngine:
         # read in simulated acs, this is just df returned from get_acs_simulated()
         d = pd.read_csv('%s/acs_sim_%s.csv' % (self.output_directory, self.out_id))
         # restrict to taker/needer only (workers with neither status have cpl_type = nan)
-        d = d[(d['taker']==1) | (d['needer']==1)]
+        # d = d[(d['taker']==1) | (d['needer']==1)]
+
+        # restrict to workers who take up the program
+        d['takeup_any'] = [int(x.sum()>0) for x in d[['takeup_%s' % x for x in self.types]].values]
+        d = d[d['takeup_any']==1]
+
+        # make sure cpl_type is non-missing
+        for t in self.types:
+            d.loc[d['cpl_%s' % t].isna(),  'cpl_%s' % t] = 0
+
         # total covered-by-program length
         d['cpl'] = [sum(x) for x in d[['cpl_%s' % t for t in self.types]].values]
         # keep needed vars for population analysis plots
