@@ -138,7 +138,8 @@ class MicrosimGUI(Tk):
             'payroll_tax': DoubleVar(value=d.payroll_tax),
             'benefits_tax': BooleanVar(value=d.benefits_tax),
             'average_state_tax': DoubleVar(value=d.average_state_tax),
-            'max_taxable_earnings_per_person': IntVar(value=d.max_taxable_earnings_per_person), # 'total_taxable_earnings': IntVar(value=d.total_taxable_earnings),
+            'max_taxable_earnings_per_person': IntVar(value=d.max_taxable_earnings_per_person),
+            'total_taxable_earnings': IntVar(value=d.total_taxable_earnings),
             'counterfactual': StringVar(),
             'policy_sim': BooleanVar(value=d.policy_sim),
             'dual_receivers_share': DoubleVar(value=d.dual_receivers_share),
@@ -365,14 +366,14 @@ class MicrosimGUI(Tk):
         sim_method = settings.simulation_method
         needers_fully_participate = settings.needers_fully_participate
         #state_of_work value see above next to fp_acsh_in/fp_acsp_in
-        #weight_factor = settings.weight_factor
+        # weight_factor = settings.weight_factor
         clone_factor = settings.clone_factor
         dual_receivers_share = settings.dual_receivers_share
         random_seed = settings.random_seed
 
         prog_para = [elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp, wkbene_cap, d_maxwk, d_takeup,
                      incl_empgov_fed, incl_empgov_st, incl_empgov_loc, incl_empself, sim_method,
-                     needers_fully_participate, state_of_work, weight_factor, dual_receivers_share, random_seed]
+                     needers_fully_participate, state_of_work, clone_factor, dual_receivers_share, random_seed]
 
         return SimulationEngine(st, yr, fps_in, fps_out, clf_name, prog_para, engine_type=engine_type, q=q)
 
@@ -868,12 +869,12 @@ class ProgramFrame(NotebookFrame):
         self.max_taxable_earnings_per_person_input = MSNotebookEntry(self.benefit_financing_frame,
                                                                      textvariable=v['max_taxable_earnings_per_person'])
 
-        # # Maximum Taxable Earnings Total
-        # tip = 'The total earnings that can be taxed.'
-        # self.total_taxable_earnings_label = TipLabel(self.benefit_financing_frame, tip,
-        #                                              text='Total Taxable Earnings ($):', bg=self.notebook_bg)
-        # self.total_taxable_earnings_input = MSNotebookEntry(self.benefit_financing_frame,
-        #                                                     textvariable=v['total_taxable_earnings'])
+        # Maximum Taxable Earnings Total
+        tip = 'The total earnings that can be taxed.'
+        self.total_taxable_earnings_label = TipLabel(self.benefit_financing_frame, tip,
+                                                     text='Total Taxable Earnings ($):', bg=self.notebook_bg)
+        self.total_taxable_earnings_input = MSNotebookEntry(self.benefit_financing_frame,
+                                                            textvariable=v['total_taxable_earnings'])
 
         # ------------------------------------ Government Employees Eligibility -------------------------------------
         # All Government Employees

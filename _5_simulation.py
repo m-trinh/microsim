@@ -351,7 +351,7 @@ class SimulationEngine:
         # Given fraction of dual receiver x among anypay=1, simulate dual/single receiver status among anypay=1
         acs['dual_receiver'] = 0
         ws = acs[acs['anypay']==1]['PWGTP'] # weights of anypay=1
-        acs.loc[acs['anypay']==1, 'dual_receiver'] = get_weighted_draws(ws, self.dual_receivers_share)
+        acs.loc[acs['anypay']==1, 'dual_receiver'] = get_weighted_draws(ws, self.dual_receivers_share, self.random_state)
         # check if target pop is achieved among anypay=1
         s_dual_receiver = acs[(acs['anypay']==1) & (acs['dual_receiver'] == 1)]['PWGTP'].sum() / acs[acs['anypay']==1]['PWGTP'].sum()
         s_dual_receiver = round(s_dual_receiver, 2)
