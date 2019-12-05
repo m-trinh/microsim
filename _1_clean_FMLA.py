@@ -195,7 +195,21 @@ class DataCleanerFMLA:
 
         # length of leave for most recent leave
         # cap at 365-52*2 = 261 work days a year
-        d['length'] = np.where((np.isnan(d['A20']) == False) & (d['A20'] == 2), d['A19_2_CAT_rev'], d['A19_1_CAT_rev'])
+        # a dict from leave length cat to length in days (take mid-point of category, if need tiebreak, take larger/smaller alternating)
+        dct = {}
+        ks = list(range(1, 29))
+        vs = list(range(1, 11)) + [12, 13, 15, 18, 20, 22, 27, 30, 33, 38, 43, 48, 53, 58, 66, 80, 106, 191]
+        dct['A19_1_CAT'] = dict(zip(ks, vs))
+        ks = list(range(1, 11))
+        vs = list(range(1, 6)) + [8, 10, 15, 41, 90] # heuristic: for 6 rows with A19_2_CAT=10=61+days, scale-up by 1.5x
+        dct['A19_2_CAT'] = dict(zip(ks, vs))
+
+        # get approx days for A19_1_CAT, A19_2_CAT
+        d['A19_1_CAT_days'] = [dct['A19_1_CAT'][x] if not np.isnan(x) else np.nan for x in d['A19_1_CAT']]
+        d['A19_2_CAT_days'] = [dct['A19_2_CAT'][x] if not np.isnan(x) else np.nan for x in d['A19_2_CAT']]
+
+
+        d['length'] = np.where((np.isnan(d['A20']) == False) & (d['A20'] == 2), d['A19_2_CAT_days'], d['A19_1_CAT_days'])
         d['length'] = [min(x, 261) for x in d['length']]
 
         # any pay received
@@ -225,11 +239,13 @@ class DataCleanerFMLA:
 
         # maternity disability
         d['take_matdis'] = np.where(
-            (((d['A5_1_CAT'] == 21) & (d['A11_1'] == 1) & (d['GENDER_CAT'] == 2)) | (d['A5_1_CAT_rev'] == 32)) & (
+            (((d['A5_1_CAT'] == 21) & (d['A11_1'] == 1) & (d['GENDER_CAT'] == 2)) #  | (d['A5_1_CAT_rev'] == 32)
+             ) & (
                 (d['A20'] != 2) | (d['A20'].isna())), 1, 0)
             # follow makes no change for FMLA 2012 since A5_2_CAT = 21 has 0 case but include code for later FMLA data
         d['take_matdis'] = np.where(
-            (((d['A5_2_CAT'] == 21) & (d['A11_1'] == 1) & (d['GENDER_CAT'] == 2)) | (d['A5_1_CAT_rev'] == 32)) & (
+            (((d['A5_2_CAT'] == 21) & (d['A11_1'] == 1) & (d['GENDER_CAT'] == 2)) # | (d['A5_1_CAT_rev'] == 32)
+             ) & (
                 d['A20'] == 2), 1, d['take_matdis'])
 
         d['take_matdis'] = np.where(np.isnan(d['take_matdis']), 0, d['take_matdis'])
@@ -244,7 +260,8 @@ class DataCleanerFMLA:
                                     (d['A5_2_CAT'] != 21), 0, d['take_matdis'])
 
         d['need_matdis'] = np.where(
-            ((d['B6_1_CAT'] == 21) & (d['B12_1'] == 1) & (d['GENDER_CAT'] == 2)) | (d['B6_1_CAT_rev'] == 32), 1, 0)
+            ((d['B6_1_CAT'] == 21) & (d['B12_1'] == 1) & (d['GENDER_CAT'] == 2)) # | (d['B6_1_CAT_rev'] == 32)
+            , 1, 0)
         d['need_matdis'] = np.where(np.isnan(d['need_matdis']), 0, d['need_matdis'])
         d['need_matdis'] = np.where(np.isnan(d['B6_1_CAT']), np.nan, d['need_matdis'])
         d['need_matdis'] = np.where(np.isnan(d['need_matdis']) & ((d['LEAVE_CAT'] == 1) | (d['LEAVE_CAT'] == 3)), 0,
@@ -256,20 +273,20 @@ class DataCleanerFMLA:
 
         # new child/bond
         d['take_bond'] = np.where(((d['take_matdis']==0) | (d['take_matdis'].isna())) &
-                                  (
-                                      (d['A5_1_CAT_rev']==31) |
+                                  ( # (d['A5_1_CAT_rev']==31) |
                                       ((d['A5_1_CAT']==21) & (d['GENDER_CAT']==1)) |
-                                      ((d['A5_1_CAT']==21) & (d['GENDER_CAT']==2) & (d['A5_1_CAT_rev']!=32))
+                                      ((d['A5_1_CAT']==21) & (d['GENDER_CAT']==2) # & (d['A5_1_CAT_rev']!=32)
+                                       )
                                   ) &
                                   ((d['A20']!=2) | (d['A20'].isna())), 1, 0)
         d['take_bond'] = np.where(np.isnan(d['A5_1_CAT']), np.nan, d['take_bond'])
         d['take_bond'] = np.where(np.isnan(d['take_bond']) & ((d['LEAVE_CAT'] == 2) | (d['LEAVE_CAT'] == 3)), 0, d['take_bond'])
 
         d['need_bond'] = np.where(((d['need_matdis']==0) | (d['need_matdis'].isna())) &
-                                  (
-                                      (d['B6_1_CAT_rev']==31) |
+                                  ( # (d['B6_1_CAT_rev']==31) |
                                       ((d['B6_1_CAT']==21) & (d['GENDER_CAT']==1)) |
-                                      ((d['B6_1_CAT']==21) & (d['GENDER_CAT']==2) & (d['B6_1_CAT_rev']!=32))
+                                      ((d['B6_1_CAT']==21) & (d['GENDER_CAT']==2) #  & (d['B6_1_CAT_rev']!=32)
+                                       )
                                   ), 1, 0)
         d['need_bond'] = np.where(np.isnan(d['B6_1_CAT']), np.nan, d['need_bond'])
         d['need_bond'] = np.where(np.isnan(d['need_bond']) & ((d['LEAVE_CAT'] == 1) | (d['LEAVE_CAT'] == 3)), 0, d['need_bond'])

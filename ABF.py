@@ -161,32 +161,31 @@ class ABF:
 
         # Apply Taxable Wage Max
         if self.max_taxable_earnings_per_person is not None:  # TRUE (Constraint is applied)
-            self.df['income_final'] = np.where((self.df['wage12'] > self.max_taxable_earnings_per_person),
+            self.df['taxable_income_capped'] = np.where((self.df['wage12'] > self.max_taxable_earnings_per_person),
                                           self.max_taxable_earnings_per_person, self.df['wage12'])
             index_names = self.df[self.df['wage12'] > self.max_taxable_earnings_per_person].index
             censor = len(index_names)
             message_censor = "We censored %s observations to the wage max" % censor
             print(message_censor)
         else:
-            self.df['income_final'] = self.df['income']
+            self.df['taxable_income_capped'] = self.df['income']
 
     # FUNCTION #2: Conduct Final Calculations on the slimmer ABF Output dataset
     def abf_calcs(self):
         # Step 1 - Calculate Point Estimates
-        reps = ['PWGTP' + str(i) for i in range(1, 81)]
         # Income
         # Intermediate output: unweighted income base (full geographic area)
-        total_income = self.df['income_final'].sum()
+        total_income = self.df['taxable_income_capped'].sum()
 
         # Total Weighted Income Base (full geographic area)
-        self.df['income_w'] = self.df['income_final'] * self.df['PWGTP']
+        self.df['income_w'] = self.df['taxable_income_capped'] * self.df['PWGTP']
         total_income_w = self.df['income_w'].sum()
         print('Output: Weighted Income Base for Full Geographic Area:')
         print(total_income_w)
 
         # Tax Revenue
         # Unweighted tax revenue collected (full geographic area)
-        self.df['ptax_rev_final'] = self.df['income_final'] * self.payroll_tax
+        self.df['ptax_rev_final'] = self.df['taxable_income_capped'] * self.payroll_tax
 
         # Total Weighted Tax Revenue (full geographic area)
         self.df['ptax_rev_w'] = self.df['income_w'] * self.payroll_tax
@@ -210,11 +209,13 @@ class ABF:
             recoup_tax_rev = 0
 
         # Step 2 - Calculate Standard Errors with 80 Replicate Weights
+        # replication weight cols
+        reps = ['PWGTP' + str(i) for i in range(1, 81)]
 
         # Income
         income_r = []
-        for i in reps:
-            income_r.append(((self.df['income_final'] * self.df[i]).sum()))
+        for wt in reps:
+            income_r.append(((self.df['taxable_income_capped'] * self.df[wt]).sum()))
 
         # print('80 Replicate Income:')
         # print(income_r)
@@ -225,10 +226,10 @@ class ABF:
 
         income_se = ((sum(income_delta)) * (4 / 80)) ** .5
 
-        #     #Tax Revenue
+        # Tax Revenue
         tax_r = []
-        for i in reps:
-            tax_r.append(((self.df['ptax_rev_final'] * self.df[i]).sum()))
+        for wt in reps:
+            tax_r.append(((self.df['ptax_rev_final'] * self.df[wt]).sum()))
 
         # print('80 Replicate Tax Revenue:')
         # print(tax_r)
@@ -239,7 +240,7 @@ class ABF:
 
         tax_se = ((sum(tax_delta)) * (4 / 80)) ** .5
 
-        #     ###########Step 3: Calculate Confidence Intervals
+        ###########Step 3: Calculate Confidence Intervals
 
         # Income
         total_income_w_uci = total_income_w + 1.96 * income_se
@@ -249,7 +250,7 @@ class ABF:
         print('Total Income Low CI:')
         print(total_income_w_lci)
 
-        #     #Tax Revenue
+        #Tax Revenue
         total_ptax_w_uci = total_ptax_rev_w + 1.96 * tax_se
         print('Total Income Upper CI:')
         print(total_ptax_w_uci)

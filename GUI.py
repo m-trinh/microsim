@@ -66,7 +66,7 @@ class MicrosimGUI(Tk):
 
         # TODO: Remove
         # --------- TEST ONLY -------------
-        self.variables['fmla_file'].set('./data/fmla_2012/fmla_2012_employee_restrict_puf.csv')
+        self.variables['fmla_file'].set('./data/fmla_2012/fmla_2012_employee_revised_puf.csv')
         self.variables['acs_directory'].set('./data/acs')
         self.variables['output_directory'].set('./output')
         self.variables['r_path'].set('/Users/mtrinh/R-3.6.1/bin/Rscript.exe')
@@ -138,8 +138,7 @@ class MicrosimGUI(Tk):
             'payroll_tax': DoubleVar(value=d.payroll_tax),
             'benefits_tax': BooleanVar(value=d.benefits_tax),
             'average_state_tax': DoubleVar(value=d.average_state_tax),
-            'max_taxable_earnings_per_person': IntVar(value=d.max_taxable_earnings_per_person),
-            'total_taxable_earnings': IntVar(value=d.total_taxable_earnings),
+            'max_taxable_earnings_per_person': IntVar(value=d.max_taxable_earnings_per_person), # 'total_taxable_earnings': IntVar(value=d.total_taxable_earnings),
             'counterfactual': StringVar(),
             'policy_sim': BooleanVar(value=d.policy_sim),
             'dual_receivers_share': DoubleVar(value=d.dual_receivers_share),
@@ -366,7 +365,8 @@ class MicrosimGUI(Tk):
         sim_method = settings.simulation_method
         needers_fully_participate = settings.needers_fully_participate
         #state_of_work value see above next to fp_acsh_in/fp_acsp_in
-        weight_factor = settings.weight_factor
+        #weight_factor = settings.weight_factor
+        clone_factor = settings.clone_factor
         dual_receivers_share = settings.dual_receivers_share
         random_seed = settings.random_seed
 
@@ -394,12 +394,12 @@ class MicrosimGUI(Tk):
                            self.settings_notebook.population_frame.top_off_min_length_input,
                            self.settings_notebook.simulation_frame.clone_factor_input,
                            self.settings_notebook.program_frame.max_taxable_earnings_per_person_input,
-                           self.settings_notebook.program_frame.total_taxable_earnings_input]
+                           ] # self.settings_notebook.program_frame.total_taxable_earnings_input
+        # self.settings_notebook.simulation_frame.weight_factor_input
         integer_entries += [entry for entry in self.settings_notebook.program_frame.max_weeks_inputs]
 
         float_entries = [self.settings_notebook.program_frame.payroll_tax_input,
                          self.settings_notebook.program_frame.average_state_tax_input,
-                         self.settings_notebook.simulation_frame.weight_factor_input,
                          ]
 
         rate_entries = [self.settings_notebook.program_frame.replacement_ratio_input,
@@ -868,12 +868,12 @@ class ProgramFrame(NotebookFrame):
         self.max_taxable_earnings_per_person_input = MSNotebookEntry(self.benefit_financing_frame,
                                                                      textvariable=v['max_taxable_earnings_per_person'])
 
-        # Maximum Taxable Earnings Total
-        tip = 'The total earnings that can be taxed.'
-        self.total_taxable_earnings_label = TipLabel(self.benefit_financing_frame, tip,
-                                                     text='Total Taxable Earnings ($):', bg=self.notebook_bg)
-        self.total_taxable_earnings_input = MSNotebookEntry(self.benefit_financing_frame,
-                                                            textvariable=v['total_taxable_earnings'])
+        # # Maximum Taxable Earnings Total
+        # tip = 'The total earnings that can be taxed.'
+        # self.total_taxable_earnings_label = TipLabel(self.benefit_financing_frame, tip,
+        #                                              text='Total Taxable Earnings ($):', bg=self.notebook_bg)
+        # self.total_taxable_earnings_input = MSNotebookEntry(self.benefit_financing_frame,
+        #                                                     textvariable=v['total_taxable_earnings'])
 
         # ------------------------------------ Government Employees Eligibility -------------------------------------
         # All Government Employees
@@ -926,8 +926,8 @@ class ProgramFrame(NotebookFrame):
         self.benefits_tax_input.grid(column=0, row=2, columnspan=2, sticky=W, padx=(16, 0), pady=self.row_padding)
         self.max_taxable_earnings_per_person_label.grid(column=0, row=3, sticky=W, padx=(8, 0), pady=self.row_padding)
         self.max_taxable_earnings_per_person_input.grid(column=1, row=3, sticky=W, pady=self.row_padding)
-        self.total_taxable_earnings_label.grid(column=0, row=4, sticky=W, padx=(8, 0), pady=self.row_padding)
-        self.total_taxable_earnings_input.grid(column=1, row=4, sticky=W, pady=self.row_padding)
+        # self.total_taxable_earnings_label.grid(column=0, row=4, sticky=W, padx=(8, 0), pady=self.row_padding)
+        # self.total_taxable_earnings_input.grid(column=1, row=4, sticky=W, pady=self.row_padding)
         self.replacement_ratio_label.grid(column=0, row=3, sticky=W, pady=self.row_padding)
         self.replacement_ratio_input.grid(column=1, row=3, sticky=W, pady=self.row_padding)
         self.weekly_ben_cap_label.grid(column=0, row=4, sticky=W, pady=self.row_padding)
@@ -1083,9 +1083,9 @@ class SimulationFrame(NotebookFrame):
         self.se_analysis_input = TipCheckButton(self.content, tip, text="SE Analysis", variable=v['se_analysis'])
 
         # ---------------------------------------------- Weight Factor ----------------------------------------------
-        tip = 'Multiplies the sample weights by value.'
-        self.weight_factor_label = TipLabel(self.content, tip, text="Weight Factor:", bg=self.notebook_bg)
-        self.weight_factor_input = MSNotebookEntry(self.content, textvariable=v['weight_factor'])
+        # tip = 'Multiplies the sample weights by value.'
+        # self.weight_factor_label = TipLabel(self.content, tip, text="Weight Factor:", bg=self.notebook_bg)
+        # self.weight_factor_input = MSNotebookEntry(self.content, textvariable=v['weight_factor'])
 
         # --------------------------------------- FMLA Protection Constraint ----------------------------------------
         tip = 'If checked, leaves that are extended due to a paid leave program will be capped at 12 weeks.'
@@ -1122,8 +1122,7 @@ class SimulationFrame(NotebookFrame):
         self.counterfactual_label.grid(column=0, row=0, sticky=W, pady=self.row_padding)
         self.counterfactual_input.grid(column=1, row=0, sticky=W, pady=self.row_padding)
         self.policy_sim_input.grid(column=0, row=1, columnspan=2, sticky=W, pady=self.row_padding)
-        # self.clone_factor_label.grid(column=0, row=0, sticky=W)
-        # self.clone_factor_input.grid(column=1, row=0)
+
         # self.se_analysis_input.grid(column=0, row=1, columnspan=2, sticky=W)
         # self.calibrate_input.grid(column=0, row=4, columnspan=2, sticky=W)
 
@@ -1131,15 +1130,19 @@ class SimulationFrame(NotebookFrame):
         self.variables = self.winfo_toplevel().variables
 
     def hide_advanced_parameters(self):
-        self.weight_factor_label.grid_forget()
-        self.weight_factor_input.grid_forget()
+        # self.weight_factor_label.grid_forget()
+        # self.weight_factor_input.grid_forget()
+        self.clone_factor_label.grid_forget()
+        self.clone_factor_input.grid_forget()
         # self.fmla_protection_constraint_input.grid_forget()
         self.random_seed_label.grid_forget()
         self.random_seed_input.grid_forget()
 
     def show_advanced_parameters(self):
-        self.weight_factor_label.grid(column=0, row=2, sticky=W, pady=self.row_padding)
-        self.weight_factor_input.grid(column=1, row=2, sticky=W, pady=self.row_padding)
+        # self.weight_factor_label.grid(column=0, row=2, sticky=W, pady=self.row_padding)
+        # self.weight_factor_input.grid(column=1, row=2, sticky=W, pady=self.row_padding)
+        self.clone_factor_label.grid(column=0, row=2, sticky=W, pady=self.row_padding)
+        self.clone_factor_input.grid(column=1, row=2, sticky=W, pady=self.row_padding)
         # self.fmla_protection_constraint_input.grid(column=0, row=3, columnspan=2, sticky=W, pady=self.row_padding)
         self.random_seed_label.grid(column=0, row=5, sticky=W, pady=self.row_padding)
         self.random_seed_input.grid(column=1, row=5, sticky=W, pady=self.row_padding)
