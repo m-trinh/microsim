@@ -5,7 +5,6 @@ import sys
 import multiprocessing
 import ast
 import queue
-import random
 import numpy as np
 from abc import ABCMeta, abstractmethod
 from _5_simulation import SimulationEngine
@@ -41,9 +40,9 @@ class MicrosimGUI(Tk):
         self.general_settings = GeneralSettingsFrame(self.content, bg=self.dark_bg)
         # This notebook will have three tabs for the program, population, and simulation settings
         self.settings_notebook = SettingsNotebook(self.content)
-        self.showing_advanced = BooleanVar(value=False)
-        self.advanced_switch = Button(self.content, text="Advanced", command=self.toggle_advanced_parameters,
-                                      font="-size 10", bg='#d9d9d9', fg='#4d4d4d', padx=6, pady=0)
+        self.showing_advanced = False
+        self.advanced_frame = AdvancedFrame(self.content, self.dark_bg, self.light_font,
+                                            self.toggle_advanced_parameters)
         self.run_button = MSRunButton(self.content, text="Run", height=1, command=self.__run_simulation)
 
         # Add callbacks that will run when certain variables are changed
@@ -54,7 +53,7 @@ class MicrosimGUI(Tk):
         self.content.pack(expand=True, fill=BOTH)
         self.general_settings.pack(fill=X)
         self.settings_notebook.pack(expand=True, fill=BOTH, pady=8)
-        self.advanced_switch.pack(anchor=E, pady=(0, 3))
+        self.advanced_frame.pack(anchor=E, pady=(0, 6))
         self.run_button.pack(anchor=E, fill=Y)
 
         self.position_window()
@@ -496,18 +495,19 @@ class MicrosimGUI(Tk):
 
     def toggle_advanced_parameters(self):
         height_change = 100
-        if self.showing_advanced.get():
-            self.showing_advanced.set(False)
-            self.advanced_switch.config(relief="raised", bg='#d9d9d9')
+        if self.showing_advanced:
+            self.showing_advanced = False
             self.hide_advanced_parameters()
             self.update()
             self.minsize(self.winfo_width(), self.original_height - height_change)
         else:
-            self.showing_advanced.set(True)
-            self.advanced_switch.config(relief="sunken", bg='#ffffff')
+            self.showing_advanced = True
             self.show_advanced_parameters()
             self.update()
             self.minsize(self.winfo_width(), self.original_height + height_change)
+
+        self.advanced_frame.on_button.toggle()
+        self.advanced_frame.off_button.toggle()
 
 
 class GeneralSettingsFrame(Frame):
@@ -1753,6 +1753,44 @@ class CreateToolTip(object):
         self.tw = None
         if tw:
             tw.destroy()
+
+
+class AdvancedFrame(Frame):
+    def __init__(self, parent, dark_bg, light_font, toggle_function, **kwargs):
+        super().__init__(parent, **kwargs)
+        tip = 'Reveal advanced simulation parameters'
+        self.advanced_label = TipLabel(self, tip, text="Advanced Parameters:", bg=dark_bg, fg=light_font,
+                                       font='-size 9 -weight bold')
+        self.button_container = Frame(self, highlightbackground='#FFFFFF', borderwidth=1, relief='flat')
+        self.on_button = AdvancedButton(self.button_container, text='On', command=toggle_function)
+        self.off_button = AdvancedButton(self.button_container,  text='Off', command=toggle_function)
+        self.on_button.toggle()
+
+        self.advanced_label.pack(side=LEFT, anchor=E, fill=BOTH)
+        self.button_container.pack(side=LEFT, anchor=E)
+        self.on_button.pack(side=LEFT)
+        self.off_button.pack(side=LEFT)
+
+
+class AdvancedButton(Button):
+    def __init__(self, parent=None, foreground='#FFFFFF', background='#00CC00', disabledbackground='#333333',
+                 font='-size 8 -weight bold', width=3, pady=2, padx=3, relief='flat', highlightthickness=0,
+                 borderwidth=0, **kwargs):
+        super().__init__(parent, background=background, activebackground=background, foreground=foreground,
+                         activeforeground=foreground, font=font, width=width, pady=pady, padx=padx, relief=relief,
+                         highlightthickness=highlightthickness, borderwidth=borderwidth, **kwargs)
+
+        self.active = True
+        self.activebackground = background
+        self.disabledbackground = disabledbackground
+
+    def toggle(self):
+        if self.active:
+            self.active = False
+            self.config(background=self.disabledbackground)
+        else:
+            self.active = True
+            self.config(background=self.activebackground)
 
 
 # The following classes are used so that style options don't have to be reentered for each widget that should be styled
