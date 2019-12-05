@@ -557,10 +557,14 @@ class SimulationEngine:
 
     def run(self):
         t0 = time()
-        self.save_program_parameters()
-        self.prepare_data()
-        self.get_acs_simulated()
-        self.get_cost()
+        try:
+            self.save_program_parameters()
+            self.prepare_data()
+            self.get_acs_simulated()
+            self.get_cost()
+        except Exception as e:
+            self.__put_queue({'type': 'error', 'engine': self.engine_type, 'value': e})
+            raise
         print('Total runtime = %s seconds.' % (round(time()-t0, 0)))
 
     def __put_queue(self, obj):

@@ -241,7 +241,7 @@ class MicrosimGUI(Tk):
         self.policy_se = policy_se
 
         self.counterfactual_se = counterfactual_se
-        self.run_button.config(state=DISABLED, bg='#99d6ff')
+        self.disable_run_button()
         progress_window = ProgressWindow(self, engine_type='Python', se=se, counterfactual_se=counterfactual_se,
                                          policy_sim_se=policy_se)
         self.progress_windows.append(progress_window)
@@ -276,7 +276,13 @@ class MicrosimGUI(Tk):
 
         self.results_windows.append(ResultsWindow(self, self.se, abf_module, policy_engine=self.policy_se,
                                                   counterfactual_engine=self.counterfactual_se))
+        self.enable_run_button()
+
+    def enable_run_button(self):
         self.run_button.config(state=NORMAL, bg=self.theme_color)
+
+    def disable_run_button(self):
+        self.run_button.config(state=DISABLED, bg='#99d6ff')
 
     def create_settings(self):
         return self.__create_settings()
@@ -380,9 +386,9 @@ class MicrosimGUI(Tk):
     def check_file_entries(self, *_):
         if self.variables['fmla_file'].get() and self.variables['acs_directory'].get() and \
                 self.variables['output_directory'].get():
-            self.run_button.config(state=NORMAL, bg=self.theme_color)
+            self.enable_run_button()
         else:
-            self.run_button.config(state=DISABLED, bg='#99d6ff')
+            self.disable_run_button()
 
     def validate_settings(self):
         errors = []
@@ -1622,9 +1628,11 @@ class ProgressWindow(Toplevel):
     def update_progress(self, q, last_progress=0):
         try:  # Try to check if there is data in the queue
             update = q.get_nowait()
-            done, last_progress = self.parse_update(update, last_progress)
-            if done:
+            update_type, last_progress = self.parse_update(update, last_progress)
+            if update_type == 'done':
                 self.parent.show_results()
+            elif update_type == 'error':
+                self.parent.enable_run_button()
             else:
                 self.after(500, self.update_progress, q, last_progress)
         except queue.Empty:
@@ -1644,24 +1652,24 @@ class ProgressWindow(Toplevel):
                     self.after(500, self.update_progress_r, progress_file, last_progress)
 
     def parse_update(self, update, last_progress):
-        done = False
-        if update['type'] == 'done':
-            done = True
-        elif update['type'] == 'progress':
-            self.update_idletasks()
+        update_type = update['type']
+        self.update_idletasks()
+        if update_type == 'progress':
             progress = update['value']
             self.progress.set(last_progress + progress / self.engines)
             if progress == 100:
                 last_progress = self.progress.get()
-        elif update['type'] == 'message':
-            self.update_idletasks()
+        elif update_type == 'message':
             self.add_update(update['value'], update['engine'])
+        elif update_type == 'error':
+            error_message = '{}: {}'.format(type(update['value']).__name__, str(update['value']))
+            self.add_update(error_message, update['engine'], fg='#e60000')
 
-        return done, last_progress
+        return update_type, last_progress
 
-    def add_update(self, update, engine='Main'):
-        label = Message(self.updates, text=engine + ': ' + update, bg=self.parent.notebook_bg, fg='#006600',
-                        anchor='w', width=350)
+    def add_update(self, update, engine='Main', fg='#006600'):
+        label = Message(self.updates, text=engine + ': ' + update, bg=self.parent.notebook_bg, fg=fg, anchor='w',
+                        width=350)
         label.pack(padx=3, fill=X)
         self.update()
         self.updates_canvas.configure(scrollregion=(0, 0, 0, self.updates.winfo_height()))
