@@ -590,7 +590,16 @@ class SimulationEngine:
         # read in simulated acs, this is just df returned from get_acs_simulated()
         d = pd.read_csv('%s/acs_sim_%s.csv' % (self.output_directory, self.out_id))
         # restrict to taker/needer only (workers with neither status have cpl_type = nan)
-        d = d[(d['taker']==1) | (d['needer']==1)]
+        # d = d[(d['taker']==1) | (d['needer']==1)]
+
+        # restrict to workers who take up the program
+        d['takeup_any'] = [int(x.sum()>0) for x in d[['takeup_%s' % x for x in self.types]].values]
+        d = d[d['takeup_any']==1]
+
+        # make sure cpl_type is non-missing
+        for t in self.types:
+            d.loc[d['cpl_%s' % t].isna(),  'cpl_%s' % t] = 0
+
         # total covered-by-program length
         d['cpl'] = [sum(x) for x in d[['cpl_%s' % t for t in self.types]].values]
         # keep needed vars for population analysis plots

@@ -597,3 +597,9 @@ for k, v in tags.items():
         avg_len = round(avg_len, 3)
         print('Average UNCOND\' mn-len in days for type %s = %s'
               % (t, avg_len))
+
+########## check histogram
+
+acs = pd.read_csv('./output/output_20191205_132017_Main/acs_sim_20191205_132017.csv')
+types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
+acs['cpl'] = [x.sum() for x in acs[['cpl_%s' % x for x in types]].values]
