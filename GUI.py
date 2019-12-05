@@ -327,7 +327,7 @@ class MicrosimGUI(Tk):
         fp_fmla_out = './data/fmla_2012/fmla_clean_2012.csv'
         fp_cps_out = './data/cps/cps_for_acs_sim.csv'
         fp_acs_out = './data/acs/'
-        fp_length_distribution_out = './data/fmla_2012/length_distributions.json'
+        fp_length_distribution_out = './data/fmla_2012/length_distributions_exact_days.json'
         fps_in = [fp_fmla_in, fp_cps_in, fp_acsh_in, fp_acsp_in]
         fps_out = [fp_fmla_out, fp_cps_out, fp_acs_out, fp_length_distribution_out]
 
@@ -1478,8 +1478,8 @@ class ABFResults(ScrollFrame):
         self.benefits_tax_input.grid(column=0, row=2, columnspan=2, sticky=W, padx=(16, 0))
         self.max_taxable_earnings_per_person_label.grid(column=0, row=3, sticky=W, padx=(8, 0))
         self.max_taxable_earnings_per_person_input.grid(column=1, row=3, sticky=W)
-        self.total_taxable_earnings_label.grid(column=0, row=4, sticky=W, padx=(8, 0))
-        self.total_taxable_earnings_input.grid(column=1, row=4, sticky=W)
+        # self.total_taxable_earnings_label.grid(column=0, row=4, sticky=W, padx=(8, 0))
+        # self.total_taxable_earnings_input.grid(column=1, row=4, sticky=W)
 
     def show_params(self):
         self.abf_params_reveal.pack_forget()
