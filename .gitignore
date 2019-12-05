@@ -9,5 +9,6 @@ dist/*
 hook-sklearn.py
 Microsimulator.spec
 *.exe
+log/*
 *.zip
 *.xlsx

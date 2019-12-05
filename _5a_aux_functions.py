@@ -34,7 +34,7 @@ def get_columns():
     return (Xs, ys, w)
 
 # a function to fill in missing values for binary variables, impute mean-preserving 0/1
-def fillna_binary(df):
+def fillna_binary(df, random_state):
     '''
     df: df of pd.Series which are binary cols with missing values
     return: df of pd.Series with missing values filled in as mean-preserving 0/1s
@@ -45,7 +45,7 @@ def fillna_binary(df):
         nmiss = 0
         try:
             nmiss = v.isna().value_counts()[True]
-            draws = np.random.binomial(1, v.mean(), nmiss)
+            draws = random_state.binomial(1, v.mean(), nmiss)
             draws = pd.Series(draws, index=v[v.isna()].index)
             v = v.combine(draws, lambda x0, x1: x0 if not np.isnan(x0) else x1)
         except KeyError:
@@ -59,13 +59,13 @@ def get_bool_num_cols(df):
     num_cols = list(set(df.columns) - set(bool_cols))
     return (bool_cols, num_cols)
 
-def fillna_df(df):
+def fillna_df(df, random_state):
     '''
     df: df with cols either binary or decimal
     return: df missing values filled in as mean-preserving 0/1s for binary, and mean for decimal columns
     '''
     bool_cols, num_cols = get_bool_num_cols(df)
-    df[bool_cols] = fillna_binary(df[bool_cols])
+    df[bool_cols] = fillna_binary(df[bool_cols], random_state)
     df[num_cols] = df[num_cols].fillna(df[num_cols].mean())
     for c in ['ndep_kid', 'ndep_old']:
         if c in df.columns:
@@ -165,7 +165,7 @@ def get_wquantile(v, w, q):
     return v_q
 
 # a function to draw 0/1 from weighted population with prob = p, until target proportion is reached
-def get_weighted_draws(ws, p):
+def get_weighted_draws(ws, p, random_state):
     # ws = pop weight vector
     # p = probability of draw
 
@@ -173,7 +173,7 @@ def get_weighted_draws(ws, p):
     target = sum(ws)*p
     # shuffle weights and get cumsums
     ws = np.array(list(enumerate(ws)))
-    np.random.shuffle(ws)
+    random_state.shuffle(ws)
     cumsums = np.cumsum([x[1] for x in ws])
     # max index in shuffled indexed weight vector
     # must have equal sign! otherwise if target = 1 then will never reach it, and will receive 0 for all elements
@@ -215,7 +215,7 @@ def get_pred_probs(clf, xts):
     return phat
 
 # a function to simulate from wheel of fortune (e.g. simulate leave type from discrete distribution of 6 types)
-def simulate_wof(ps):
+def simulate_wof(ps, random_state):
     '''
 
     :param ps: a list of discrete probabilities, must sum up to 1
@@ -224,13 +224,13 @@ def simulate_wof(ps):
     # Option 1: np/choice - 1-call code, get index directly, no searching of element 1 involved
     # ix = np.random.choice(len(ps), p=ps)
     # Option 2: np/multinomial - fastest
-    ix = list(np.random.multinomial(1, ps, 1)[0]).index(1)
+    ix = list(random_state.multinomial(1, ps, 1)[0]).index(1)
     # Option 3: below also works but much slower esp in pandas lambda (5X+ time)
     # cs = np.cumsum(ps) # cumulative prob vector
     # ix = bisect.bisect(cs, np.random.random())
     return ix
 
-def get_sim_col(X, y, w, Xa, clf):
+def get_sim_col(X, y, w, Xa, clf, random_state):
     '''
 
     :param X: training data predictors
@@ -241,14 +241,14 @@ def get_sim_col(X, y, w, Xa, clf):
     :return:
     '''
     # Data preparing - fill in nan
-    X = fillna_df(X)
-    y = fillna_df(pd.DataFrame(y))
+    X = fillna_df(X, random_state)
+    y = fillna_df(pd.DataFrame(y), random_state)
     y = y[y.columns[0]]
-    Xa = fillna_df(Xa)
+    Xa = fillna_df(Xa, random_state)
 
     # if clf = 'random draw'
-    if clf=='random draw':
-        yhat = [y.iloc[z] for z in np.random.choice(len(y), len(Xa))]
+    if clf == 'random draw':
+        yhat = [y.iloc[z] for z in random_state.choice(len(y), len(Xa))]
         simcol = pd.Series(yhat, index=Xa.index)
         simcol.name = y.name
         return simcol
@@ -291,7 +291,7 @@ def get_sim_col(X, y, w, Xa, clf):
         phat = get_pred_probs(clf, Xa)
         #print('phat top 30 rows = %s ' % phat[:30])
         s = phat.cumsum(axis=1)
-        r = np.random.rand(phat.shape[0])
+        r = random_state.rand(phat.shape[0])
         simcol = pd.Series((r > s.transpose()).transpose().sum(axis=1), index=Xa.index)
 
         simcol.name = y.name
@@ -335,7 +335,7 @@ def get_mean_spread(df, vcol, wcol, rpw_cols, how='sum'):
     return mean, spread
 
 # a function to simulate leave types for multiple leavers (optional in fmla data cleaning code)
-def get_multiple_leave_vars(d, types):
+def get_multiple_leave_vars(d, types, random_state):
     '''
 
     :param d: FMLA dataset
@@ -549,7 +549,7 @@ def get_multiple_leave_vars(d, types):
         if L > 0:
             d.loc[(d['num_leaves_taken'] == nlt) & (d['take_type'].isna()), 'take_type'] = \
                 d.loc[(d['num_leaves_taken'] == nlt) & (d['take_type'].isna()), chars]. \
-                    apply(lambda x: dcp.columns[simulate_wof(get_adj_ups(ups, x))], axis=1)
+                    apply(lambda x: dcp.columns[simulate_wof(get_adj_ups(ups, x), random_state)], axis=1)
         else:
             pass
 
@@ -560,7 +560,7 @@ def get_multiple_leave_vars(d, types):
             d.loc[(d['num_leaves_taken'] == nlt) & (d['take_type'].notna()) & (d['take_type2'].isna()), 'take_type2'] = \
                 d.loc[(d['num_leaves_taken'] == nlt) & (d['take_type'].notna()) & (d['take_type2'].isna()), [
                     'take_type'] + chars]. \
-                    apply(lambda x: dcp.columns[simulate_wof(get_adj_cps(dcp, x[1:])[x[0]])], axis=1)
+                    apply(lambda x: dcp.columns[simulate_wof(get_adj_cps(dcp, x[1:])[x[0]], random_state)], axis=1)
         else:
             pass
 
@@ -575,7 +575,7 @@ def get_multiple_leave_vars(d, types):
                     (d['num_leaves_taken'] == nlt) & (d['take_type2'].notna()) & (d['take_type3'].isna()), ['take_type',
                                                                                                             'take_type2'] + chars]. \
                     apply(lambda x: dcp.columns[simulate_wof(
-                    get_marginal_probs(get_adj_cps(dcp, x[2:])[x[1]], [otypes.index(x[0]), otypes.index(x[1])]))],
+                    get_marginal_probs(get_adj_cps(dcp, x[2:])[x[1]], [otypes.index(x[0]), otypes.index(x[1])]), random_state)],
                           axis=1)
         else:
             pass
@@ -592,7 +592,7 @@ def get_multiple_leave_vars(d, types):
                                                                                                             'take_type2',
                                                                                                             'take_type3'] + chars]. \
                     apply(lambda x: dcp.columns[simulate_wof(
-                    get_marginal_probs(get_adj_cps(dcp, x[3:])[x[2]], [otypes.index(x[k]) for k in range(3)]))], axis=1)
+                    get_marginal_probs(get_adj_cps(dcp, x[3:])[x[2]], [otypes.index(x[k]) for k in range(3)]), random_state)], axis=1)
         else:
             pass
 
@@ -609,7 +609,7 @@ def get_multiple_leave_vars(d, types):
                                                                                                             'take_type3',
                                                                                                             'take_type4'] + chars]. \
                     apply(lambda x: dcp.columns[simulate_wof(
-                    get_marginal_probs(get_adj_cps(dcp, x[:4])[x[3]], [otypes.index(x[k]) for k in range(4)]))], axis=1)
+                    get_marginal_probs(get_adj_cps(dcp, x[:4])[x[3]], [otypes.index(x[k]) for k in range(4)]), random_state)], axis=1)
         else:
             pass
 
@@ -649,7 +649,7 @@ def get_multiple_leave_vars(d, types):
         if L > 0:
             d.loc[(d['num_leaves_need'] == nlt) & (d['need_type'].isna()), 'need_type'] = \
                 d.loc[(d['num_leaves_need'] == nlt) & (d['need_type'].isna()), chars]. \
-                    apply(lambda x: dcp.columns[simulate_wof(get_adj_ups(ups, x))], axis=1)
+                    apply(lambda x: dcp.columns[simulate_wof(get_adj_ups(ups, x), random_state)], axis=1)
         else:
             pass
 
@@ -660,7 +660,7 @@ def get_multiple_leave_vars(d, types):
             d.loc[(d['num_leaves_need'] == nlt) & (d['need_type'].notna()) & (d['need_type2'].isna()), 'need_type2'] = \
                 d.loc[(d['num_leaves_need'] == nlt) & (d['need_type'].notna()) & (d['need_type2'].isna()), [
                     'need_type'] + chars]. \
-                    apply(lambda x: dcp.columns[simulate_wof(get_adj_cps(dcp, x[1:])[x[0]])], axis=1)
+                    apply(lambda x: dcp.columns[simulate_wof(get_adj_cps(dcp, x[1:])[x[0]], random_state)], axis=1)
         else:
             pass
 
@@ -676,7 +676,7 @@ def get_multiple_leave_vars(d, types):
                     (d['num_leaves_need'] == nlt) & (d['need_type2'].notna()) & (d['need_type3'].isna()), ['need_type',
                                                                                                            'need_type2'] + chars]. \
                     apply(lambda x: dcp.columns[simulate_wof(
-                    get_marginal_probs(get_adj_cps(dcp, x[2:])[x[1]], [otypes.index(x[0]), otypes.index(x[1])]))],
+                    get_marginal_probs(get_adj_cps(dcp, x[2:])[x[1]], [otypes.index(x[0]), otypes.index(x[1])]), random_state)],
                           axis=1)
         else:
             pass
@@ -693,7 +693,7 @@ def get_multiple_leave_vars(d, types):
                                                                                                            'need_type2',
                                                                                                            'need_type3'] + chars]. \
                     apply(lambda x: dcp.columns[simulate_wof(
-                    get_marginal_probs(get_adj_cps(dcp, x[3:])[x[2]], [otypes.index(x[k]) for k in range(3)]))], axis=1)
+                    get_marginal_probs(get_adj_cps(dcp, x[3:])[x[2]], [otypes.index(x[k]) for k in range(3)]), random_state)], axis=1)
         else:
             pass
 
@@ -710,7 +710,7 @@ def get_multiple_leave_vars(d, types):
                                                                                                            'need_type3',
                                                                                                            'need_type4'] + chars]. \
                     apply(lambda x: dcp.columns[simulate_wof(
-                    get_marginal_probs(get_adj_cps(dcp, x[4:])[x[3]], [otypes.index(x[k]) for k in range(4)]))], axis=1)
+                    get_marginal_probs(get_adj_cps(dcp, x[4:])[x[3]], [otypes.index(x[k]) for k in range(4)]), random_state)], axis=1)
         else:
             pass
 

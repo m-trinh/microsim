@@ -3,6 +3,7 @@ from tkinter import ttk, filedialog, messagebox
 import os
 import sys
 import multiprocessing
+import ast
 import queue
 import random
 import numpy as np
@@ -43,7 +44,7 @@ class MicrosimGUI(Tk):
         self.showing_advanced = BooleanVar(value=False)
         self.advanced_switch = Button(self.content, text="Advanced", command=self.toggle_advanced_parameters,
                                       font="-size 10", bg='#d9d9d9', fg='#4d4d4d', padx=6, pady=0)
-        self.run_button = MSRunButton(self.content, text="Run", command=self.__run_simulation)
+        self.run_button = MSRunButton(self.content, text="Run", height=1, command=self.__run_simulation)
 
         # Add callbacks that will run when certain variables are changed
         self.__add_variable_callbacks()
@@ -68,6 +69,7 @@ class MicrosimGUI(Tk):
         self.variables['fmla_file'].set('./data/fmla_2012/fmla_2012_employee_revised_puf.csv')
         self.variables['acs_directory'].set('./data/acs')
         self.variables['output_directory'].set('./output')
+        self.variables['r_path'].set('/Users/mtrinh/R-3.6.1/bin/Rscript.exe')
         # self.test_result_output()
 
     def __create_attributes(self):
@@ -108,6 +110,8 @@ class MicrosimGUI(Tk):
             'state': StringVar(),
             'simulation_method': StringVar(),
             'existing_program': StringVar(),
+            'engine_type': StringVar(),
+            'r_path': StringVar(),
             'benefit_effect': BooleanVar(value=d.benefit_effect),
             'calibrate': BooleanVar(value=d.calibrate),
             'clone_factor': IntVar(value=d.clone_factor),
@@ -180,11 +184,13 @@ class MicrosimGUI(Tk):
 
     def on_close(self):
         for w in self.progress_windows:
+            w.quit()
             w.destroy()
         for w in self.results_windows:
+            w.quit()
             w.destroy()
+        self.quit()
         self.destroy()
-        exit(0)
 
     def set_existing_parameters(self, *_):
         # Change all relevant parameters to match an existing state program
@@ -210,10 +216,12 @@ class MicrosimGUI(Tk):
             return
 
         settings = self.__create_settings()
-        if settings.random_seed is not None and settings.random_seed != '':
-            random.seed(settings.random_seed)
-            np.random.seed(settings.random_seed)
+        if settings.engine_type == 'Python':
+            self.__run_simulation_python(settings)
+        elif settings.engine_type == 'R':
+            self.__run_simulation_r(settings)
 
+    def __run_simulation_python(self, settings):
         # run simulation
         # initiate a SimulationEngine instance
 
@@ -233,15 +241,31 @@ class MicrosimGUI(Tk):
 
         self.counterfactual_se = counterfactual_se
         self.run_button.config(state=DISABLED, bg='#99d6ff')
-        progress_window = ProgressWindow(self, se, counterfactual_se, policy_se)
+        progress_window = ProgressWindow(self, engine_type='Python', se=se, counterfactual_se=counterfactual_se,
+                                         policy_sim_se=policy_se)
         self.progress_windows.append(progress_window)
         # Run model
-        engine_process = multiprocessing.Process(None, target=run_engines, args=(se, counterfactual_se, policy_se, q))
-        engine_process.start()
+        self.engine_process = multiprocessing.Process(None, target=run_engines, args=(se, counterfactual_se, policy_se, q))
+        self.engine_process.start()
 
         progress_window.update_progress(q)
 
+    def __run_simulation_r(self, settings):
+        progress_file = './log/progress_{}.txt'.format(datetime.datetime.now().strftime('%Y%m%d%H%M%S%f'))
+        command = create_r_command(settings, progress_file)
+        counterfactual_command = create_r_command(generate_default_state_params(settings), progress_file)
+        policy_command = create_r_command(generate_generous_params(settings), progress_file)
+        open(progress_file, 'w+').close()
+        self.engine_process = multiprocessing.Process(None, target=run_engines_r, args=(command, counterfactual_command,
+                                                                                        policy_command))
+        self.engine_process.start()
+
+        progress_window = ProgressWindow(self, engine_type='R')
+        with open(progress_file, 'r') as f:
+            progress_window.update_progress_r(f)
+
     def show_results(self):
+        self.engine_process.terminate()
         # compute program costs
         print('Showing results')
         costs = self.se.get_cost_df()
@@ -253,6 +277,9 @@ class MicrosimGUI(Tk):
                                                   counterfactual_engine=self.counterfactual_se))
         self.run_button.config(state=NORMAL, bg=self.theme_color)
 
+    def create_settings(self):
+        return self.__create_settings()
+
     # Create an object with all of the setting values
     def __create_settings(self):
         # The inputs are linked to a tkinter variable. Those values will have to be retrieved from each variable
@@ -263,10 +290,21 @@ class MicrosimGUI(Tk):
                 variable_values[var_name] = {k: v.get() for k, v in var_obj.items()}
             else:
                 variable_values[var_name] = var_obj.get()
+        variable_values['random_seed'] = self.check_random_seed(variable_values['random_seed'])
 
         self.settings = Settings(**variable_values)
 
         return self.settings
+
+    @staticmethod
+    def check_random_seed(random_seed):
+        if random_seed is None or random_seed == '':
+            return None
+
+        try:
+            return int(random_seed)
+        except ValueError:
+            return int.from_bytes(random_seed.encode(), 'big')
 
     @staticmethod
     def create_simulation_engine(settings, q, engine_type='Main'):
@@ -330,34 +368,13 @@ class MicrosimGUI(Tk):
         #weight_factor = settings.weight_factor
         clone_factor = settings.clone_factor
         dual_receivers_share = settings.dual_receivers_share
+        random_seed = settings.random_seed
 
         prog_para = [elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp, wkbene_cap, d_maxwk, d_takeup,
                      incl_empgov_fed, incl_empgov_st, incl_empgov_loc, incl_empself, sim_method,
-                     needers_fully_participate, state_of_work, clone_factor, dual_receivers_share]
+                     needers_fully_participate, state_of_work, weight_factor, dual_receivers_share, random_seed]
 
         return SimulationEngine(st, yr, fps_in, fps_out, clf_name, prog_para, engine_type=engine_type, q=q)
-
-    def browse_file(self, file_input):
-        # Open a file dialogue where user can choose a file. Possible options are limited to CSV and Excel files.
-        file_name = filedialog.askopenfilename(initialdir=self.cwd, filetypes=self.spreadsheet_ftypes)
-        file_input.delete(0, END)  # Clear current value in entry widget
-        file_input.insert(0, file_name)  # Add user-selected value to entry widget
-
-    def browse_directory(self, directory_input):
-        # Open a file dialogue where user can choose a directory.
-        directory_name = filedialog.askdirectory(initialdir=self.cwd)
-        directory_input.delete(0, END)  # Clear current value in entry widget
-        directory_input.insert(0, directory_name)  # Add user-selected value to entry widget
-
-    def save_file(self, figure):
-        filename = filedialog.asksaveasfilename(defaultextension='.png', initialdir=self.cwd,
-                                                filetypes=[('PNG', '.png'), ('PDF', '*.pdf'), ('PGF', '*.pgf'),
-                                                           ('EPS', '*.eps'), ('PS', '*.ps'), ('Raw', '*.raw'),
-                                                           ('RGBA', '*.rgba'), ('SVG', '*.svg'), ('SVGZ', '*.svgz')])
-        if filename is None:
-            return
-
-        figure.savefig(filename, facecolor=self.dark_bg, edgecolor='white')
 
     def check_file_entries(self, *_):
         if self.variables['fmla_file'].get() and self.variables['acs_directory'].get() and \
@@ -471,7 +488,7 @@ class MicrosimGUI(Tk):
         self.settings_notebook.show_advanced_parameters()
 
     def toggle_advanced_parameters(self):
-        height_change = 65
+        height_change = 100
         if self.showing_advanced.get():
             self.showing_advanced.set(False)
             self.advanced_switch.config(relief="raised", bg='#d9d9d9')
@@ -498,7 +515,7 @@ class GeneralSettingsFrame(Frame):
         self.fmla_label = TipLabel(self, tip, text="FMLA File:", bg=self.dark_bg, fg=self.light_font, anchor=N)
         self.fmla_input = MSGeneralEntry(self, textvariable=self.variables['fmla_file'])
         self.fmla_button = MSButton(self, text="Browse",
-                                    command=lambda: self.browse_file(self.fmla_input))
+                                    command=lambda: self.browse_file(self.fmla_input, self.spreadsheet_ftypes))
         self.fmla_button.config(width=None)
 
         # ------------------------------------------------ ACS File -------------------------------------------------
@@ -548,6 +565,20 @@ class GeneralSettingsFrame(Frame):
                                                    state="readonly", width=5, values=list(DEFAULT_STATE_PARAMS.keys()))
         self.existing_program_input.current(0)
 
+        # ----------------------------------------------- Engine Type -----------------------------------------------
+        tip = 'Choose between the Python and R model.'
+        self.engine_type_label = TipLabel(self, tip, text='Engine Type:', bg=self.dark_bg, fg=self.light_font)
+        self.engine_type_input = ttk.Combobox(self, textvariable=self.variables['engine_type'], state="readonly",
+                                              width=7, values=['Python', 'R'])
+        self.engine_type_input.current(0)
+
+        tip = 'The Rscript path on your system.'
+        self.r_path_label = TipLabel(self, tip, text="Rscript Path:", bg=self.dark_bg, fg=self.light_font)
+        self.r_path_input = MSGeneralEntry(self, textvariable=self.variables['r_path'])
+        self.r_path_button = MSButton(self, text="Browse",
+                                      command=lambda: self.browse_file(self.r_path_input, [('Rscript', 'Rscript.exe')]))
+        self.variables['engine_type'].trace('w', self.toggle_r_path)
+
         # Add the input widgets to the parent widget
         self.row_padding = 4
         self.fmla_label.grid(column=0, row=0, sticky=W, pady=self.row_padding)
@@ -586,16 +617,24 @@ class GeneralSettingsFrame(Frame):
         # self.detail_input.grid_forget()
         self.simulation_method_label.grid_forget()
         self.simulation_method_input.grid_forget()
+        self.engine_type_label.grid_forget()
+        self.engine_type_input.grid_forget()
+        self.r_path_label.grid_forget()
+        self.r_path_input.grid_forget()
+        self.r_path_button.grid_forget()
 
     def show_advanced_parameters(self):
         # self.detail_label.grid(column=0, row=3, sticky=W, pady=self.row_padding)
         # self.detail_input.grid(column=1, row=3, sticky=W, padx=8, pady=self.row_padding)
         self.simulation_method_label.grid(column=0, row=6, sticky=W, pady=self.row_padding)
         self.simulation_method_input.grid(column=1, row=6, sticky=W, padx=8, pady=self.row_padding)
+        self.engine_type_label.grid(column=0, row=7, sticky=W, pady=self.row_padding)
+        self.engine_type_input.grid(column=1, row=7, sticky=W, padx=8, pady=self.row_padding)
+        self.toggle_r_path()
 
-    def browse_file(self, file_input):
+    def browse_file(self, file_input, filetypes):
         # Open a file dialogue where user can choose a file. Possible options are limited to CSV and Excel files.
-        file_name = filedialog.askopenfilename(initialdir=self.cwd, filetypes=self.spreadsheet_ftypes)
+        file_name = filedialog.askopenfilename(initialdir=self.cwd, filetypes=filetypes)
         file_input.delete(0, END)  # Clear current value in entry widget
         file_input.insert(0, file_name)  # Add user-selected value to entry widget
 
@@ -604,6 +643,16 @@ class GeneralSettingsFrame(Frame):
         directory_name = filedialog.askdirectory(initialdir=self.cwd)
         directory_input.delete(0, END)  # Clear current value in entry widget
         directory_input.insert(0, directory_name)  # Add user-selected value to entry widget
+
+    def toggle_r_path(self, *_):
+        if self.variables['engine_type'].get() == 'R':
+            self.r_path_label.grid(column=0, row=8, sticky=W, pady=self.row_padding)
+            self.r_path_input.grid(column=1, row=8, padx=8, sticky=(E, W), pady=self.row_padding)
+            self.r_path_button.grid(column=4, row=8, pady=self.row_padding)
+        else:
+            self.r_path_label.grid_forget()
+            self.r_path_input.grid_forget()
+            self.r_path_button.grid_forget()
 
 
 class SettingsNotebook(ttk.Notebook):
@@ -987,8 +1036,8 @@ class PopulationFrame(NotebookFrame):
         display_leave_objects(self.leave_probability_factors_labels, self.leave_probability_factors_inputs)
         # self.benefit_effect_input.grid(column=0, row=2, columnspan=2, sticky=W)
         # self.extend_input.grid(column=0, row=3, columnspan=3, sticky=W)
-        self.dual_receivers_share_label.grid(column=0, row=4, sticky=W)
-        self.dual_receivers_share_input.grid(column=1, row=4, sticky=W)
+        # self.dual_receivers_share_label.grid(column=0, row=4, sticky=W)
+        # self.dual_receivers_share_input.grid(column=1, row=4, sticky=W)
 
         # Make second column take up more space
         self.columnconfigure(0, weight=0)
@@ -1122,76 +1171,9 @@ class ResultsWindow(Toplevel):
         self.notebook.add(self.summary_frame, text='Summary')
         print('Finished adding summary frame to notebook')
 
-        self.abf_module = abf_module
-        abf_output, pivot_tables = self.abf_module.run()
-        self.abf = ScrollFrame(self.notebook, bg=self.notebook_bg)
+        self.abf = ABFResults(self.notebook, abf_module, bg=self.notebook_bg)
         print('Creating ABF results summary frame')
-        self.abf_summary = ABFResultsSummary(self.abf.content, abf_output, self.dark_bg, self.light_font)
-        self.abf_summary.pack(padx=10, pady=10)
-        self.abf_pivot_tables = Frame(self.abf.content, bg=self.dark_bg)
-        self.abf_pivot_tables.pack(fill=X, expand=True)
-        self.abf_params_reveal = MSButton(self.abf.content, text='ABF Parameters', padx=4, command=self.show_params, width=16,
-                                          background='#00e600')
-        self.abf_params_reveal.pack(side=BOTTOM, anchor='se', padx=3, pady=2)
-        self.abf_params = Frame(self.abf, bg=self.notebook_bg, borderwidth=1, relief='solid', padx=3, pady=3)
-        self.abf_params_inputs = Frame(self.abf_params, bg=self.notebook_bg, pady=4)
-        self.abf_params_inputs.pack(fill=X, side=TOP)
-        self.abf_params_buttons = Frame(self.abf_params, bg=self.notebook_bg, pady=4)
-        self.abf_params_buttons.pack(side=BOTTOM, fill=X, expand=True)
-        self.abf_params_hide = MSButton(self.abf_params_buttons, text='Hide', padx=4, command=self.hide_params,
-                                        background='#00e600')
-        self.abf_params_hide.pack(side=LEFT, pady=3, padx=5)
-        self.run_button = MSButton(self.abf_params_buttons, font='-size 12 -weight bold', text="Run ABF",
-                                   command=self.rerun_abf, padx=4)
-        self.run_button.pack(side=RIGHT, pady=3, padx=5)
         self.notebook.add(self.abf, text="Benefit Financing")
-
-        # simulation_data = simulation_engine.get_population_analysis_results()
-        # self.population_analysis_container = Frame(self.notebook, bg=self.notebook_bg)
-        # self.population_analysis_canvas = Canvas(self.population_analysis_container, bg=self.dark_bg)
-        # self.population_analysis = Frame(self.population_analysis_container, bg=self.dark_bg)
-        # self.population_analysis_canvas.create_window((0, 0), window=self.population_analysis, anchor='nw')
-        # self.population_analysis_scroll = ttk.Scrollbar(self.population_analysis_container, orient=VERTICAL,
-        #                                                 command=self.population_analysis_canvas.yview)
-        # self.population_analysis_canvas.configure(yscrollcommand=self.population_analysis_scroll.set)
-        # self.population_analysis_canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
-        # self.population_analysis_scroll.pack(side=RIGHT, fill=Y)
-        # self.notebook.add(self.population_analysis_container, text='Population Analysis')
-        # print('Generating population analysis histograms')
-        # self.generate_population_analysis_histograms(simulation_data)
-        #
-        # self.canvases = [(self.abf_canvas, self.abf_info), (self.population_analysis_canvas, self.population_analysis)]
-        #
-        # if policy_engine is not None:
-        #     self.policy_sim_container = Frame(self.notebook, bg=self.dark_bg)
-        #     self.policy_sim_canvas = Canvas(self.policy_sim_container, bg=self.dark_bg)
-        #     self.policy_sim = Frame(self.policy_sim_container, bg=self.dark_bg)
-        #     self.policy_sim_canvas.create_window((0, 0), window=self.policy_sim, anchor='nw')
-        #     self.policy_sim_scroll = ttk.Scrollbar(self.policy_sim_container, orient=VERTICAL,
-        #                                            command=self.policy_sim_canvas.yview)
-        #     self.policy_sim_canvas.configure(yscrollcommand=self.policy_sim_scroll.set)
-        #     self.policy_sim_canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
-        #     self.policy_sim_scroll.pack(side=RIGHT, fill=Y)
-        #     print('Generating policy simulation histograms')
-        #     self.generate_policy_histograms(simulation_data, policy_engine.get_population_analysis_results())
-        #     self.notebook.add(self.policy_sim_container, text='Policy Simulation')
-        #     self.canvases.append((self.policy_sim_canvas, self.policy_sim))
-        #
-        # if counterfactual_engine is not None:
-        #     self.counterfactual_container = Frame(self.notebook, bg=self.dark_bg)
-        #     self.counterfactual_canvas = Canvas(self.counterfactual_container, bg=self.dark_bg)
-        #     self.counterfactual = Frame(self.counterfactual_container, bg=self.dark_bg)
-        #     self.counterfactual_canvas.create_window((0, 0), window=self.counterfactual, anchor='nw')
-        #     self.counterfactual_scroll = ttk.Scrollbar(self.counterfactual_container, orient=VERTICAL,
-        #                                                command=self.counterfactual_canvas.yview)
-        #     self.counterfactual_canvas.configure(yscrollcommand=self.counterfactual_scroll.set)
-        #     self.counterfactual_canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
-        #     self.counterfactual_scroll.pack(side=RIGHT, fill=Y)
-        #     print('Generating counterfactual simulation histograms')
-        #     self.generate_counterfactual_histograms(simulation_data,
-        #                                             counterfactual_engine.get_population_analysis_results())
-        #     self.notebook.add(self.counterfactual_container, text='Counterfactual Simulation')
-        #     self.canvases.append((self.counterfactual_canvas, self.counterfactual))
 
         self.population_analysis = PopulationAnalysis(self.notebook, simulation_engine, counterfactual_engine,
                                                       policy_engine)
@@ -1201,47 +1183,9 @@ class ResultsWindow(Toplevel):
         self.notebook.pack(expand=True, fill=BOTH)
         self.notebook.select(self.summary_frame)
         self.notebook.enable_traversal()
-        print('Creating ABF graphs')
-        self.display_abf_bar_graphs(pivot_tables)
 
         self.bind("<MouseWheel>", self.scroll)
         # self.bind('<Configure>', self.resize)
-
-        tip = 'The payroll tax that will be implemented to fund benefits program.'
-        self.payroll_tax_label = TipLabel(self.abf_params_inputs, tip, text='Payroll Tax (%):', bg=self.notebook_bg)
-        self.payroll_tax_input = Entry(self.abf_params_inputs, textvariable=parent.variables['payroll_tax'])
-
-        tip = 'Whether or not program benefits are taxed.'
-        self.benefits_tax_input = TipCheckButton(self.abf_params_inputs, tip, text='Benefits Tax',
-                                                 variable=parent.variables['benefits_tax'])
-
-        tip = 'The average tax rate of a selected state.'
-        self.average_state_tax_label = TipLabel(self.abf_params_inputs, tip, text='State Average Tax Rate (%):',
-                                                bg=self.notebook_bg)
-        self.average_state_tax_input = Entry(self.abf_params_inputs, textvariable=parent.variables['average_state_tax'])
-
-        tip = 'The maximum amount that a person can be taxed.'
-        self.max_taxable_earnings_per_person_label = TipLabel(self.abf_params_inputs, tip,
-                                                              text='Maximum Taxable Earnings\nPer Person ($):',
-                                                              bg=self.notebook_bg, justify=LEFT)
-        self.max_taxable_earnings_per_person_input = \
-            Entry(self.abf_params_inputs, textvariable=parent.variables['max_taxable_earnings_per_person'])
-
-        # tip = 'The total earnings that can be taxed.'
-        # self.total_taxable_earnings_label = TipLabel(self.abf_params_inputs, tip, text='Total Taxable Earnings ($):',
-        #                                              bg=self.notebook_bg)
-        # self.total_taxable_earnings_input = Entry(self.abf_params_inputs,
-        #                                           textvariable=parent.variables['total_taxable_earnings'])
-
-        self.payroll_tax_label.grid(column=0, row=0, sticky=W, padx=(8, 0))
-        self.payroll_tax_input.grid(column=1, row=0, sticky=W)
-        self.average_state_tax_label.grid(column=0, row=1, sticky=W, padx=(8, 0))
-        self.average_state_tax_input.grid(column=1, row=1, sticky=W)
-        self.benefits_tax_input.grid(column=0, row=2, columnspan=2, sticky=W, padx=(16, 0))
-        self.max_taxable_earnings_per_person_label.grid(column=0, row=3, sticky=W, padx=(8, 0))
-        self.max_taxable_earnings_per_person_input.grid(column=1, row=3, sticky=W)
-        # self.total_taxable_earnings_label.grid(column=0, row=4, sticky=W, padx=(8, 0))
-        # self.total_taxable_earnings_input.grid(column=1, row=4, sticky=W)
 
         print('Updating widgets')
         self.update()
@@ -1249,14 +1193,6 @@ class ResultsWindow(Toplevel):
         self.abf.update_scroll_region()
         self.population_analysis.update_scroll_region()
         self.resizable(False, False)
-
-    def show_params(self):
-        self.abf_params_reveal.pack_forget()
-        self.abf_params.pack(side=BOTTOM, anchor='se', padx=1)
-
-    def hide_params(self):
-        self.abf_params.pack_forget()
-        self.abf_params_reveal.pack(side=BOTTOM, anchor='se', padx=3, pady=2)
 
     def display_sim_bar_graph(self, simulation_chart, frame):
         canvas = FigureCanvasTkAgg(simulation_chart, frame)
@@ -1266,54 +1202,6 @@ class ResultsWindow(Toplevel):
         save_button = MSButton(frame, text='Save Figure', command=lambda: self.save_file(simulation_chart))
         save_button.config(width=0)
         save_button.pack(side=RIGHT, padx=10, pady=10)
-
-    def display_abf_bar_graphs(self, pivot_tables):
-        graphs = self.create_abf_bar_graphs(pivot_tables)
-        for graph in graphs:
-            chart_container = ChartContainer(self.abf_pivot_tables, graph, self.dark_bg)
-            chart_container.pack()
-
-    def create_abf_bar_graphs(self, pivot_tables):
-        graphs = []
-        fg_color = 'white'
-        bg_color = self.dark_bg
-        # bg_color = '#1a1a1a'
-
-        for pivot_table_category, pivot_table in pivot_tables.items():
-            fig_pivot = Figure(figsize=(8, 4))
-            ax_pivot = fig_pivot.add_subplot(111)
-
-            categories = pivot_table.index.tolist()
-            ind_pivot = np.arange(len(categories))
-            width_pivot = 0.5
-            ys_pivot = pivot_table[('sum', 'ptax_rev_w')].values / 10 ** 6
-            title_pivot = 'State: {}. {} by {}'.format(self.parent.settings.state, 'Total Tax Revenue',
-                                                       pivot_table_category)
-            if len(categories) > 3:
-                ax_pivot.bar(ind_pivot, ys_pivot, width_pivot, align='center', color='#1aff8c')
-                ax_pivot.set_ylabel('$ millions', fontsize=9)
-                ax_pivot.set_xticks(ind_pivot)
-                ax_pivot.set_xticklabels(categories)
-                ax_pivot.yaxis.grid(False)
-            else:
-                ax_pivot.barh(ind_pivot, ys_pivot, width_pivot, align='center', color='#1aff8c')
-                ax_pivot.set_xlabel('$ millions', fontsize=9)
-                ax_pivot.set_yticks(ind_pivot)
-                ax_pivot.set_yticklabels(categories)
-                ax_pivot.xaxis.grid(False)
-
-            format_chart(fig_pivot, ax_pivot, title_pivot, bg_color, fg_color)
-
-            graphs.append(fig_pivot)
-
-        return graphs
-
-    def rerun_abf(self):
-        abf_output, pivot_tables = self.abf_module.rerun(self.parent.settings)
-        print('self.parent.settings payroll tax rate = %s' % self.parent.settings.payroll_tax)
-        # self.results_window.update_abf_output(abf_output)
-        # self.results_window.update_pivot_tables(pivot_tables)
-        self.update_abf_output(abf_output, pivot_tables)
 
     def save_file(self, figure):
         filename = filedialog.asksaveasfilename(defaultextension='.png', initialdir=os.getcwd(),
@@ -1333,13 +1221,6 @@ class ResultsWindow(Toplevel):
         format_chart(fig, ax, title, bg_color, fg_color)
         chart_container = ChartContainer(parent, fig, self.dark_bg)
         chart_container.pack()
-
-    def update_abf_output(self, abf_output, pivot_tables):
-        for graph in self.abf_pivot_tables.winfo_children():
-            graph.destroy()
-
-        self.display_abf_bar_graphs(pivot_tables)
-        self.abf_summary.update_results(abf_output)
 
     def scroll(self, event):
         # In Windows, the delta will be either 120 or -120. In Mac, it will be 1 or -1.
@@ -1524,6 +1405,139 @@ class ChartContainer(Frame):
         self.chart.savefig(filename, facecolor=self.bg_color, edgecolor='white')
 
 
+class ABFResults(ScrollFrame):
+    def __init__(self, parent, abf_module, **kwargs):
+        super().__init__(parent, **kwargs)
+
+        self.abf_module = abf_module
+        abf_output, pivot_tables = self.abf_module.run()
+        top_level = self.winfo_toplevel()
+        self.dark_bg = top_level.dark_bg
+        self.light_font = top_level.light_font
+
+        self.abf_summary = ABFResultsSummary(self.content, abf_output, self.dark_bg, self.light_font)
+        self.abf_summary.pack(padx=10, pady=10)
+        self.abf_pivot_tables = Frame(self.content, bg=self.dark_bg)
+        self.abf_pivot_tables.pack(fill=X, expand=True)
+        self.abf_params_reveal = MSButton(self, text='ABF Parameters', padx=4, command=self.show_params,
+                                          width=16, background='#00e600')
+        self.abf_params_reveal.pack(side=BOTTOM, anchor='se', padx=3, pady=2)
+        self.abf_params = Frame(self, bg=self.notebook_bg, borderwidth=1, relief='solid', padx=3, pady=3)
+        self.abf_params_inputs = Frame(self.abf_params, bg=self.notebook_bg, pady=4)
+        self.abf_params_inputs.pack(fill=X, side=TOP)
+        self.abf_params_buttons = Frame(self.abf_params, bg=self.notebook_bg, pady=4)
+        self.abf_params_buttons.pack(side=BOTTOM, fill=X, expand=True)
+        self.abf_params_hide = MSButton(self.abf_params_buttons, text='Hide', padx=4, command=self.hide_params,
+                                        background='#00e600')
+        self.abf_params_hide.pack(side=LEFT, pady=3, padx=5)
+        self.run_button = MSButton(self.abf_params_buttons, font='-size 12 -weight bold', text="Run ABF",
+                                   command=self.rerun_abf, padx=4)
+        self.run_button.pack(side=RIGHT, pady=3, padx=5)
+
+        print('Creating ABF graphs')
+        self.display_abf_bar_graphs(pivot_tables)
+
+        tip = 'The payroll tax that will be implemented to fund benefits program.'
+        self.payroll_tax_label = TipLabel(self.abf_params_inputs, tip, text='Payroll Tax (%):', bg=self.notebook_bg)
+        self.payroll_tax_input = Entry(self.abf_params_inputs, textvariable=top_level.parent.variables['payroll_tax'])
+
+        tip = 'Whether or not program benefits are taxed.'
+        self.benefits_tax_input = TipCheckButton(self.abf_params_inputs, tip, text='Benefits Tax',
+                                                 variable=top_level.parent.variables['benefits_tax'])
+
+        tip = 'The average tax rate of a selected state.'
+        self.average_state_tax_label = TipLabel(self.abf_params_inputs, tip, text='State Average Tax Rate (%):',
+                                                bg=self.notebook_bg)
+        self.average_state_tax_input = Entry(self.abf_params_inputs,
+                                             textvariable=top_level.parent.variables['average_state_tax'])
+
+        tip = 'The maximum amount that a person can be taxed.'
+        self.max_taxable_earnings_per_person_label = TipLabel(self.abf_params_inputs, tip,
+                                                              text='Maximum Taxable Earnings\nPer Person ($):',
+                                                              bg=self.notebook_bg, justify=LEFT)
+        self.max_taxable_earnings_per_person_input = \
+            Entry(self.abf_params_inputs, textvariable=top_level.parent.variables['max_taxable_earnings_per_person'])
+
+        tip = 'The total earnings that can be taxed.'
+        self.total_taxable_earnings_label = TipLabel(self.abf_params_inputs, tip, text='Total Taxable Earnings ($):',
+                                                     bg=self.notebook_bg)
+        self.total_taxable_earnings_input = Entry(self.abf_params_inputs,
+                                                  textvariable=top_level.parent.variables['total_taxable_earnings'])
+
+        self.payroll_tax_label.grid(column=0, row=0, sticky=W, padx=(8, 0))
+        self.payroll_tax_input.grid(column=1, row=0, sticky=W)
+        self.average_state_tax_label.grid(column=0, row=1, sticky=W, padx=(8, 0))
+        self.average_state_tax_input.grid(column=1, row=1, sticky=W)
+        self.benefits_tax_input.grid(column=0, row=2, columnspan=2, sticky=W, padx=(16, 0))
+        self.max_taxable_earnings_per_person_label.grid(column=0, row=3, sticky=W, padx=(8, 0))
+        self.max_taxable_earnings_per_person_input.grid(column=1, row=3, sticky=W)
+        self.total_taxable_earnings_label.grid(column=0, row=4, sticky=W, padx=(8, 0))
+        self.total_taxable_earnings_input.grid(column=1, row=4, sticky=W)
+
+    def show_params(self):
+        self.abf_params_reveal.pack_forget()
+        self.abf_params.pack(side=BOTTOM, anchor='se', padx=1)
+
+    def hide_params(self):
+        self.abf_params.pack_forget()
+        self.abf_params_reveal.pack(side=BOTTOM, anchor='se', padx=3, pady=2)
+
+    def display_abf_bar_graphs(self, pivot_tables):
+        graphs = self.create_abf_bar_graphs(pivot_tables)
+        for graph in graphs:
+            chart_container = ChartContainer(self.abf_pivot_tables, graph, self.dark_bg)
+            chart_container.pack()
+
+    def create_abf_bar_graphs(self, pivot_tables):
+        graphs = []
+        fg_color = 'white'
+        bg_color = self.dark_bg
+        # bg_color = '#1a1a1a'
+
+        for pivot_table_category, pivot_table in pivot_tables.items():
+            fig_pivot = Figure(figsize=(8, 4))
+            ax_pivot = fig_pivot.add_subplot(111)
+
+            categories = pivot_table.index.tolist()
+            ind_pivot = np.arange(len(categories))
+            width_pivot = 0.5
+            ys_pivot = pivot_table[('sum', 'ptax_rev_w')].values / 10 ** 6
+            title_pivot = 'State: {}. {} by {}'.format(self.winfo_toplevel().parent.settings.state, 'Total Tax Revenue',
+                                                       pivot_table_category)
+            if len(categories) > 3:
+                ax_pivot.bar(ind_pivot, ys_pivot, width_pivot, align='center', color='#1aff8c')
+                ax_pivot.set_ylabel('$ millions', fontsize=9)
+                ax_pivot.set_xticks(ind_pivot)
+                ax_pivot.set_xticklabels(categories)
+                ax_pivot.yaxis.grid(False)
+            else:
+                ax_pivot.barh(ind_pivot, ys_pivot, width_pivot, align='center', color='#1aff8c')
+                ax_pivot.set_xlabel('$ millions', fontsize=9)
+                ax_pivot.set_yticks(ind_pivot)
+                ax_pivot.set_yticklabels(categories)
+                ax_pivot.xaxis.grid(False)
+
+            format_chart(fig_pivot, ax_pivot, title_pivot, bg_color, fg_color)
+
+            graphs.append(fig_pivot)
+
+        return graphs
+
+    def rerun_abf(self):
+        settings = self.winfo_toplevel().parent.create_settings()
+        abf_output, pivot_tables = self.abf_module.rerun(settings)
+        # self.results_window.update_abf_output(abf_output)
+        # self.results_window.update_pivot_tables(pivot_tables)
+        self.update_abf_output(abf_output, pivot_tables)
+
+    def update_abf_output(self, abf_output, pivot_tables):
+        for graph in self.abf_pivot_tables.winfo_children():
+            graph.destroy()
+
+        self.display_abf_bar_graphs(pivot_tables)
+        self.abf_summary.update_results(abf_output)
+
+
 class ABFResultsSummary(Frame):
     def __init__(self, parent, output, dark_bg, light_font):
         super().__init__(parent, bg=dark_bg, highlightcolor='white', highlightthickness=1, pady=8, padx=10)
@@ -1567,7 +1581,7 @@ class ABFResultsSummary(Frame):
 
 
 class ProgressWindow(Toplevel):
-    def __init__(self, parent, se, counterfactual_se=None, policy_sim_se=None):
+    def __init__(self, parent, engine_type='Python', se=None, counterfactual_se=None, policy_sim_se=None):
         super().__init__(parent)
         self.icon = PhotoImage(file='impaq_logo.gif')
         self.tk.call('wm', 'iconphoto', self._w, self.icon)
@@ -1607,22 +1621,42 @@ class ProgressWindow(Toplevel):
     def update_progress(self, q, last_progress=0):
         try:  # Try to check if there is data in the queue
             update = q.get_nowait()
-
-            if update['type'] == 'done':
+            done, last_progress = self.parse_update(update, last_progress)
+            if done:
                 self.parent.show_results()
-            elif update['type'] == 'progress':
-                self.update_idletasks()
-                progress = update['value']
-                self.progress.set(last_progress + progress / self.engines)
-                if progress == 100:
-                    last_progress = self.progress.get()
-                self.after(500, self.update_progress, q, last_progress)
-            elif update['type'] == 'message':
-                self.update_idletasks()
-                self.add_update(update['value'], update['engine'])
+            else:
                 self.after(500, self.update_progress, q, last_progress)
         except queue.Empty:
             self.after(500, self.update_progress, q, last_progress)
+
+    def update_progress_r(self, progress_file, last_progress=0):
+        while True:
+            line = progress_file.readline()
+            if line == '':
+                self.after(500, self.update_progress_r, progress_file, last_progress)
+            else:
+                update = ast.literal_eval(line)
+                done, last_progress = self.parse_update(update, last_progress)
+                if done:
+                    self.parent.show_results()
+                else:
+                    self.after(500, self.update_progress_r, progress_file, last_progress)
+
+    def parse_update(self, update, last_progress):
+        done = False
+        if update['type'] == 'done':
+            done = True
+        elif update['type'] == 'progress':
+            self.update_idletasks()
+            progress = update['value']
+            self.progress.set(last_progress + progress / self.engines)
+            if progress == 100:
+                last_progress = self.progress.get()
+        elif update['type'] == 'message':
+            self.update_idletasks()
+            self.add_update(update['value'], update['engine'])
+
+        return done, last_progress
 
     def add_update(self, update, engine='Main'):
         label = Message(self.updates, text=engine + ': ' + update, bg=self.parent.notebook_bg, fg='#006600',
@@ -1762,3 +1796,9 @@ def run_engines(se, counterfactual_se, policy_se, q):
         policy_se.run()
 
     q.put({'type': 'done', 'value': 'done'})
+
+
+def run_engines_r(command, counterfactual_command, policy_command):
+    subprocess.call(command, shell=True)
+    subprocess.call(counterfactual_command, shell=True)
+    subprocess.call(policy_command, shell=True)

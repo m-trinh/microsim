@@ -36,10 +36,9 @@ import csv
 from _1_clean_FMLA import DataCleanerFMLA
 from _4_clean_ACS import DataCleanerACS
 from Utils import format_chart
-import random
+
 
 class SimulationEngine:
-
     def __init__(self, st, yr, fps_in, fps_out, clf_name, prog_para, engine_type='Main', q=None):
         '''
         :param st: state name, 'ca', 'ma', etc.
@@ -78,18 +77,21 @@ class SimulationEngine:
         self.state_of_work = prog_para[14]
         self.clone_factor = prog_para[15] # integer multiplier to scale up sample (while shrink weight) for granular sim
         self.dual_receivers_share = prog_para[16] # share of company/state benefit receivers among anypay = 1
+        self.random_seed = prog_para[17]
+        print('Random seed:', self.random_seed)
+        self.random_state = np.random.RandomState(self.random_seed)
 
         # leave types
         self.types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
 
         # a dict from clf_name to clf
         self.d_clf = {}
-        self.d_clf['Logistic Regression'] = sklearn.linear_model.LogisticRegression(solver='liblinear', multi_class='auto')
-        self.d_clf['Ridge Classifier'] = sklearn.linear_model.RidgeClassifier()
+        self.d_clf['Logistic Regression'] = sklearn.linear_model.LogisticRegression(solver='liblinear', multi_class='auto', random_state=self.random_state)
+        self.d_clf['Ridge Classifier'] = sklearn.linear_model.RidgeClassifier(random_state=self.random_state)
         #self.d_clf['Stochastic Gradient Descent'] = sklearn.linear_model.SGDClassifier(loss='modified_huber', max_iter=1000, tol=0.001)
         self.d_clf['Naive Bayes'] = sklearn.naive_bayes.MultinomialNB()
-        self.d_clf['Support Vector Machine'] = sklearn.svm.SVC(probability=True, gamma='auto')
-        self.d_clf['Random Forest'] = sklearn.ensemble.RandomForestClassifier()
+        self.d_clf['Support Vector Machine'] = sklearn.svm.SVC(probability=True, gamma='auto', random_state=self.random_state)
+        self.d_clf['Random Forest'] = sklearn.ensemble.RandomForestClassifier(random_state=self.random_state)
         self.d_clf['K Nearest Neighbor'] = sklearn.neighbors.KNeighborsClassifier()
 
         # out id for creating unique out folder to store all model outputs
@@ -107,9 +109,7 @@ class SimulationEngine:
         # POW population weight multiplier
         self.pow_pop_multiplier = 1.0217029934467345 # based on 2012-2016 ACS, see project acs_all
 
-
     def save_program_parameters(self):
-
         # create output folder
         os.makedirs(self.output_directory)
 
@@ -147,7 +147,7 @@ class SimulationEngine:
         return None
 
     def prepare_data(self):
-        dcf = DataCleanerFMLA(self.fp_fmla_in, self.fp_fmla_out)
+        dcf = DataCleanerFMLA(self.fp_fmla_in, self.fp_fmla_out, self.random_state)
         dcf.clean_data()
         self.__put_queue({'type': 'progress', 'engine': self.engine_type, 'value': 10})
         self.__put_queue({'type': 'message', 'engine': self.engine_type,
@@ -164,7 +164,7 @@ class SimulationEngine:
 
         self.__put_queue({'type': 'message', 'engine': self.engine_type,
                           'value': 'Cleaning ACS data. State chosen = RI. Chunk size = 100000 ACS rows'})
-        dca = DataCleanerACS(self.st, self.yr, self.fp_acsh_in, self.fp_acsp_in, self.fp_acs_out, self.state_of_work)
+        dca = DataCleanerACS(self.st, self.yr, self.fp_acsh_in, self.fp_acsp_in, self.fp_acs_out, self.state_of_work, self.random_state)
         dca.load_data()
         message = dca.clean_person_data()
         self.__put_queue({'type': 'progress', 'engine': self.engine_type, 'value': 60})
@@ -235,7 +235,7 @@ class SimulationEngine:
         for c in col_ys:
             tt = time()
             y = d[c]
-            acs = acs.join(get_sim_col(X, y, w, Xa, clf))
+            acs = acs.join(get_sim_col(X, y, w, Xa, clf, self.random_state))
             print('Simulation of col %s done. Time elapsed = %s' % (c, (time() - tt)))
         print('6+6+1 simulated. Time elapsed = %s' % (time() - t0))
 
@@ -265,7 +265,7 @@ class SimulationEngine:
         else:
             for c in ['anypay']:
                 y = d.loc[X.index][c]
-                acs = acs.join(get_sim_col(X, y, w, Xa, clf))
+                acs = acs.join(get_sim_col(X, y, w, Xa, clf, self.random_state))
 
         # Conditional simulation - prop_pay for anypay=1 sample
         X = d[(d['anypay'] == 1) & (d['prop_pay'].notna())][col_Xs]
@@ -282,7 +282,7 @@ class SimulationEngine:
             pass
         else:
             y = [D_prop[x] for x in d.loc[X.index]['prop_pay']]
-            yhat = get_sim_col(X, y, w, Xa, clf)
+            yhat = get_sim_col(X, y, w, Xa, clf, self.random_state)
             # prop_pay labels are from 1 to 6, get_sim_col() vectorization sum gives 0~5, increase label by 1
             yhat = pd.Series(data=yhat.values + 1, index=yhat.index, name='prop_pay')
             acs = acs.join(yhat)
@@ -306,7 +306,7 @@ class SimulationEngine:
             cs = np.cumsum(ps)
             lens = []  # initiate list of lengths
             for i in range(n_lensim):
-                lens.append(flen[pfl][t][bisect.bisect(cs, np.random.random())][0])
+                lens.append(flen[pfl][t][bisect.bisect(cs, self.random_state.random())][0])
             acs.loc[acs['take_%s' % t] == 1, 'len_%s' % t] = np.array(lens)
             # print('mean = %s' % acs['len_%s' % t].mean())
         # print('te: sq length sim = %s' % (time()-t0))
@@ -326,7 +326,7 @@ class SimulationEngine:
                     dct_vw[x] = acs[(acs['len_%s' % t] > x)][['len_%s' % t, 'PWGTP']].groupby(by='len_%s' % t)[
                         'PWGTP'].sum().reset_index()
                     mx = len(acs[(acs['resp_len'] == 1) & (acs['len_%s' % t] == x)])
-                    vxs = np.random.choice(dct_vw[x]['len_%s' % t], mx, p=dct_vw[x]['PWGTP'] / dct_vw[x]['PWGTP'].sum())
+                    vxs = self.random_state.choice(dct_vw[x]['len_%s' % t], mx, p=dct_vw[x]['PWGTP'] / dct_vw[x]['PWGTP'].sum())
                     acs.loc[(acs['resp_len'] == 1) & (acs['len_%s' % t] == x), 'mnl_%s' % t] = vxs
                 else:
                     acs.loc[(acs['resp_len'] == 1) & (acs['len_%s' % t] == x), 'mnl_%s' % t] = x * 1.25
@@ -447,7 +447,7 @@ class SimulationEngine:
             #print('p_draw for type -%s- = %s' % (t, p_draw))
             # get take up indicator for type t - weighted random draw from cpl_type>0 until target is reached
             acs['takeup_%s' % t] = 0
-            draws = get_weighted_draws(acs[acs['cpl_%s' % t] > 0][col_w], p_draw)
+            draws = get_weighted_draws(acs[acs['cpl_%s' % t] > 0][col_w], p_draw, self.random_state)
             #print('draws = %s' % draws)
             acs.loc[acs['cpl_%s' % t] > 0, 'takeup_%s' % t] \
                 = draws

@@ -13,7 +13,7 @@ from _5a_aux_functions import fillna_binary, get_multiple_leave_vars
 
 class DataCleanerFMLA:
 
-    def __init__(self, fp_fmla_in, fp_fmla_out):
+    def __init__(self, fp_fmla_in, fp_fmla_out, random_state):
         '''
 
         :param fp_fmla_in: file path to original FMLA data
@@ -22,6 +22,7 @@ class DataCleanerFMLA:
 
         self.fp_fmla_in = fp_fmla_in
         self.fp_fmla_out = fp_fmla_out
+        self.random_state = random_state
 
     def clean_data(self):
 
@@ -501,7 +502,7 @@ class DataCleanerFMLA:
         # logit regressions
         X = cps[['female', 'black', 'age', 'agesq', 'BA', 'GradSch']]
         w = cps['marsupwt']
-        Xd = fillna_binary(d[X.columns])
+        Xd = fillna_binary(d[X.columns], self.random_state)
         # cps based hourly paid indicator
         y = cps['hourly']
         clf = sklearn.linear_model.LogisticRegression(solver='liblinear').fit(X, y, sample_weight=w)

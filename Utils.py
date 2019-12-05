@@ -1,5 +1,7 @@
 import copy
 from tkinter import E, W
+import subprocess
+import datetime
 
 
 DEFAULT_STATE_PARAMS = {
@@ -86,7 +88,7 @@ class Settings:
                  take_up_rates=None, leave_probability_factors=None, payroll_tax=1, benefits_tax=False,
                  average_state_tax=5, max_taxable_earnings_per_person=100000, total_taxable_earnings=10000000000,
                  fed_employees=True, state_employees=True, local_employees=True, counterfactual='', policy_sim=False,
-                 existing_program='', dual_receivers_share=0.6):
+                 existing_program='', dual_receivers_share=0.6, engine_type='Python', r_path=''):
         self.fmla_file = fmla_file
         self.acs_directory = acs_directory
         self.output_directory = output_directory
@@ -125,6 +127,8 @@ class Settings:
         self.policy_sim = policy_sim
         self.existing_program = existing_program
         self.dual_receivers_share = dual_receivers_share
+        self.engine_type = engine_type
+        self.r_path = r_path
         if max_weeks is None:
             self.max_weeks = {'Own Health': 30, 'Maternity': 30, 'New Child': 4, 'Ill Child': 4, 'Ill Spouse': 4,
                               'Ill Parent': 4}
@@ -213,10 +217,10 @@ def display_leave_objects(labels, inputs):
         inputs[idx].grid(column=idx, row=1, sticky=(E, W), padx=1, pady=(0, 2))
 
 
-def run_r_engine(settings):
+def create_r_command(settings, progress_file):
     params = [
         settings.replacement_ratio,  # base_bene_level
-        settings.simulation_method,  # impute_method
+        'KNN1',  # settings.simulation_method,  # impute_method
         True,  # makelog
         1,  # sample_prop?
         settings.state,  # state
@@ -266,13 +270,16 @@ def run_r_engine(settings):
         settings.eligible_hours,  # ann_hours
         settings.eligible_size,  # minsize
         settings.leave_probability_factors['Own Health'],  # own_elig_adj
-        settings.leave_probability_factors['Maternity'],
-        settings.leave_probability_factors['New Child'],
-        settings.leave_probability_factors['Ill Parent'],
-        settings.leave_probability_factors['Ill Spouse'],
-        settings.leave_probability_factors['Ill Child'],
+        settings.leave_probability_factors['Maternity'],  # matdis_elig_adj
+        settings.leave_probability_factors['New Child'],  # bond_elig_adj
+        settings.leave_probability_factors['Ill Parent'],  # illspouse_elig_adj
+        settings.leave_probability_factors['Ill Spouse'],  # illparent_elig_adj
+        settings.leave_probability_factors['Ill Child'],  # illchild_elig_adj
         'output',  # output
         123,  # random_seed
+        progress_file
     ]
 
-    command = '{} run_engine.R {}'.format(settings.r_path, ' '.join(params))
+    params = [str(p) for p in params]
+    command = '{} --vanilla ./r_engine/run_engine.R {}'.format(settings.r_path, ' '.join(params))
+    return command
