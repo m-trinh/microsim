@@ -222,9 +222,6 @@ class SimulationEngine:
             # then expand acs by factor
             acs = pd.concat([acs]*self.clone_factor)
 
-        print('self.clone_factor = %s' % self.clone_factor)
-        print('---------------------- acs.shape = %s' % len(acs))
-
         # Define classifier
         clf = self.d_clf[self.clf_name]
 

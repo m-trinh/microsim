@@ -131,10 +131,15 @@ class Settings:
         else:
             self.max_weeks = max_weeks
         if take_up_rates is None:
-            self.take_up_rates = {'Own Health': 0.0704, 'Maternity': 0.0235, 'New Child': 0.0092, 'Ill Child': 0.005,
-                                  'Ill Spouse': 0.0014, 'Ill Parent': 0.008}
+            # for demo using RI take up data
+            self.take_up_rates = {'Own Health': 0.0704, 'Maternity': 0.0235, 'New Child': 0.0092,
+                                  'Ill Child': 0.005, 'Ill Spouse': 0.0014, 'Ill Parent': 0.008}
+            # alternatively use average of 3 states (RI/NJ/CA)
+            # self.take_up_rates = {'Own Health': 0.0402, 'Maternity': 0.0132, 'New Child': 0.0093,
+            #                           'Ill Child': 0.0011, 'Ill Spouse': 0.0020, 'Ill Parent': 0.0017}
         else:
             self.take_up_rates = take_up_rates
+
         if leave_probability_factors is None:
             self.leave_probability_factors = {'Own Health': 0.667, 'Maternity': 0.667, 'New Child': 0.667,
                                               'Ill Child': 0.667, 'Ill Spouse': 0.667, 'Ill Parent': 0.667}

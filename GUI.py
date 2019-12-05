@@ -65,7 +65,7 @@ class MicrosimGUI(Tk):
 
         # TODO: Remove
         # --------- TEST ONLY -------------
-        self.variables['fmla_file'].set('./data/fmla_2012/fmla_2012_employee_restrict_puf.csv')
+        self.variables['fmla_file'].set('./data/fmla_2012/fmla_2012_employee_revised_puf.csv')
         self.variables['acs_directory'].set('./data/acs')
         self.variables['output_directory'].set('./output')
         # self.test_result_output()
