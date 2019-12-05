@@ -1220,14 +1220,16 @@ class ResultsWindow(Toplevel):
 
         figure.savefig(filename, facecolor=self.dark_bg, edgecolor='white')
 
-    def create_histogram(self, parent, data, bins, weights, bg_color, fg_color, title_str):
-        fig = Figure(figsize=(8, 4))
-        ax = fig.add_subplot(111)
-        ax.hist(data, bins, weights=weights, color='#1aff8c')
-        title = 'State: {}. {}'.format(self.parent.settings.state, title_str)
-        format_chart(fig, ax, title, bg_color, fg_color)
-        chart_container = ChartContainer(parent, fig, self.dark_bg)
-        chart_container.pack()
+    # def create_histogram(self, parent, data, bins, weights, bg_color, fg_color, title_str):
+    #     fig = Figure(figsize=(8, 4))
+    #     ax = fig.add_subplot(111)
+    #     ax.hist(data, bins, weights=weights, color='#1aff8c')
+    #     ax.ylabel('Number of Days', fontsize=8)
+    #     ax.xlabel('Number of Workers', fontsize=8)
+    #     title = 'State: {}. {}'.format(self.parent.settings.state, title_str)
+    #     format_chart(fig, ax, title, bg_color, fg_color)
+    #     chart_container = ChartContainer(parent, fig, self.dark_bg)
+    #     chart_container.pack()
 
     def scroll(self, event):
         # In Windows, the delta will be either 120 or -120. In Mac, it will be 1 or -1.
@@ -1320,17 +1322,20 @@ class PopulationAnalysis(ScrollFrame):
             chart.destroy()
 
         simulation_data = self.filter_data(self.simulation_data)
-        self.create_histogram(simulation_data['cpl'], 20, simulation_data['PWGTP'], 'Main Simulation')
+        bin_size = 5
+        max_weekdays = 262
+        bins = list(range(0, max_weekdays, bin_size))
+        self.create_histogram(simulation_data['cpl'], bins, simulation_data['PWGTP'], 'Main Simulation')
 
         if self.counterfactual_data is not None:
             counterfactual_data = self.filter_data(self.counterfactual_data)
             self.create_histogram(
-                counterfactual_data['cpl'], 20, counterfactual_data['PWGTP'],
+                counterfactual_data['cpl'], bins, counterfactual_data['PWGTP'],
                 'Counterfactual Program ({})'.format(self.winfo_toplevel().parent.settings.counterfactual))
 
         if self.policy_sim_data is not None:
             policy_sim_data = self.filter_data(self.policy_sim_data)
-            self.create_histogram(policy_sim_data['cpl'], 20, policy_sim_data['PWGTP'], 'Most Generous Program')
+            self.create_histogram(policy_sim_data['cpl'], bins, policy_sim_data['PWGTP'], 'Most Generous Program')
 
     def filter_data(self, data):
         if self.gender.get() == 'Male':
@@ -1354,7 +1359,10 @@ class PopulationAnalysis(ScrollFrame):
         fig = Figure(figsize=(8, 4))
         ax = fig.add_subplot(111)
         ax.hist(data, bins, weights=weights, color='#1aff8c')
-        title = 'State: {}. {}'.format(self.winfo_toplevel().parent.settings.state, title_str)
+        ax.set_ylabel('Number of Days', fontsize=9)
+        ax.set_xlabel('Number of Workers', fontsize=9)
+        title = 'State: {}. Leaves Taken under Program. {}'.format(self.winfo_toplevel().parent.settings.state,
+                                                                   title_str)
         format_chart(fig, ax, title, self.dark_bg, 'white')
         chart_container = ChartContainer(self.histogram_frame, fig, self.dark_bg)
         chart_container.pack()
@@ -1805,7 +1813,7 @@ class MSRunButton(Button):
     def __init__(self, parent=None, **kwargs):
         super().__init__(parent, foreground='#FFFFFF', background='#ccebff', font='-size 11 -weight bold', width=8,
                          relief='flat', activebackground='#FFFFFF', disabledforeground='#FFFFFF', state=DISABLED,
-                         **kwargs)
+                         highlightthickness=0, borderwidth=0, pady=2, **kwargs)
 
 
 class MSGeneralEntry(Entry):
