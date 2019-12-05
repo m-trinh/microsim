@@ -1,6 +1,6 @@
 '''
 main simulation engine
-chris zhang 11/12/2019
+chris zhang 12/4/2019
 '''
 # CHANGES 11/14/2019
 # Made dual receiver as proportionate parameter of those individuals with >0 prop_pay.
@@ -17,10 +17,8 @@ chris zhang 11/12/2019
 # logit does not sim enough takers/needers to reach required takeup in RI. Other methods okay
 # Applied logic control - age range of taker/needer of matdis, bond (set max to 50)
 
-# TODO: add covelig (FMLA unpaid) to fmla/acs train/sim, use Luke's xvars to check logit taker/needer RI results
-# TODO: check diff MLs performance on predicting number of weeks (pmts) for RI/NJ/CA data
-# TODO: adopt needers_fully_part
-# TODO: add clonefactor and weightfactor paras to match R model. With cloned ACS persons can get more granular y_hat's.
+# TODO: validate MLs within FMLA, check diff MLs performance on predicting number of weeks (pmts) for RI/NJ/CA data
+# TODO: adopt needers_fully_part - really necessary?? Not a empirical possibility
 # TODO: make a note in doc about 1.02 POW factor if user tries to create pop est / needers_full_part override
 
 import pandas as pd
@@ -123,13 +121,15 @@ class SimulationEngine:
                        'Include Goverment Employees, State',
                        'Include Goverment Employees, Local',
                        'Include Self-employed',
-                       'Simulation Method']
+                       'Simulation Method',
+                       'Clone Factor']
         para_labels_m = ['Maximum Week of Benefit Receiving',
                          'Take Up Rates'] # type-specific parameters
 
         para_values = [self.st.upper(),self.yr + 2000,
                        self.elig_wage12,self.elig_wkswork,self.elig_yrhours,self.elig_empsize,self.rrp,self.wkbene_cap,
-                       self.incl_empgov_fed, self.incl_empgov_st,self.incl_empgov_loc,self.incl_empself, self.clf_name]
+                       self.incl_empgov_fed, self.incl_empgov_st,self.incl_empgov_loc,self.incl_empself, self.clf_name,
+                       self.clone_factor]
         para_values_m = [self.d_maxwk, self.d_takeup]
 
         d = pd.DataFrame(para_values, index=para_labels)
@@ -213,6 +213,17 @@ class SimulationEngine:
                 (acs['empsize'] >= elig_empsizebin), 'elig_prog'] = 1
         # drop ineligible workers (based on wage/work/empsize)
         acs = acs.drop(acs[acs['elig_prog'] != 1].index)
+
+        # Expand ACS if clone factor > 1
+        # shrink all weights by factor
+        if self.clone_factor>1:
+            for wt in ['PWGTP'] + ['PWGTP' + str(x) for x in range(1, 81)]:
+                acs[wt] = acs[wt]/self.clone_factor
+            # then expand acs by factor
+            acs = pd.concat([acs]*self.clone_factor)
+
+        print('self.clone_factor = %s' % self.clone_factor)
+        print('---------------------- acs.shape = %s' % len(acs))
 
         # Define classifier
         clf = self.d_clf[self.clf_name]
@@ -330,67 +341,71 @@ class SimulationEngine:
         acs.loc[acs['nochildren'] == 1, 'mnl_bond'] = 0
         acs.loc[acs['nochildren'] == 1, 'mnl_matdis'] = 0
 
+        # check if sum of mnl hits max = 52*5 = 260. If so, use max=260 to distribute prop to mnl of 6 types
+        acs['mnl_all'] = [x.sum() for x in acs[['mnl_%s' % x for x in self.types]].values]
+        for t in self.types:
+            acs.loc[acs['mnl_all']>260, 'mnl_%s' % t] = acs.loc[acs['mnl_all']>260, 'mnl_%s' % t] / \
+                                                     acs.loc[acs['mnl_all']>260, 'mnl_all'] * 260
+
         # set covered-by-program leave lengths (cp-len) as maximum needed leave lengths (mn-len) for each type
         for t in self.types:
             acs['cpl_%s' % t] = acs['mnl_%s' % t]
 
-        # TODO: exclude dual/cf-len/cp-len below, use mn-len as cp-len directly?? RI data/logit suggest so.
-        #
-        # # Given fraction of dual receiver x among anypay=1, simulate dual/single receiver status among anypay=1
-        # acs['dual_receiver'] = 0
-        # ws = acs[acs['anypay']==1]['PWGTP'] # weights of anypay=1
-        # acs.loc[acs['anypay']==1, 'dual_receiver'] = get_weighted_draws(ws, self.dual_receivers_share)
-        # # check if target pop is achieved among anypay=1
-        # s_dual_receiver = acs[(acs['anypay']==1) & (acs['dual_receiver'] == 1)]['PWGTP'].sum() / acs[acs['anypay']==1]['PWGTP'].sum()
-        # s_dual_receiver = round(s_dual_receiver, 2)
-        # print('Specified share of dual-receiver = %s. Post-sim weighted share = %s' % (self.dual_receivers_share, s_dual_receiver))
-        #
-        # # Simulate counterfactual leave lengths (cf-len) for dual receivers
-        # # Given cf-len, get cp-len
-        # # With program, effective rr =min(rre+rrp, 1), assuming responsiveness diminishes if full replacement attainable
-        # for t in self.types:
-        #     acs['cfl_%s' % t] = np.nan
-        #     ## Get cf-len for dual receivers
-        #     # use [(rre, sql), (1, mnl)] to interpolate cfl at rre+rrp, regardless rre+rrp<1 or not
-        #     acs.loc[acs['dual_receiver'] == 1, 'cfl_%s' % t] = \
-        #         acs.loc[acs['dual_receiver'] == 1, 'len_%s' % t] + (acs.loc[
-        #                                                                   acs['dual_receiver'] == 1, 'mnl_%s' % t] -
-        #                                                               acs.loc[
-        #                                                                   acs['dual_receiver'] == 1, 'len_%s' % t]) \
-        #                                                              * self.rrp / (1 - acs.loc[
-        #             acs['dual_receiver'] == 1, 'prop_pay'])
-        #     # if rre+rrp>=1, set cfl = mnl
-        #     acs.loc[(acs['dual_receiver'] == 1) & (acs['prop_pay'] >= 1-self.rrp), 'cfl_%s' % t] = \
-        #         acs.loc[(acs['dual_receiver'] == 1) & (acs['prop_pay'] >= 1-self.rrp), 'mnl_%s' % t]
-        #     ## Get covered-by-program leave lengths (cp-len) for dual receivers
-        #     # allocate cf-len between employer and state according to rre/rrp ratio
-        #     acs.loc[acs['dual_receiver'] == 1, 'cpl_%s' % t] = acs.loc[acs['dual_receiver'] == 1, 'cfl_%s' % t] * \
-        #                                                          self.rrp / (
-        #         self.rrp + acs.loc[acs['dual_receiver'] == 1, 'prop_pay'])
-        #
-        #
-        # # Simulate cf-len for single receivers
-        # # Given cf-len, get cp-len
-        # for t in self.types:
-        #     # single receiver, rrp>rre. Assume will use state program benefit to replace employer benefit
-        #     acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'cfl_%s' % t] = \
-        #         acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'len_%s' % t] + \
-        #         (acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'mnl_%s' % t] -
-        #          acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'len_%s' % t]) * \
-        #         (self.rrp - acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'prop_pay']) / \
-        #         (1 - acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'prop_pay'])
-        #     # single receiver, rrp<=rre. Assume will not use any state program benefit
-        #     # so still using same employer benefit as status-quo, thus cf-len = sq-len
-        #     acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >= self.rrp), 'cfl_%s' % t] = \
-        #         acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >= self.rrp), 'len_%s' % t]
-        #     # Get covered-by-program leave lengths (cp-len) for single receivers
-        #     # if rrp>rre, cp-len = cf-len
-        #     acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'cpl_%s' % t] = \
-        #         acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'cfl_%s' % t]
-        #     # if rrp<=rre, cp-len = 0
-        #     acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >= self.rrp), 'cpl_%s' % t] = 0
-        #     # set cp-len = 0 if missing
-        #     acs.loc[acs['cpl_%s' % t].isna(), 'cpl_%s' % t] = 0
+        # Given fraction of dual receiver x among anypay=1, simulate dual/single receiver status among anypay=1
+        acs['dual_receiver'] = 0
+        ws = acs[acs['anypay']==1]['PWGTP'] # weights of anypay=1
+        acs.loc[acs['anypay']==1, 'dual_receiver'] = get_weighted_draws(ws, self.dual_receivers_share)
+        # check if target pop is achieved among anypay=1
+        s_dual_receiver = acs[(acs['anypay']==1) & (acs['dual_receiver'] == 1)]['PWGTP'].sum() / acs[acs['anypay']==1]['PWGTP'].sum()
+        s_dual_receiver = round(s_dual_receiver, 2)
+        print('Specified share of dual-receiver = %s. Post-sim weighted share = %s' % (self.dual_receivers_share, s_dual_receiver))
+
+        # Simulate counterfactual leave lengths (cf-len) for dual receivers
+        # Given cf-len, get cp-len
+        # With program, effective rr =min(rre+rrp, 1), assuming responsiveness diminishes if full replacement attainable
+        for t in self.types:
+            acs['cfl_%s' % t] = np.nan
+            ## Get cf-len for dual receivers
+            # use [(rre, sql), (1, mnl)] to interpolate cfl at rre+rrp, regardless rre+rrp<1 or not
+            acs.loc[acs['dual_receiver'] == 1, 'cfl_%s' % t] = \
+                acs.loc[acs['dual_receiver'] == 1, 'len_%s' % t] + (acs.loc[
+                                                                          acs['dual_receiver'] == 1, 'mnl_%s' % t] -
+                                                                      acs.loc[
+                                                                          acs['dual_receiver'] == 1, 'len_%s' % t]) \
+                                                                     * self.rrp / (1 - acs.loc[
+                    acs['dual_receiver'] == 1, 'prop_pay'])
+            # if rre+rrp>=1, set cfl = mnl
+            acs.loc[(acs['dual_receiver'] == 1) & (acs['prop_pay'] >= 1-self.rrp), 'cfl_%s' % t] = \
+                acs.loc[(acs['dual_receiver'] == 1) & (acs['prop_pay'] >= 1-self.rrp), 'mnl_%s' % t]
+            ## Get covered-by-program leave lengths (cp-len) for dual receivers
+            # allocate cf-len between employer and state according to rre/rrp ratio
+            acs.loc[acs['dual_receiver'] == 1, 'cpl_%s' % t] = acs.loc[acs['dual_receiver'] == 1, 'cfl_%s' % t] * \
+                                                                 self.rrp / (
+                self.rrp + acs.loc[acs['dual_receiver'] == 1, 'prop_pay'])
+
+
+        # Simulate cf-len for single receivers
+        # Given cf-len, get cp-len
+        for t in self.types:
+            # single receiver, rrp>rre. Assume will use state program benefit to replace employer benefit
+            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'cfl_%s' % t] = \
+                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'len_%s' % t] + \
+                (acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'mnl_%s' % t] -
+                 acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'len_%s' % t]) * \
+                (self.rrp - acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'prop_pay']) / \
+                (1 - acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'prop_pay'])
+            # single receiver, rrp<=rre. Assume will not use any state program benefit
+            # so still using same employer benefit as status-quo, thus cf-len = sq-len
+            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >= self.rrp), 'cfl_%s' % t] = \
+                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >= self.rrp), 'len_%s' % t]
+            # Get covered-by-program leave lengths (cp-len) for single receivers
+            # if rrp>rre, cp-len = cf-len
+            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'cpl_%s' % t] = \
+                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'cfl_%s' % t]
+            # if rrp<=rre, cp-len = 0
+            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >= self.rrp), 'cpl_%s' % t] = 0
+            # set cp-len = 0 if missing
+            acs.loc[acs['cpl_%s' % t].isna(), 'cpl_%s' % t] = 0
 
         # Apply cap of coverage period (in weeks) to cpl_type (in days) for each leave type
         for t in self.types:
