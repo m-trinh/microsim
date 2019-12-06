@@ -499,7 +499,7 @@ class MicrosimGUI(Tk):
             self.showing_advanced = False
             self.hide_advanced_parameters()
             self.update()
-            self.minsize(self.winfo_width(), self.original_height - height_change)
+            self.minsize(self.winfo_width(), self.original_height)
         else:
             self.showing_advanced = True
             self.show_advanced_parameters()
