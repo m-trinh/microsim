@@ -248,9 +248,7 @@ def get_sim_col(X, y, w, Xa, clf, random_state):
 
     # if clf = 'random draw'
     if clf == 'random draw':
-        yhat = [y.iloc[z] for z in random_state.choice(len(y), len(Xa))]
-        simcol = pd.Series(yhat, index=Xa.index)
-        simcol.name = y.name
+        simcol = [y.iloc[z] for z in random_state.choice(len(y), len(Xa))]
         return simcol
     else:
         # Data preparing - categorization for Naive Bayes
@@ -292,9 +290,8 @@ def get_sim_col(X, y, w, Xa, clf, random_state):
         #print('phat top 30 rows = %s ' % phat[:30])
         s = phat.cumsum(axis=1)
         r = random_state.rand(phat.shape[0])
-        simcol = pd.Series((r > s.transpose()).transpose().sum(axis=1), index=Xa.index)
-
-        simcol.name = y.name
+        simcol = pd.Series((r > s.transpose()).transpose().sum(axis=1))
+        simcol = list(simcol)
         return simcol
 
 # a function to get marginal probability vector, i.e. change values of probability list to 0 for given indices, and normalize

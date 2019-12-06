@@ -93,7 +93,7 @@ class DataCleanerACS:
         for d in pd.read_csv(fp_d_p, chunksize=chunk_size):
 
             # Merge with the household level variables
-            d = pd.merge(d, d_hh[['SERIALNO', 'nochildren', 'faminc', 'lnfaminc', 'PARTNER', 'ndep_kid', 'ndep_old']],
+            d = pd.merge(d, d_hh[['SERIALNO', 'NPF', 'nochildren', 'faminc', 'lnfaminc', 'PARTNER', 'ndep_kid', 'ndep_old']],
                          on='SERIALNO')
 
             # -------------------------- #
@@ -329,7 +329,7 @@ class DataCleanerACS:
             # -------------------------- #
             # Save the resulting dataset
             # -------------------------- #
-            cols = ['SERIALNO', 'PWGTP', 'ST',
+            cols = ['SERIALNO', 'PWGTP', 'ST', 'POWSP', 'NPF',
                     'employed', 'empgov_fed', 'empgov_st', 'empgov_loc',
                     'wkhours', 'weeks_worked_cat', 'wage12', 'lnearn', 'hiemp',
                     'a_age', 'age', 'agesq',

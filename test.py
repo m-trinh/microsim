@@ -603,3 +603,119 @@ for k, v in tags.items():
 acs = pd.read_csv('./output/output_20191205_132017_Main/acs_sim_20191205_132017.csv')
 types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
 acs['cpl'] = [x.sum() for x in acs[['cpl_%s' % x for x in types]].values]
+
+######## check why simulated anypay = nan
+
+
+import pandas as pd
+import numpy as np
+import bisect
+import json
+from time import time
+from _5a_aux_functions import get_columns, get_sim_col, get_weighted_draws
+import sklearn.linear_model, sklearn.naive_bayes, sklearn.neighbors, sklearn.tree, sklearn.ensemble, \
+    sklearn.gaussian_process, sklearn.svm
+from datetime import datetime
+import matplotlib.pyplot as plt
+import os
+import csv
+from _1_clean_FMLA import DataCleanerFMLA
+from _4_clean_ACS import DataCleanerACS
+from Utils import format_chart
+
+
+# Read in cleaned ACS and FMLA data, and FMLA-based length distribution
+acs = pd.read_csv('./data/acs/ACS_cleaned_forsimulation_2016_md.csv')
+pfl = 'non-PFL'  # status of PFL as of ACS sample period
+d = pd.read_csv('./data/fmla_2012/fmla_clean_2012.csv', low_memory=False)
+with open('./data/fmla_2012/length_distributions_exact_days.json') as f:
+    flen = json.load(f)
+
+# Sample restriction - reduce to eligible workers (all elig criteria indep from simulation below)
+
+# drop government workers if desired
+acs = acs.drop(acs[acs['empgov_fed'] == 1].index)
+acs = acs.drop(acs[acs['empgov_st'] == 1].index)
+acs = acs.drop(acs[acs['empgov_loc'] == 1].index)
+acs = acs.drop(acs[(acs['COW'] == 6) | (acs['COW'] == 7)].index)
+# check other program eligibility
+acs['elig_prog'] = 0
+acs.loc[(acs['wage12'] >= 3840) &
+        (acs['wkswork'] >= 1) &
+        (acs['wkswork'] * acs['wkhours'] >= 1) &
+        (acs['empsize'] >= 1), 'elig_prog'] = 1
+# drop ineligible workers (based on wage/work/empsize)
+acs = acs.drop(acs[acs['elig_prog'] != 1].index)
+
+# Define classifier
+clf = sklearn.linear_model.LogisticRegression(solver='liblinear', multi_class='auto', random_state=123)
+
+# Train models using FMLA, and simulate on ACS workers
+t0 = time()
+col_Xs, col_ys, col_w = get_columns()
+X = d[col_Xs]
+w = d[col_w]
+Xa = acs[X.columns]
+random_seed = 123
+random_state = np.random.RandomState(random_seed)
+
+for c in col_ys:
+    tt = time()
+    y = d[c]
+    acs[c] = get_sim_col(X, y, w, Xa, clf, random_state)
+    print('Simulation of col %s done. Time elapsed = %s' % (c, (time() - tt)))
+print('6+6+1 simulated. Time elapsed = %s' % (time() - t0))
+
+# Post-simluation logic control
+acs.loc[acs['male'] == 1, 'take_matdis'] = 0
+acs.loc[acs['male'] == 1, 'need_matdis'] = 0
+acs.loc[(acs['nevermarried'] == 1) | (acs['divorced'] == 1), 'take_illspouse'] = 0
+acs.loc[(acs['nevermarried'] == 1) | (acs['divorced'] == 1), 'need_illspouse'] = 0
+acs.loc[acs['nochildren'] == 1, 'take_bond'] = 0
+acs.loc[acs['nochildren'] == 1, 'need_bond'] = 0
+acs.loc[acs['nochildren'] == 1, 'take_matdis'] = 0
+acs.loc[acs['nochildren'] == 1, 'need_matdis'] = 0
+acs.loc[acs['age'] > 50, 'take_matdis'] = 0
+acs.loc[acs['age'] > 50, 'need_matdis'] = 0
+acs.loc[acs['age'] > 50, 'take_bond'] = 0
+acs.loc[acs['age'] > 50, 'need_bond'] = 0
+
+# Conditional simulation - anypay for taker/needer sample
+acs['taker'] = [max(z) for z in acs[['take_%s' % t for t in types]].values]
+acs['needer'] = [max(z) for z in acs[['need_%s' % t for t in types]].values]
+X = d[(d['taker'] == 1) | (d['needer'] == 1)][col_Xs]
+w = d.loc[X.index][col_w]
+Xa = acs[(acs['taker'] == 1) | (acs['needer'] == 1)][X.columns]
+if len(Xa) == 0:
+    print('Warning: Neither leave taker nor leave needer present in simulated ACS persons. '
+          'Simulation gives degenerate scenario of zero leaves for all workers.')
+else:
+    for c in ['anypay']:
+        y = d.loc[X.index][c]
+        simcol_indexed = get_sim_col(X, y, w, Xa, clf, random_state)
+        simcol_indexed = pd.Series(simcol_indexed, index=Xa.index, name=c)
+        acs = acs.join(simcol_indexed)
+
+# Conditional simulation - prop_pay for anypay=1 sample
+X = d[(d['anypay'] == 1) & (d['prop_pay'].notna())][col_Xs]
+w = d.loc[X.index][col_w]
+Xa = acs[acs['anypay'] == 1][X.columns]
+# a dict from prop_pay int category to numerical prop_pay value
+# int category used for phat 'p_0', etc. in get_sim_col
+v = d.prop_pay.value_counts().sort_index().index
+k = range(len(v))
+d_prop = dict(zip(k, v))
+D_prop = dict(zip(v, k))
+
+if len(Xa) == 0:
+    pass
+else:
+    y = [D_prop[x] for x in d.loc[X.index]['prop_pay']]
+    yhat = get_sim_col(X, y, w, Xa, clf, random_state)
+    # prop_pay labels are from 1 to 6, get_sim_col() vectorization sum gives 0~5, increase label by 1
+    yhat = pd.Series(data=[x+1 for x in yhat], index=Xa.index, name='prop_pay')
+    acs = acs.join(yhat)
+    acs.loc[acs['prop_pay'].notna(), 'prop_pay'] = [d_prop[x] for x in
+                                                    acs.loc[acs['prop_pay'].notna(), 'prop_pay']]
+
+acs[acs['dlen_own']<0][['len_own', 'mnl_own', 'cfl_own', 'prop_pay', 'anypay', 'taker', 'needer', 'len_all', 'cfl_all', 'mnl_all']]
