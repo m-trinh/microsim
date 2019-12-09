@@ -2,6 +2,7 @@ import copy
 from tkinter import E, W
 import subprocess
 import datetime
+import importlib
 
 
 DEFAULT_STATE_PARAMS = {
@@ -283,3 +284,20 @@ def create_r_command(settings, progress_file):
     params = [str(p) for p in params]
     command = '{} --vanilla ./r_engine/run_engine.R {}'.format(settings.r_path, ' '.join(params))
     return command
+
+
+def check_dependency(package_name, min_version):
+    package = importlib.import_module(package_name)
+    package_version = list(map(int, package.__version__.split('.')))
+    min_version = list(map(int, min_version.split('.')))
+
+    while len(package_version) < len(min_version):
+        package_version.append(0)
+
+    for i in range(len(min_version)):
+        if min_version < package_version:
+            return True
+        if min_version[i] > package_version[i]:
+            return False
+
+    return True

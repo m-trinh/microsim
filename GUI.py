@@ -1325,17 +1325,19 @@ class PopulationAnalysis(ScrollFrame):
         bin_size = 5
         max_weekdays = 262
         bins = list(range(0, max_weekdays, bin_size))
-        self.create_histogram(simulation_data['cpl'], bins, simulation_data['PWGTP'], 'Main Simulation')
+        xticks = list(range(0, max_weekdays, 20))
+        self.create_histogram(simulation_data['cpl'], bins, simulation_data['PWGTP'], 'Main Simulation', xticks)
 
         if self.counterfactual_data is not None:
             counterfactual_data = self.filter_data(self.counterfactual_data)
             self.create_histogram(
                 counterfactual_data['cpl'], bins, counterfactual_data['PWGTP'],
-                'Counterfactual Program ({})'.format(self.winfo_toplevel().parent.settings.counterfactual))
+                'Counterfactual Program ({})'.format(self.winfo_toplevel().parent.settings.counterfactual), xticks)
 
         if self.policy_sim_data is not None:
             policy_sim_data = self.filter_data(self.policy_sim_data)
-            self.create_histogram(policy_sim_data['cpl'], bins, policy_sim_data['PWGTP'], 'Most Generous Program')
+            self.create_histogram(policy_sim_data['cpl'], bins, policy_sim_data['PWGTP'], 'Most Generous Program',
+                                  xticks)
 
     def filter_data(self, data):
         if self.gender.get() == 'Male':
@@ -1355,12 +1357,14 @@ class PopulationAnalysis(ScrollFrame):
 
         return data
 
-    def create_histogram(self, data, bins, weights, title_str):
+    def create_histogram(self, data, bins, weights, title_str, xticks=None):
         fig = Figure(figsize=(8, 4))
         ax = fig.add_subplot(111)
-        ax.hist(data, bins, weights=weights, color='#1aff8c')
+        ax.hist(data, bins, weights=weights, color='#1aff8c', rwidth=0.9)
         ax.set_ylabel('Number of Days', fontsize=9)
         ax.set_xlabel('Number of Workers', fontsize=9)
+        if xticks is not None:
+            ax.set_xticks(xticks)
         title = 'State: {}. Leaves Taken under Program. {}'.format(self.winfo_toplevel().parent.settings.state,
                                                                    title_str)
         format_chart(fig, ax, title, self.dark_bg, 'white')
@@ -1672,6 +1676,11 @@ class ProgressWindow(Toplevel):
         elif update_type == 'error':
             error_message = '{}: {}'.format(type(update['value']).__name__, str(update['value']))
             self.add_update(error_message, update['engine'], fg='#e60000')
+        elif update_type == 'warning':
+            dependency, dependency_version = update['value']
+            warning_message = 'Warning: {} library might need to be updated to at least version {}'\
+                .format(dependency, dependency_version)
+            self.add_update(warning_message, update['engine'], fg='#ff9900')
 
         return update_type, last_progress
 

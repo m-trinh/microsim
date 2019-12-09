@@ -195,7 +195,7 @@ def get_pred_probs(clf, xts):
     :param xts: testing/prediction dataset
     :return: array of list of probs
     '''
-    if isinstance(clf, sklearn.linear_model.logistic.LogisticRegression) \
+    if isinstance(clf, sklearn.linear_model.LogisticRegression) \
         or isinstance(clf, sklearn.ensemble.RandomForestClassifier) \
         or isinstance(clf, sklearn.linear_model.SGDClassifier) \
         or isinstance(clf, sklearn.svm.SVC) \

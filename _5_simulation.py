@@ -35,7 +35,7 @@ import os
 import csv
 from _1_clean_FMLA import DataCleanerFMLA
 from _4_clean_ACS import DataCleanerACS
-from Utils import format_chart
+from Utils import format_chart, check_dependency
 
 
 class SimulationEngine:
@@ -312,7 +312,7 @@ class SimulationEngine:
             cs = np.cumsum(ps)
             lens = []  # initiate list of lengths
             for i in range(n_lensim):
-                lens.append(flen[pfl][t][bisect.bisect(cs, self.random_state.random())][0])
+                lens.append(flen[pfl][t][bisect.bisect(cs, self.random_state.random_sample())][0])
             acs.loc[acs['take_%s' % t] == 1, 'len_%s' % t] = np.array(lens)
             # print('mean = %s' % acs['len_%s' % t].mean())
         # print('te: sq length sim = %s' % (time()-t0))
@@ -591,6 +591,7 @@ class SimulationEngine:
     def run(self):
         t0 = time()
         try:
+            self.check_dependencies()
             self.save_program_parameters()
             self.prepare_data()
             self.get_acs_simulated()
@@ -599,6 +600,19 @@ class SimulationEngine:
             self.__put_queue({'type': 'error', 'engine': self.engine_type, 'value': e})
             raise
         print('Total runtime = %s seconds.' % (round(time()-t0, 0)))
+
+    def check_dependencies(self):
+        dependency_versions = {
+            'matplotlib': '2.2.3',
+            'mord': '0.5',
+            'pandas': '0.23.0',
+            'sklearn': '0.20.1'
+        }
+
+        for dependency, version in dependency_versions.items():
+            if not check_dependency(dependency, version):
+                self.__put_queue({'type': 'warning', 'engine': self.engine_type,
+                                  'value': (dependency, version)})
 
     def __put_queue(self, obj):
         if self.q is not None:
