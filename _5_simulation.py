@@ -39,45 +39,30 @@ from Utils import format_chart, check_dependency
 
 
 class SimulationEngine:
-    def __init__(self, st, yr, fps_in, fps_out, clf_name, prog_para, engine_type='Main', q=None):
+    def __init__(self, st, yr, fps_in, fps_out, clf_name='Logistic Regression', state_of_work=True,
+                 random_state=None, pow_pop_multiplier=1.0217029934467345, q=None):
         '''
         :param st: state name, 'ca', 'ma', etc.
         :param yr: end year of 5-year ACS
         :param fps_in: filepaths of infiles (FMLA, ACS h, ACS p, CPS)
         :param fps_out: filepaths of outfiles files (FMLA, CPS, ACS, length distribution, master ACS post sim)
         :param clf_name: classifier name
-        :param prog_para: program parameters user specified
         '''
 
         self.st = st
         self.yr = yr
         self.fp_fmla_in = fps_in[0]
         self.fp_cps_in = fps_in[1]
-        self.fp_acsh_in = fps_in[2] # directory only for ACS household file
-        self.fp_acsp_in = fps_in[3] # directory only for ACS person file
+        self.fp_acsh_in = fps_in[2]  # directory only for ACS household file
+        self.fp_acsp_in = fps_in[3]  # directory only for ACS person file
         self.fp_fmla_out = fps_out[0]
         self.fp_cps_out = fps_out[1]
-        self.fp_acs_out = fps_out[2] # directory only for cleaned ACS file
-        self.fp_length_distribution_out = fps_out[3] # fp to length distributions in days estimated from restricted FMLA
+        self.fp_acs_out = fps_out[2]  # directory only for cleaned ACS file
+        # fp to length distributions in days estimated from restricted FMLA
+        self.fp_length_distribution_out = fps_out[3]
         self.clf_name = clf_name
-        self.elig_wage12 = prog_para[0] # min annual wage
-        self.elig_wkswork = prog_para[1] # min annual work weeks
-        self.elig_yrhours = prog_para[2] # min annual work hours
-        self.elig_empsize = prog_para[3] # min employer size - will be categorized as bin later
-        self.rrp = prog_para[4] # proposed wage replacement ratio
-        self.wkbene_cap = prog_para[5]
-        self.d_maxwk = prog_para[6] # dict from types to max week of benefits
-        self.d_takeup = prog_para[7] # dict from types to take up rates
-        self.incl_empgov_fed = prog_para[8]
-        self.incl_empgov_st = prog_para[9]
-        self.incl_empgov_loc = prog_para[10]
-        self.incl_empself = prog_para[11]
-        self.sim_method = prog_para[12]
-        self.needers_fully_participate = prog_para[13]
-        self.state_of_work = prog_para[14]
-        self.clone_factor = prog_para[15] # integer multiplier to scale up sample (while shrink weight) for granular sim
-        self.dual_receivers_share = prog_para[16] # share of company/state benefit receivers among anypay = 1
-        self.random_seed = prog_para[17]
+        self.state_of_work = state_of_work
+        self.random_seed = random_state
         print('Random seed:', self.random_seed)
         self.random_state = np.random.RandomState(self.random_seed)
 
@@ -85,33 +70,73 @@ class SimulationEngine:
         self.types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
 
         # a dict from clf_name to clf
-        self.d_clf = {}
-        self.d_clf['Logistic Regression'] = sklearn.linear_model.LogisticRegression(solver='liblinear', multi_class='auto', random_state=self.random_state)
-        self.d_clf['Ridge Classifier'] = sklearn.linear_model.RidgeClassifier(random_state=self.random_state)
-        #self.d_clf['Stochastic Gradient Descent'] = sklearn.linear_model.SGDClassifier(loss='modified_huber', max_iter=1000, tol=0.001)
-        self.d_clf['Naive Bayes'] = sklearn.naive_bayes.MultinomialNB()
-        self.d_clf['Support Vector Machine'] = sklearn.svm.SVC(probability=True, gamma='auto', random_state=self.random_state)
-        self.d_clf['Random Forest'] = sklearn.ensemble.RandomForestClassifier(random_state=self.random_state)
-        self.d_clf['K Nearest Neighbor'] = sklearn.neighbors.KNeighborsClassifier()
+        self.d_clf = {
+            'Logistic Regression': sklearn.linear_model.LogisticRegression(solver='liblinear', multi_class='auto',
+                                                                           random_state=self.random_state),
+            'Ridge Classifier': sklearn.linear_model.RidgeClassifier(random_state=self.random_state),
+            'Naive Bayes': sklearn.naive_bayes.MultinomialNB(),
+            'Support Vector Machine': sklearn.svm.SVC(probability=True, gamma='auto', random_state=self.random_state),
+            'Random Forest': sklearn.ensemble.RandomForestClassifier(random_state=self.random_state),
+            'K Nearest Neighbor': sklearn.neighbors.KNeighborsClassifier()
+        }
+        # self.d_clf['Stochastic Gradient Descent'] = sklearn.linear_model.SGDClassifier(loss='modified_huber',
+        # max_iter=1000, tol=0.001)
 
         # out id for creating unique out folder to store all model outputs
         self.out_id = datetime.now().strftime('%Y%m%d_%H%M%S')
+        self.prog_para = []
+        self.sim_count = 0
+        self.output_directories = []
+
         self.updates = []
         self.progress = 0
         self.figure = None
-        self.engine_type = engine_type
+        self.progress = 0
         self.q = q
-        if self.engine_type == 'main':
-            self.output_directory = './output/output_%s' % self.out_id
-        else:
-            self.output_directory = './output/output_%s_%s' % (self.out_id, self.engine_type)
 
         # POW population weight multiplier
-        self.pow_pop_multiplier = 1.0217029934467345 # based on 2012-2016 ACS, see project acs_all
+        self.pow_pop_multiplier = pow_pop_multiplier  # based on 2012-2016 ACS, see project acs_all
 
-    def save_program_parameters(self):
+    def set_simulation_params(self, elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp, wkbene_cap, d_maxwk,
+                              d_takeup, incl_empgov_fed, incl_empgov_st, incl_empgov_loc, incl_empself, sim_method,
+                              needers_fully_participate, clone_factor, dual_receivers_share, sim_num=None):
+        params = {
+            'elig_wage12': elig_wage12,
+            'elig_wkswork': elig_wkswork,
+            'elig_yrhours': elig_yrhours,
+            'elig_empsize': elig_empsize,
+            'rrp': rrp,
+            'wkbene_cap': wkbene_cap,
+            'd_maxwk': d_maxwk,
+            'd_takeup': d_takeup,
+            'incl_empgov_fed': incl_empgov_fed,
+            'incl_empgov_st': incl_empgov_st,
+            'incl_empgov_loc': incl_empgov_loc,
+            'incl_empself': incl_empself,
+            'sim_method': sim_method,
+            'needers_fully_participate': needers_fully_participate,
+            'clone_factor': clone_factor,
+            'dual_receivers_share': dual_receivers_share,
+        }
+
+        if type(sim_num) == int and -1 < sim_num < self.sim_count:
+            self.prog_para[sim_num] = params
+        else:
+            self.prog_para.append(params)
+            self.output_directories.append('./output/output_%s_sim_%s' % (self.out_id, self.sim_count))
+            self.sim_count += 1
+
+    def delete_simulation_params(self, sim_num):
+        del self.prog_para[sim_num]
+        self.sim_count -= 1
+
+    def save_program_parameters(self, sim_num):
         # create output folder
-        os.makedirs(self.output_directory)
+        params = self.prog_para[sim_num]
+        output_directory = self.output_directories[sim_num]
+
+        if not os.path.isdir(output_directory):
+            os.makedirs(output_directory)
 
         # save meta file of program parameters
         para_labels = ['State', 'Year', 'Place of Work',
@@ -128,19 +153,18 @@ class SimulationEngine:
         para_labels_m = ['Maximum Week of Benefit Receiving',
                          'Take Up Rates'] # type-specific parameters
 
-        para_values = [self.st.upper(),self.yr + 2000, self.state_of_work,
-                       self.elig_wage12,self.elig_wkswork,self.elig_yrhours,self.elig_empsize,self.rrp,self.wkbene_cap,
-                       self.incl_empgov_fed, self.incl_empgov_st,self.incl_empgov_loc,self.incl_empself,
-                       self.clf_name,
-                       self.dual_receivers_share,
-                       self.clone_factor, self.random_seed]
-        para_values_m = [self.d_maxwk, self.d_takeup]
+        para_values = [self.st.upper(), self.yr + 2000, self.state_of_work, params['elig_wage12'],
+                       params['elig_wkswork'], params['elig_yrhours'], params['elig_empsize'], params['rrp'],
+                       params['wkbene_cap'], params['incl_empgov_fed'], params['incl_empgov_st'],
+                       params['incl_empgov_loc'], params['incl_empself'], self.clf_name, params['dual_receivers_share'],
+                       params['clone_factor'], self.random_seed]
+        para_values_m = [params['d_maxwk'], params['d_takeup']]
 
         d = pd.DataFrame(para_values, index=para_labels)
         dm = pd.DataFrame.from_dict(para_values_m)
         dm = dm.rename(index=dict(zip(dm.index, para_labels_m)))
 
-        with open('%s/prog_para_%s.csv' % (self.output_directory, self.out_id), 'w', newline='') as f:
+        with open('%s/prog_para_%s.csv' % (output_directory, self.out_id), 'w', newline='') as f:
             writer = csv.writer(f)
             for idx, row in d.iterrows():
                 writer.writerow((idx, row[0]))
@@ -153,30 +177,33 @@ class SimulationEngine:
     def prepare_data(self):
         dcf = DataCleanerFMLA(self.fp_fmla_in, self.fp_fmla_out, self.random_state)
         dcf.clean_data()
-        self.__put_queue({'type': 'progress', 'engine': self.engine_type, 'value': 10})
-        self.__put_queue({'type': 'message', 'engine': self.engine_type,
+        self.__put_queue({'type': 'progress', 'engine': None, 'value': 10})
+        self.__put_queue({'type': 'message', 'engine': None,
                           'value': 'File saved: clean FMLA data file before CPS imputation.'})
         message = dcf.impute_fmla_cps(self.fp_cps_in, self.fp_cps_out)
-        self.__put_queue({'type': 'message', 'engine': self.engine_type, 'value': message})
-        self.__put_queue({'type': 'progress', 'engine': self.engine_type, 'value': 20})
-        self.__put_queue({'type': 'message', 'engine': self.engine_type,
+        self.__put_queue({'type': 'message', 'engine': None, 'value': message})
+        self.__put_queue({'type': 'progress', 'engine': None, 'value': 20})
+        self.__put_queue({'type': 'message', 'engine': None,
                           'value': 'File saved: clean FMLA data file after CPS imputation.'})
         # dcf.get_length_distribution(self.fp_length_distribution_out)
         # self.__put_queue({'type': 'progress', 'engine': self.engine_type, 'value': 25})
         # self.__put_queue({'type': 'message', 'engine': self.engine_type,
         #                   'value': 'File saved: leave distribution estimated from FMLA data.'})
 
-        self.__put_queue({'type': 'message', 'engine': self.engine_type,
+        self.__put_queue({'type': 'message', 'engine': None,
                           'value': 'Cleaning ACS data. State chosen = RI. Chunk size = 100000 ACS rows'})
-        dca = DataCleanerACS(self.st, self.yr, self.fp_acsh_in, self.fp_acsp_in, self.fp_acs_out, self.state_of_work, self.random_state)
+        dca = DataCleanerACS(self.st, self.yr, self.fp_acsh_in, self.fp_acsp_in, self.fp_acs_out, self.state_of_work,
+                             self.random_state)
         dca.load_data()
         message = dca.clean_person_data()
-        self.__put_queue({'type': 'progress', 'engine': self.engine_type, 'value': 60})
-        self.__put_queue({'type': 'message', 'engine': self.engine_type, 'value': message})
+        self.__put_queue({'type': 'progress', 'engine': None, 'value': 50})
+        self.__put_queue({'type': 'message', 'engine': None, 'value': message})
+        self.progress = 50
         return None
 
-    def get_acs_simulated(self):
+    def get_acs_simulated(self, sim_num):
         tsim = time()
+        params = self.prog_para[sim_num]
 
         # Read in cleaned ACS and FMLA data, and FMLA-based length distribution
         acs = pd.read_csv(self.fp_acs_out + 'ACS_cleaned_forsimulation_20%s_%s.csv' % (self.yr, self.st))
@@ -188,43 +215,43 @@ class SimulationEngine:
         # Sample restriction - reduce to eligible workers (all elig criteria indep from simulation below)
 
         # drop government workers if desired
-        if not self.incl_empgov_fed:
+        if not params['incl_empgov_fed']:
             acs = acs.drop(acs[acs['empgov_fed'] == 1].index)
-        if not self.incl_empgov_st:
+        if not params['incl_empgov_st']:
             acs = acs.drop(acs[acs['empgov_st'] == 1].index)
-        if not self.incl_empgov_loc:
+        if not params['incl_empgov_loc']:
             acs = acs.drop(acs[acs['empgov_loc'] == 1].index)
-        if not self.incl_empself:
+        if not params['incl_empself']:
             acs = acs.drop(acs[(acs['COW'] == 6) | (acs['COW'] == 7)].index)
         # check other program eligibility
         acs['elig_prog'] = 0
         elig_empsizebin = 0
-        if 1 <= self.elig_empsize < 10:
+        if 1 <= params['elig_empsize'] < 10:
             elig_empsizebin = 1
-        elif 10 <= self.elig_empsize <= 49:
+        elif 10 <= params['elig_empsize'] <= 49:
             elig_empsizebin = 2
-        elif 50 <= self.elig_empsize <= 99:
+        elif 50 <= params['elig_empsize'] <= 99:
             elig_empsizebin = 3
-        elif 100 <= self.elig_empsize <= 499:
+        elif 100 <= params['elig_empsize'] <= 499:
             elig_empsizebin = 4
-        elif 500 <= self.elig_empsize <= 999:
+        elif 500 <= params['elig_empsize'] <= 999:
             elig_empsizebin = 5
-        elif self.elig_empsize >= 1000:
+        elif params['elig_empsize'] >= 1000:
             elig_empsizebin = 6
-        acs.loc[(acs['wage12'] >= self.elig_wage12) &
-                (acs['wkswork'] >= self.elig_wkswork) &
-                (acs['wkswork'] * acs['wkhours'] >= self.elig_yrhours) &
+        acs.loc[(acs['wage12'] >= params['elig_wage12']) &
+                (acs['wkswork'] >= params['elig_wkswork']) &
+                (acs['wkswork'] * acs['wkhours'] >= params['elig_yrhours']) &
                 (acs['empsize'] >= elig_empsizebin), 'elig_prog'] = 1
         # drop ineligible workers (based on wage/work/empsize)
         acs = acs.drop(acs[acs['elig_prog'] != 1].index)
 
         # Expand ACS if clone factor > 1
         # shrink all weights by factor
-        if self.clone_factor>1:
+        if params['clone_factor'] > 1:
             for wt in ['PWGTP'] + ['PWGTP' + str(x) for x in range(1, 81)]:
-                acs[wt] = acs[wt]/self.clone_factor
+                acs[wt] = acs[wt] / params['clone_factor']
             # then expand acs by factor
-            acs = pd.concat([acs]*self.clone_factor)
+            acs = pd.concat([acs] * params['clone_factor'])
 
         # Define classifier
         clf = self.d_clf[self.clf_name]
@@ -303,7 +330,7 @@ class SimulationEngine:
         # Without-program lengths - draw from FMLA-based distribution (pfl indicator = 0)
         # note: here, cumsum/bisect is 20% faster than np/choice.
         # But when simulate_wof applied as lambda to df, np/multinomial is 5X faster!
-        t0 = time()
+        # t0 = time()
         for t in self.types:
             acs['len_%s' % t] = 0
             n_lensim = len(acs.loc[acs['take_%s' % t] == 1])  # number of acs workers who need length simulation
@@ -320,23 +347,25 @@ class SimulationEngine:
         # Max needed lengths (mnl) - draw from simulated without-program length distribution
         # conditional on max length >= without-program length
         for t in self.types:
-            t0 = time()
+            # t0 = time()
             acs['mnl_%s' % t] = 0
             # resp_len = 0 workers' mnl = status-quo length
             acs.loc[acs['resp_len'] == 0, 'mnl_%s' % t] = acs.loc[acs['resp_len'] == 0, 'len_%s' % t]
             # resp_len = 1 workers' mnl draw from length distribution conditional on new length > sq length
-            dct_vw = {}  # dict from sq length to possible greater length value, and associated weight of worker who provides the length
+            # dict from sq length to possible greater length value, and associated weight of worker who provides the
+            # length
+            dct_vw = {}
             x_max = acs['len_%s' % t].max()
             for x in acs['len_%s' % t].value_counts().index:
                 if x < x_max:
                     dct_vw[x] = acs[(acs['len_%s' % t] > x)][['len_%s' % t, 'PWGTP']].groupby(by='len_%s' % t)[
                         'PWGTP'].sum().reset_index()
                     mx = len(acs[(acs['resp_len'] == 1) & (acs['len_%s' % t] == x)])
-                    vxs = self.random_state.choice(dct_vw[x]['len_%s' % t], mx, p=dct_vw[x]['PWGTP'] / dct_vw[x]['PWGTP'].sum())
+                    vxs = self.random_state.choice(dct_vw[x]['len_%s' % t], mx,
+                                                   p=dct_vw[x]['PWGTP'] / dct_vw[x]['PWGTP'].sum())
                     acs.loc[(acs['resp_len'] == 1) & (acs['len_%s' % t] == x), 'mnl_%s' % t] = vxs
                 else:
                     acs.loc[(acs['resp_len'] == 1) & (acs['len_%s' % t] == x), 'mnl_%s' % t] = int(x * 1.25)
-                    # print('mean = %s. MNL sim done for type %s. telapse = %s' % (acs['mnl_%s' % t].mean(), t, (time()-t0)))
 
         # logic control of mnl
         acs.loc[acs['male'] == 1, 'mnl_matdis'] = 0
@@ -347,70 +376,69 @@ class SimulationEngine:
         # check if sum of mnl hits max = 52*5 = 260. If so, use max=260 to distribute prop to mnl of 6 types
         acs['mnl_all'] = [x.sum() for x in acs[['mnl_%s' % x for x in self.types]].values]
         for t in self.types:
-            acs.loc[acs['mnl_all']>260, 'mnl_%s' % t] = [int(x) for x in acs.loc[acs['mnl_all']>260, 'mnl_%s' % t] / \
-                                                     acs.loc[acs['mnl_all']>260, 'mnl_all'] * 260]
+            acs.loc[acs['mnl_all'] > 260, 'mnl_%s' % t] = [int(x) for x in acs.loc[acs['mnl_all'] > 260, 'mnl_%s' % t] /
+                                                           acs.loc[acs['mnl_all'] > 260, 'mnl_all'] * 260]
         # the mnl-capped workers would must have sq-len no larger than mn-len
         for t in self.types:
-            acs.loc[acs['mnl_all']>260, 'len_%s' % t] = acs.loc[acs['mnl_all']>260, 'mnl_%s' % t]
+            acs.loc[acs['mnl_all'] > 260, 'len_%s' % t] = acs.loc[acs['mnl_all'] > 260, 'mnl_%s' % t]
 
-        ## If do following, then ignores link between generosity (rrp) and cf-len, cp-len
+        # If do following, then ignores link between generosity (rrp) and cf-len, cp-len
         # # set covered-by-program leave lengths (cp-len) as maximum needed leave lengths (mn-len) for each type
         # for t in self.types:
         #     acs['cpl_%s' % t] = acs['mnl_%s' % t]
 
         # Given fraction of dual receiver x among anypay=1, simulate dual/single receiver status among anypay=1
         acs['dual_receiver'] = 0
-        ws = acs[acs['anypay']==1]['PWGTP'] # weights of anypay=1
-        acs.loc[acs['anypay']==1, 'dual_receiver'] = get_weighted_draws(ws, self.dual_receivers_share, self.random_state)
+        ws = acs[acs['anypay'] == 1]['PWGTP']  # weights of anypay=1
+        acs.loc[acs['anypay'] == 1, 'dual_receiver'] = get_weighted_draws(ws, params['dual_receivers_share'],
+                                                                          self.random_state)
         # check if target pop is achieved among anypay=1
-        s_dual_receiver = acs[(acs['anypay']==1) & (acs['dual_receiver'] == 1)]['PWGTP'].sum() / acs[acs['anypay']==1]['PWGTP'].sum()
+        s_dual_receiver = acs[(acs['anypay'] == 1) &
+                              (acs['dual_receiver'] == 1)]['PWGTP'].sum() / acs[acs['anypay'] == 1]['PWGTP'].sum()
         s_dual_receiver = round(s_dual_receiver, 2)
-        print('Specified share of dual-receiver = %s. Post-sim weighted share = %s' % (self.dual_receivers_share, s_dual_receiver))
+        print('Specified share of dual-receiver = %s. Post-sim weighted share = %s' %
+              (params['dual_receivers_share'], s_dual_receiver))
 
         # Simulate counterfactual leave lengths (cf-len) for dual receivers
         # Given cf-len, get cp-len
         # With program, effective rr =min(rre+rrp, 1), assuming responsiveness diminishes if full replacement attainable
         for t in self.types:
             acs['cfl_%s' % t] = np.nan
-            ## Get cf-len for dual receivers among anypay=1
+            # Get cf-len for dual receivers among anypay=1
             # use [(rre, sql), (1, mnl)] to interpolate cfl at rre+rrp, regardless rre+rrp<1 or not
             acs.loc[acs['dual_receiver'] == 1, 'cfl_%s' % t] = \
-                acs.loc[acs['dual_receiver'] == 1, 'len_%s' % t] + (acs.loc[
-                                                                          acs['dual_receiver'] == 1, 'mnl_%s' % t] -
-                                                                      acs.loc[
-                                                                          acs['dual_receiver'] == 1, 'len_%s' % t]) \
-                                                                     * self.rrp / (1 - acs.loc[
-                    acs['dual_receiver'] == 1, 'prop_pay'])
+                acs.loc[acs['dual_receiver'] == 1, 'len_%s' % t] + \
+                (acs.loc[acs['dual_receiver'] == 1, 'mnl_%s' % t] - acs.loc[acs['dual_receiver'] == 1, 'len_%s' % t]) *\
+                params['rrp'] / (1 - acs.loc[acs['dual_receiver'] == 1, 'prop_pay'])
             # if rre+rrp>=1, set cfl = mnl
-            acs.loc[(acs['dual_receiver'] == 1) & (acs['prop_pay'] >= 1-self.rrp), 'cfl_%s' % t] = \
-                acs.loc[(acs['dual_receiver'] == 1) & (acs['prop_pay'] >= 1-self.rrp), 'mnl_%s' % t]
-            ## Get covered-by-program leave lengths (cp-len) for dual receivers among anypay=1
+            acs.loc[(acs['dual_receiver'] == 1) & (acs['prop_pay'] >= 1-params['rrp']), 'cfl_%s' % t] = \
+                acs.loc[(acs['dual_receiver'] == 1) & (acs['prop_pay'] >= 1-params['rrp']), 'mnl_%s' % t]
+            # Get covered-by-program leave lengths (cp-len) for dual receivers among anypay=1
             # allocate cf-len between employer and state according to rre/rrp ratio
-            acs.loc[acs['dual_receiver'] == 1, 'cpl_%s' % t] = acs.loc[acs['dual_receiver'] == 1, 'cfl_%s' % t] * \
-                                                                 self.rrp / (
-                self.rrp + acs.loc[acs['dual_receiver'] == 1, 'prop_pay'])
-
+            acs.loc[acs['dual_receiver'] == 1, 'cpl_%s' % t] = \
+                acs.loc[acs['dual_receiver'] == 1, 'cfl_%s' % t] * params['rrp'] / \
+                (params['rrp'] + acs.loc[acs['dual_receiver'] == 1, 'prop_pay'])
 
         # Simulate cf-len for single receivers among anypay=1
         # Given cf-len, get cp-len
         for t in self.types:
             # single receiver, rrp>rre. Assume will use state program benefit to replace employer benefit
-            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'cfl_%s' % t] = \
-                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'len_%s' % t] + \
-                (acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'mnl_%s' % t] -
-                 acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'len_%s' % t]) * \
-                (self.rrp - acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'prop_pay']) / \
-                (1 - acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'prop_pay'])
+            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < params['rrp']), 'cfl_%s' % t] = \
+                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < params['rrp']), 'len_%s' % t] + \
+                (acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < params['rrp']), 'mnl_%s' % t] -
+                 acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < params['rrp']), 'len_%s' % t]) * \
+                (params['rrp'] - acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < params['rrp']), 'prop_pay']) \
+                / (1 - acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < params['rrp']), 'prop_pay'])
             # single receiver, rrp<=rre. Assume will not use any state program benefit
             # so still using same employer benefit as status-quo, thus cf-len = sq-len
-            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >= self.rrp), 'cfl_%s' % t] = \
-                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >= self.rrp), 'len_%s' % t]
+            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >= params['rrp']), 'cfl_%s' % t] = \
+                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >= params['rrp']), 'len_%s' % t]
             # Get covered-by-program leave lengths (cp-len) for single receivers
             # if rrp>rre, cp-len = cf-len
-            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'cpl_%s' % t] = \
-                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < self.rrp), 'cfl_%s' % t]
+            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < params['rrp']), 'cpl_%s' % t] = \
+                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < params['rrp']), 'cfl_%s' % t]
             # if rrp<=rre, cp-len = 0
-            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >= self.rrp), 'cpl_%s' % t] = 0
+            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >= params['rrp']), 'cpl_%s' % t] = 0
             # set cp-len = 0 if missing
             acs.loc[acs['cpl_%s' % t].isna(), 'cpl_%s' % t] = 0
 
@@ -420,46 +448,51 @@ class SimulationEngine:
             # anypay=0 workers extends leave by (mnl-sql)*rrp
             acs.loc[(acs['anypay'] == 0), 'cfl_%s' % t] = \
                 acs.loc[(acs['anypay'] == 0), 'len_%s' % t] + \
-                (acs.loc[(acs['anypay'] == 0), 'mnl_%s' % t] - acs.loc[(acs['anypay'] == 0), 'len_%s' % t]) * self.rrp
+                (acs.loc[(acs['anypay'] == 0), 'mnl_%s' % t] -
+                 acs.loc[(acs['anypay'] == 0), 'len_%s' % t]) * params['rrp']
             # anypay=0 workers' cp-len is just cf-len, as they don't have company benefits
-            acs.loc[(acs['anypay']==0), 'cpl_%s' % t] = acs.loc[(acs['anypay']==0), 'cfl_%s' % t]
+            acs.loc[(acs['anypay'] == 0), 'cpl_%s' % t] = acs.loc[(acs['anypay'] == 0), 'cfl_%s' % t]
 
         # Apply cap of coverage period (in weeks) to cpl_type (in days) for each leave type
         for t in self.types:
-            acs.loc[acs['cpl_%s' % t] >= 0, 'cpl_%s' % t] = [min(x, 5 * self.d_maxwk[t]) for x in
+            acs.loc[acs['cpl_%s' % t] >= 0, 'cpl_%s' % t] = [min(x, 5 * params['d_maxwk'][t]) for x in
                                                              acs.loc[acs['cpl_%s' % t] >= 0, 'cpl_%s' % t]]
         # get acs with takeup flags for each leave type
-        acs = self.get_acs_with_takeup_flags(acs, acs_neither_taker_needer, 'PWGTP')
+        acs = self.get_acs_with_takeup_flags(acs, acs_neither_taker_needer, 'PWGTP', params)
 
         # get benefit received for each worker
-        acs_taker_needer = acs[(acs['taker']==1) | (acs['needer']==1)]
+        acs_taker_needer = acs[(acs['taker'] == 1) | (acs['needer'] == 1)]
         acs_neither_taker_needer = acs.drop(acs_taker_needer.index)
         # apply take up flag and weekly benefit cap, and annual benefit for each worker, 6 types
         for t in self.types:
             # v = capped weekly benefit of leave type
-            v = [min(x, self.wkbene_cap) for x in
-                 ((acs_taker_needer['cpl_%s' % t] / 5) * (acs_taker_needer['wage12'] / acs_taker_needer['wkswork'] * self.rrp))]
+            v = [min(x, params['wkbene_cap']) for x in
+                 ((acs_taker_needer['cpl_%s' % t] / 5) *
+                  (acs_taker_needer['wage12'] / acs_taker_needer['wkswork'] * params['rrp']))]
             # get annual benefit for leave type t - sumprod of capped benefit, and takeup flag for each ACS row
-            acs_taker_needer['annual_benefit_%s' % t] = (v * acs_taker_needer['cpl_%s' % t] / 5 * acs_taker_needer['takeup_%s' % t])
+            acs_taker_needer['annual_benefit_%s' % t] = (v * acs_taker_needer['cpl_%s' % t] / 5 *
+                                                         acs_taker_needer['takeup_%s' % t])
         # append acs_neither_taker_needer
         acs = acs_taker_needer.append(acs_neither_taker_needer, sort=True)
 
         # Save ACS data after finishing simulation
-        acs.to_csv('%s/acs_sim_%s.csv' % (self.output_directory, self.out_id), index=False)
+        acs.to_csv('%s/acs_sim_%s.csv' % (self.output_directories[sim_num], self.out_id), index=False)
         message = 'Leaves simulated for 5-year ACS 20%s-20%s in state %s. Time needed = %s seconds. ' \
                   'Total worker pop in post-sim ACS = %s' % \
                   ((self.yr-4), self.yr, self.st.upper(), round(time()-tsim, 0), acs['PWGTP'].sum())
         print(message)
-        self.__put_queue({'type': 'progress', 'engine': self.engine_type, 'value': 95})
-        self.__put_queue({'type': 'message', 'engine': self.engine_type, 'value': message})
+        self.progress += 40 / len(self.prog_para)
+        self.__put_queue({'type': 'progress', 'engine': sim_num, 'value': self.progress})
+        self.__put_queue({'type': 'message', 'engine': sim_num, 'value': message})
         return acs
 
-    def get_acs_with_takeup_flags(self, acs_taker_needer, acs_neither_taker_needer, col_w):
+    def get_acs_with_takeup_flags(self, acs_taker_needer, acs_neither_taker_needer, col_w, params):
         # get 0/1 takeup flag using post-sim acs with only takers/needers
         # col_w = weight column, PWGTP for main, or PWGTPx for x-th rep weight in ACS data
 
         # We first append acs_neither_taker_needer back to post-sim acs, so we'll work with a common population
-        acs = acs_taker_needer.append(acs_neither_taker_needer, sort=True) # for new cols not in acs_neither_taker_needer, will create nan
+        # for new cols not in acs_neither_taker_needer, will create nan
+        acs = acs_taker_needer.append(acs_neither_taker_needer, sort=True)
         # drop takeup flag cols if any
         for c in ['takeup_%s' % x for x in self.types]:
             if c in acs.columns:
@@ -470,43 +503,47 @@ class SimulationEngine:
             # cap user-specified take up for type t by max possible takeup = s_positive_cpl, in pop per sim results
             s_positive_cpl = acs[acs['cpl_%s' % t] > 0][col_w].sum() / acs[col_w].sum()
             # display warning for unable to reach target pop from simulated positive cpl_type pop
-            if col_w=='PWGTP':
-                if self.d_takeup[t] > s_positive_cpl:
+            if col_w == 'PWGTP':
+                if params['d_takeup'][t] > s_positive_cpl:
                     print('Warning: User-specified take up for type -%s- is capped '
                           'by maximum possible take up rate (share of positive covered-by-program length) '
                           'based on simulation results, at %s.' % (t, s_positive_cpl))
-            takeup = min(s_positive_cpl, self.d_takeup[t])
+            takeup = min(s_positive_cpl, params['d_takeup'][t])
             p_draw = takeup / s_positive_cpl  # need to draw w/ prob=p_draw from cpl>0 subpop, to get desired takeup
-            #print('p_draw for type -%s- = %s' % (t, p_draw))
+            # print('p_draw for type -%s- = %s' % (t, p_draw))
             # get take up indicator for type t - weighted random draw from cpl_type>0 until target is reached
             acs['takeup_%s' % t] = 0
             draws = get_weighted_draws(acs[acs['cpl_%s' % t] > 0][col_w], p_draw, self.random_state)
-            #print('draws = %s' % draws)
+            # print('draws = %s' % draws)
             acs.loc[acs['cpl_%s' % t] > 0, 'takeup_%s' % t] \
                 = draws
 
             # for main weight, check if target pop is achieved among eligible ACS persons
-            if col_w=='PWGTP':
+            if col_w == 'PWGTP':
                 s_takeup = acs[acs['takeup_%s' % t] == 1][col_w].sum() / acs[col_w].sum()
                 s_takeup = round(s_takeup, 4)
                 print('Specified takeup for type %s = %s. '
                       'Effective takeup = %s. '
-                      'Post-sim weighted share = %s' % (t, self.d_takeup[t], takeup, s_takeup))
+                      'Post-sim weighted share = %s' % (t, params['d_takeup'][t], takeup, s_takeup))
             # return ACS with all eligible workers (regardless of taker/needer status), with takeup_type flags sim'ed
         return acs
 
-    def get_cost(self):
+    def get_cost(self, sim_num):
         # read simulated ACS, and reduce to takers/needers
-        acs = pd.read_csv('%s/acs_sim_%s.csv' % (self.output_directory, self.out_id))
-        acs_taker_needer = acs[(acs['taker']==1) | (acs['needer']==1)]
+        params = self.prog_para[sim_num]
+        output_directory = self.output_directories[sim_num]
+
+        acs = pd.read_csv('%s/acs_sim_%s.csv' % (output_directory, self.out_id))
+        acs_taker_needer = acs[(acs['taker'] == 1) | (acs['needer'] == 1)]
         acs_neither_taker_needer = acs.drop(acs_taker_needer.index)
 
         # apply take up flag and weekly benefit cap, and compute total cost, 6 types
         costs = {}
         for t in self.types:
             # v = capped weekly benefit of leave type
-            v = [min(x, self.wkbene_cap) for x in
-                 ((acs_taker_needer['cpl_%s' % t] / 5) * (acs_taker_needer['wage12'] / acs_taker_needer['wkswork'] * self.rrp))]
+            v = [min(x, params['wkbene_cap']) for x in
+                 ((acs_taker_needer['cpl_%s' % t] / 5) * (acs_taker_needer['wage12'] /
+                                                          acs_taker_needer['wkswork'] * params['rrp']))]
             # inflate weight for missing POW
             w = acs_taker_needer['PWGTP'] * self.pow_pop_multiplier
 
@@ -520,16 +557,18 @@ class SimulationEngine:
             # initialize costs dict for current rep weight
             costs_rep = {}
             # get takeup_type flags for acs under current rep weight
-            acs = self.get_acs_with_takeup_flags(acs_taker_needer, acs_neither_taker_needer, wt)
+            acs = self.get_acs_with_takeup_flags(acs_taker_needer, acs_neither_taker_needer, wt, params)
             acs_taker_needer = acs[(acs['taker'] == 1) | (acs['needer'] == 1)]
 
             for t in self.types:
-                v = [min(x, self.wkbene_cap) for x in
-                     ((acs_taker_needer['cpl_%s' % t] / 5) * (acs_taker_needer['wage12'] / acs_taker_needer['wkswork'] * self.rrp))]
+                v = [min(x, params['wkbene_cap']) for x in
+                     ((acs_taker_needer['cpl_%s' % t] / 5) * (acs_taker_needer['wage12'] /
+                                                              acs_taker_needer['wkswork'] * params['rrp']))]
                 # inflate weight for missing POW
                 w = acs_taker_needer[wt] * self.pow_pop_multiplier
 
-                # get program cost for leave type t - sumprod of capped benefit, weight, and takeup flag for each ACS row
+                # get program cost for leave type t - sumprod of capped benefit, weight, and takeup flag for each ACS
+                # row
                 costs_rep[t] = (v * acs_taker_needer['cpl_%s' % t] / 5 * w * acs_taker_needer['takeup_%s' % t]).sum()
             costs_rep['total'] = sum(list(costs_rep.values()))
             for k in costs_rep.keys():
@@ -552,20 +591,22 @@ class SimulationEngine:
 
         out = pd.merge(out_costs, out_ci, how='left', on='type')
 
-        d_tix = {'own':1, 'matdis':2, 'bond':3, 'illchild':4, 'illspouse':5, 'illparent':6, 'total':7}
+        d_tix = {'own': 1, 'matdis': 2, 'bond': 3, 'illchild': 4, 'illspouse': 5, 'illparent': 6, 'total': 7}
         out['tix'] = out['type'].apply(lambda x: d_tix[x])
         out = out.sort_values(by='tix')
         del out['tix']
 
-        out.to_csv('%s/program_cost_%s_%s.csv' % (self.output_directory, self.st, self.out_id), index=False)
+        out.to_csv('%s/program_cost_%s_%s.csv' % (output_directory, self.st, self.out_id), index=False)
 
         message = 'Output saved. Total cost = $%s million 2012 dollars' % (round(costs['total']/1000000, 1))
         print(message)
-        self.__put_queue({'type': 'progress', 'engine': self.engine_type, 'value': 100})
-        self.__put_queue({'type': 'message', 'engine': self.engine_type, 'value': message})
+        self.progress += 10 / len(self.prog_para)
+        self.__put_queue({'type': 'progress', 'engine': sim_num, 'value': self.progress})
+        self.__put_queue({'type': 'message', 'engine': sim_num, 'value': message})
         return out  # df of leave type specific costs and total cost, along with ci's
 
-    def create_chart(self, out):
+    def create_chart(self, out, sim_num):
+        output_directory = self.output_directories[sim_num]
         # Plot costs and ci
         total_cost = round(list(out.loc[out['type'] == 'total', 'cost'])[0] / 10 ** 6, 1)
         spread = round((list(out.loc[out['type'] == 'total', 'ci_upper'])[0] -
@@ -583,23 +624,33 @@ class SimulationEngine:
         ax.yaxis.grid(False)
         format_chart(fig, ax, title)
 
-        plt.savefig('%s/total_cost_%s_%s_%s' % (self.output_directory, self.yr, self.st, self.out_id),
+        plt.savefig('%s/total_cost_%s_%s_%s' % (output_directory, self.yr, self.st, self.out_id),
                     facecolor='#333333', edgecolor='white')
         self.figure = fig
         return fig
 
     def run(self):
         t0 = time()
+        self.progress = 0
         try:
             self.check_dependencies()
-            self.save_program_parameters()
             self.prepare_data()
-            self.get_acs_simulated()
-            self.get_cost()
         except Exception as e:
-            self.__put_queue({'type': 'error', 'engine': self.engine_type, 'value': e})
+            self.__put_queue({'type': 'error', 'engine': None, 'value': e})
             raise
-        print('Total runtime = %s seconds.' % (round(time()-t0, 0)))
+
+        for sim_num in range(len(self.prog_para)):
+            try:
+                self.save_program_parameters(sim_num)
+                self.get_acs_simulated(sim_num)
+                self.get_cost(sim_num)
+            except Exception as e:
+                self.__put_queue({'type': 'error', 'engine': sim_num, 'value': e})
+                raise
+
+        self.progress = 100
+        self.__put_queue({'type': 'progress', 'engine': self.sim_count - 1, 'value': self.progress})
+        print('Total runtime = %s seconds.' % (round(time() - t0, 0)))
 
     def check_dependencies(self):
         dependency_versions = {
@@ -611,8 +662,7 @@ class SimulationEngine:
 
         for dependency, version in dependency_versions.items():
             if not check_dependency(dependency, version):
-                self.__put_queue({'type': 'warning', 'engine': self.engine_type,
-                                  'value': (dependency, version)})
+                self.__put_queue({'type': 'warning', 'engine': None, 'value': (dependency, version)})
 
     def __put_queue(self, obj):
         if self.q is not None:
@@ -623,21 +673,22 @@ class SimulationEngine:
         self.updates = []
         return result
 
-    def get_results(self):
-        return pd.read_csv('%s/acs_sim_%s.csv' % (self.output_directory, self.out_id))
+    def get_results(self, sim_num):
+        return pd.read_csv('%s/acs_sim_%s.csv' % (self.output_directories[sim_num], self.out_id))
 
-    def get_cost_df(self):
-        return pd.read_csv('%s/program_cost_%s_%s.csv' % (self.output_directory, self.st, self.out_id))
+    def get_cost_df(self, sim_num):
+        return pd.read_csv('%s/program_cost_%s_%s.csv' % (self.output_directories[sim_num], self.st, self.out_id))
 
-    def get_population_analysis_results(self):
+    def get_population_analysis_results(self, sim_num):
         # read in simulated acs, this is just df returned from get_acs_simulated()
-        d = pd.read_csv('%s/acs_sim_%s.csv' % (self.output_directory, self.out_id))
+        output_directory = self.output_directories[sim_num]
+        d = pd.read_csv('%s/acs_sim_%s.csv' % (output_directory, self.out_id))
         # restrict to taker/needer only (workers with neither status have cpl_type = nan)
         # d = d[(d['taker']==1) | (d['needer']==1)]
 
         # restrict to workers who take up the program
-        d['takeup_any'] = [int(x.sum()>0) for x in d[['takeup_%s' % x for x in self.types]].values]
-        d = d[d['takeup_any']==1]
+        d['takeup_any'] = [int(x.sum() > 0) for x in d[['takeup_%s' % x for x in self.types]].values]
+        d = d[d['takeup_any'] == 1]
 
         # make sure cpl_type is non-missing
         for t in self.types:
@@ -651,10 +702,10 @@ class SimulationEngine:
         d = d[columns]
         return d
 
-## Other factors
+# Other factors
 # Leave prob factors, 6 types - TODO: code in wof in get_sim_col(), bound phat by max = 1
 
-### test
+# test
 #
 # st = 'nj'
 # yr = 16

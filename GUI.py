@@ -16,8 +16,6 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from ABF import ABF
 
-version = sys.version_info
-
 
 class MicrosimGUI(Tk):
     def __init__(self, *args, **kwargs):
@@ -151,7 +149,7 @@ class MicrosimGUI(Tk):
     def __add_variable_callbacks(self):
         # When the file location entries are modified, check to see if they all have some value
         # If they do, enable the run button
-        if version[1] < 6:
+        if sys.version_info[1] < 6:
             self.variables['fmla_file'].trace("w", self.check_file_entries)
             self.variables['acs_directory'].trace("w", self.check_file_entries)
             self.variables['output_directory'].trace("w", self.check_file_entries)
@@ -228,24 +226,18 @@ class MicrosimGUI(Tk):
         q = multiprocessing.Queue()
         se = self.create_simulation_engine(settings, q)
         self.se = se
-        counterfactual_se = None
+        self.add_engine_params(se, settings)
         if settings.counterfactual != '':
-            counterfactual_se = self.create_simulation_engine(generate_default_state_params(settings), q,
-                                                              engine_type='Counterfactual')
+            self.add_engine_params(se, generate_default_state_params(settings))
 
-        policy_se = None
         if settings.policy_sim:
-            policy_se = self.create_simulation_engine(generate_generous_params(settings), q,
-                                                      engine_type='Policy Simulation')
-        self.policy_se = policy_se
+            self.add_engine_params(se, generate_generous_params(settings))
 
-        self.counterfactual_se = counterfactual_se
         self.disable_run_button()
-        progress_window = ProgressWindow(self, engine_type='Python', se=se, counterfactual_se=counterfactual_se,
-                                         policy_sim_se=policy_se)
+        progress_window = ProgressWindow(self, engine_type='Python', se=se)
         self.progress_windows.append(progress_window)
         # Run model
-        self.engine_process = multiprocessing.Process(None, target=run_engines, args=(se, counterfactual_se, policy_se, q))
+        self.engine_process = multiprocessing.Process(None, target=run_engines, args=(se, q))
         self.engine_process.start()
 
         progress_window.update_progress(q)
@@ -268,13 +260,12 @@ class MicrosimGUI(Tk):
         self.engine_process.terminate()
         # compute program costs
         print('Showing results')
-        costs = self.se.get_cost_df()
+        costs = self.se.get_cost_df(0)
 
         total_benefits = list(costs.loc[costs['type'] == 'total', 'cost'])[0]
-        abf_module = ABF(self.se.get_results(), self.settings, total_benefits)
+        abf_module = ABF(self.se.get_results(0), self.settings, total_benefits)
 
-        self.results_windows.append(ResultsWindow(self, self.se, abf_module, policy_engine=self.policy_se,
-                                                  counterfactual_engine=self.counterfactual_se))
+        self.results_windows.append(ResultsWindow(self, self.se, abf_module))
         self.enable_run_button()
 
     def enable_run_button(self):
@@ -313,7 +304,7 @@ class MicrosimGUI(Tk):
             return int.from_bytes(random_seed.encode(), 'big')
 
     @staticmethod
-    def create_simulation_engine(settings, q, engine_type='Main'):
+    def create_simulation_engine(settings, q):
         st = settings.state.lower()
         yr = 16
         fp_fmla_in = settings.fmla_file
@@ -331,14 +322,13 @@ class MicrosimGUI(Tk):
         fps_in = [fp_fmla_in, fp_cps_in, fp_acsh_in, fp_acsp_in]
         fps_out = [fp_fmla_out, fp_cps_out, fp_acs_out, fp_length_distribution_out]
 
-        # fullFp_acs, fullFp_fmla, fullFp_out = settings.acs_file, settings.fmla_file, settings.output_directory
-        # fp_fmla = '.'+fullFp_fmla[fullFp_fmla.find('/data/fmla_2012/'):]
-        # print(fp_fmla)
-        # fp_acs = '.'+fullFp_acs[fullFp_acs.find('/data/acs/'):]
-        # fp_out = fullFp_out
         clf_name = settings.simulation_method
+        random_seed = settings.random_seed
+        return SimulationEngine(st, yr, fps_in, fps_out, clf_name=clf_name, random_state=random_seed,
+                                state_of_work=state_of_work, q=q)
 
-        # prog_para
+    @staticmethod
+    def add_engine_params(engine, settings):
         elig_wage12 = settings.eligible_earnings
         elig_wkswork = settings.eligible_weeks
         elig_yrhours = settings.eligible_hours
@@ -370,17 +360,15 @@ class MicrosimGUI(Tk):
         incl_empself = settings.self_employed
         sim_method = settings.simulation_method
         needers_fully_participate = settings.needers_fully_participate
-        #state_of_work value see above next to fp_acsh_in/fp_acsp_in
+        # state_of_work value see above next to fp_acsh_in/fp_acsp_in
         # weight_factor = settings.weight_factor
         clone_factor = settings.clone_factor
         dual_receivers_share = settings.dual_receivers_share
-        random_seed = settings.random_seed
 
-        prog_para = [elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp, wkbene_cap, d_maxwk, d_takeup,
-                     incl_empgov_fed, incl_empgov_st, incl_empgov_loc, incl_empself, sim_method,
-                     needers_fully_participate, state_of_work, clone_factor, dual_receivers_share, random_seed]
-
-        return SimulationEngine(st, yr, fps_in, fps_out, clf_name, prog_para, engine_type=engine_type, q=q)
+        engine.set_simulation_params(elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp, wkbene_cap, d_maxwk,
+                                     d_takeup, incl_empgov_fed, incl_empgov_st, incl_empgov_loc, incl_empself,
+                                     sim_method, needers_fully_participate, clone_factor, dual_receivers_share,
+                                     sim_num=None)
 
     def check_file_entries(self, *_):
         if self.variables['fmla_file'].get() and self.variables['acs_directory'].get() and \
@@ -400,7 +388,7 @@ class MicrosimGUI(Tk):
                            self.settings_notebook.population_frame.top_off_min_length_input,
                            self.settings_notebook.simulation_frame.clone_factor_input,
                            self.settings_notebook.program_frame.max_taxable_earnings_per_person_input,
-                           ] # self.settings_notebook.program_frame.total_taxable_earnings_input
+                           ]  # self.settings_notebook.program_frame.total_taxable_earnings_input
         # self.settings_notebook.simulation_frame.weight_factor_input
         integer_entries += [entry for entry in self.settings_notebook.program_frame.max_weeks_inputs]
 
@@ -1156,7 +1144,7 @@ class SimulationFrame(NotebookFrame):
 
 
 class ResultsWindow(Toplevel):
-    def __init__(self, parent, simulation_engine, abf_module, counterfactual_engine=None, policy_engine=None):
+    def __init__(self, parent, simulation_engine, abf_module):
         super().__init__(parent)
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.icon = PhotoImage(file='impaq_logo.gif')
@@ -1182,8 +1170,7 @@ class ResultsWindow(Toplevel):
         print('Creating ABF results summary frame')
         self.notebook.add(self.abf, text="Benefit Financing")
 
-        self.population_analysis = PopulationAnalysis(self.notebook, simulation_engine, counterfactual_engine,
-                                                      policy_engine)
+        self.population_analysis = PopulationAnalysis(self.notebook, simulation_engine)
         self.notebook.add(self.population_analysis, text='Population Analysis')
 
         self.content.pack(expand=True, fill=BOTH)
@@ -1200,36 +1187,6 @@ class ResultsWindow(Toplevel):
         self.abf.update_scroll_region()
         self.population_analysis.update_scroll_region()
         self.resizable(False, False)
-
-    def display_sim_bar_graph(self, simulation_chart, frame):
-        canvas = FigureCanvasTkAgg(simulation_chart, frame)
-        canvas.draw()
-        canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True)
-
-        save_button = MSButton(frame, text='Save Figure', command=lambda: self.save_file(simulation_chart))
-        save_button.config(width=0)
-        save_button.pack(side=RIGHT, padx=10, pady=10)
-
-    def save_file(self, figure):
-        filename = filedialog.asksaveasfilename(defaultextension='.png', initialdir=os.getcwd(),
-                                                filetypes=[('PNG', '.png'), ('PDF', '*.pdf'), ('PGF', '*.pgf'),
-                                                           ('EPS', '*.eps'), ('PS', '*.ps'), ('Raw', '*.raw'),
-                                                           ('RGBA', '*.rgba'), ('SVG', '*.svg'), ('SVGZ', '*.svgz')])
-        if filename is None:
-            return
-
-        figure.savefig(filename, facecolor=self.dark_bg, edgecolor='white')
-
-    # def create_histogram(self, parent, data, bins, weights, bg_color, fg_color, title_str):
-    #     fig = Figure(figsize=(8, 4))
-    #     ax = fig.add_subplot(111)
-    #     ax.hist(data, bins, weights=weights, color='#1aff8c')
-    #     ax.ylabel('Number of Days', fontsize=8)
-    #     ax.xlabel('Number of Workers', fontsize=8)
-    #     title = 'State: {}. {}'.format(self.parent.settings.state, title_str)
-    #     format_chart(fig, ax, title, bg_color, fg_color)
-    #     chart_container = ChartContainer(parent, fig, self.dark_bg)
-    #     chart_container.pack()
 
     def scroll(self, event):
         # In Windows, the delta will be either 120 or -120. In Mac, it will be 1 or -1.
@@ -1258,13 +1215,9 @@ class ResultsWindow(Toplevel):
 
 
 class PopulationAnalysis(ScrollFrame):
-    def __init__(self, parent, simulation_engine, counterfactual_engine=None, policy_sim_engine=None):
+    def __init__(self, parent, simulation_engine):
         super().__init__(parent)
-        self.simulation_data = simulation_engine.get_population_analysis_results()
-        self.counterfactual_data = None if counterfactual_engine is None else \
-            counterfactual_engine.get_population_analysis_results()
-        self.policy_sim_data = None if policy_sim_engine is None else \
-            policy_sim_engine.get_population_analysis_results()
+        self.simulation_engine = simulation_engine
         self.dark_bg = self.winfo_toplevel().dark_bg
         self.light_font = self.winfo_toplevel().light_font
         self.notebook_bg = self.winfo_toplevel().notebook_bg
@@ -1297,7 +1250,7 @@ class PopulationAnalysis(ScrollFrame):
         self.wage_min_input = MSGeneralEntry(self.parameters_frame, textvariable=self.wage_min)
         self.wage_max_input = MSGeneralEntry(self.parameters_frame, textvariable=self.wage_max)
 
-        self.submit_button = MSButton(self.parameters_frame, text='Submit', command=lambda: self.__create_histograms())
+        self.submit_button = MSButton(self.parameters_frame, text='Submit', command=lambda: self.__update_histograms())
 
         self.gender_label.grid(column=0, row=1, sticky=W, pady=2)
         self.gender_input.grid(column=0, row=2, sticky=W, pady=2)
@@ -1313,31 +1266,46 @@ class PopulationAnalysis(ScrollFrame):
         self.wage_max_input.grid(column=4, row=2, sticky=W, padx=2)
         self.submit_button.grid(column=0, row=3, sticky=W, pady=4)
 
+        # Histogram properties
+        self.bin_size = 5
+        self.max_weekdays = 262
+        self.bins = list(range(0, self.max_weekdays, self.bin_size))
+        self.xticks = list(range(0, self.max_weekdays, 20))
+
         self.histogram_frame = Frame(self.content, bg=self.dark_bg)
+        self.histograms = []
         self.__create_histograms()
         self.histogram_frame.pack(side=TOP, fill=BOTH, expand=True)
 
     def __create_histograms(self):
-        for chart in self.histogram_frame.winfo_children():
-            chart.destroy()
+        # Create new charts for each simulation
+        # new_charts = []
+        for sim_num in range(self.simulation_engine.sim_count):
+            simulation_data = self.filter_data(self.simulation_engine.get_population_analysis_results(sim_num))
+            histogram = self.create_histogram(simulation_data['cpl'], self.bins, simulation_data['PWGTP'],
+                                              'Simulation {}'.format(sim_num), self.xticks)
+            self.histograms.append(histogram)
+            chart_container = ChartContainer(self.histogram_frame, histogram, self.dark_bg)
+            chart_container.pack()
 
-        simulation_data = self.filter_data(self.simulation_data)
-        bin_size = 5
-        max_weekdays = 262
-        bins = list(range(0, max_weekdays, bin_size))
-        xticks = list(range(0, max_weekdays, 20))
-        self.create_histogram(simulation_data['cpl'], bins, simulation_data['PWGTP'], 'Main Simulation', xticks)
+        # # Remove old charts
+        # for chart in self.histogram_frame.winfo_children():
+        #     chart.destroy()
 
-        if self.counterfactual_data is not None:
-            counterfactual_data = self.filter_data(self.counterfactual_data)
-            self.create_histogram(
-                counterfactual_data['cpl'], bins, counterfactual_data['PWGTP'],
-                'Counterfactual Program ({})'.format(self.winfo_toplevel().parent.settings.counterfactual), xticks)
+        # # Add new charts
+        # for chart in new_charts:
+        #     chart.pack()
 
-        if self.policy_sim_data is not None:
-            policy_sim_data = self.filter_data(self.policy_sim_data)
-            self.create_histogram(policy_sim_data['cpl'], bins, policy_sim_data['PWGTP'], 'Most Generous Program',
-                                  xticks)
+    def __update_histograms(self):
+        for sim_num in range(self.simulation_engine.sim_count):
+            simulation_data = self.filter_data(self.simulation_engine.get_population_analysis_results(sim_num))
+            fig = self.histograms[sim_num]
+            ax = fig.axes[0]
+            ax.cla()
+            ax.hist(simulation_data['cpl'], self.bins, weights=simulation_data['PWGTP'], color='#1aff8c', rwidth=0.9)
+            self.set_histogram_properties(fig, ax, self.xticks, 'Simulation {}'.format(sim_num))
+            fig.canvas.draw()
+            fig.canvas.flush_events()
 
     def filter_data(self, data):
         if self.gender.get() == 'Male':
@@ -1361,6 +1329,10 @@ class PopulationAnalysis(ScrollFrame):
         fig = Figure(figsize=(8, 4))
         ax = fig.add_subplot(111)
         ax.hist(data, bins, weights=weights, color='#1aff8c', rwidth=0.9)
+        self.set_histogram_properties(fig, ax, xticks, title_str)
+        return fig
+
+    def set_histogram_properties(self, fig, ax, xticks, title_str):
         ax.set_ylabel('Number of Days', fontsize=9)
         ax.set_xlabel('Number of Workers', fontsize=9)
         if xticks is not None:
@@ -1368,15 +1340,13 @@ class PopulationAnalysis(ScrollFrame):
         title = 'State: {}. Leaves Taken under Program. {}'.format(self.winfo_toplevel().parent.settings.state,
                                                                    title_str)
         format_chart(fig, ax, title, self.dark_bg, 'white')
-        chart_container = ChartContainer(self.histogram_frame, fig, self.dark_bg)
-        chart_container.pack()
 
 
 class ResultsSummary(Frame):
     def __init__(self, parent, engine):
         super().__init__(parent)
         print('Creating and saving summary chart')
-        self.chart = engine.create_chart(engine.get_cost_df())
+        self.chart = engine.create_chart(engine.get_cost_df(0), 0)
         self.chart_container = Frame(self)
 
         print('Creating summary chart canvas')
@@ -1405,10 +1375,10 @@ class ChartContainer(Frame):
         super().__init__(parent, bg=bg_color)
         self.chart = chart
         self.bg_color = bg_color
-        canvas = FigureCanvasTkAgg(chart, self)
-        canvas.draw()
-        canvas.get_tk_widget().config(height=300)
-        canvas.get_tk_widget().pack(side=TOP, fill=X)
+        self.canvas = FigureCanvasTkAgg(chart, self)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().config(height=300)
+        self.canvas.get_tk_widget().pack(side=TOP, fill=X)
 
         save_button = MSButton(self, text='Save Figure', command=lambda: self.save_file())
         save_button.config(width=0)
@@ -1600,7 +1570,7 @@ class ABFResultsSummary(Frame):
 
 
 class ProgressWindow(Toplevel):
-    def __init__(self, parent, engine_type='Python', se=None, counterfactual_se=None, policy_sim_se=None):
+    def __init__(self, parent, engine_type='Python', se=None):
         super().__init__(parent)
         self.icon = PhotoImage(file='impaq_logo.gif')
         self.tk.call('wm', 'iconphoto', self._w, self.icon)
@@ -1608,13 +1578,6 @@ class ProgressWindow(Toplevel):
 
         self.parent = parent
         self.se = se
-        self.counterfactual_se = counterfactual_se
-        self.policy_sim_se = policy_sim_se
-        self.engines = 1
-        if self.counterfactual_se is not None:
-            self.engines += 1
-        if self.policy_sim_se is not None:
-            self.engines += 1
 
         self.content = Frame(self, width=100)
         self.content.pack(fill=BOTH, expand=True)
@@ -1668,9 +1631,7 @@ class ProgressWindow(Toplevel):
         self.update_idletasks()
         if update_type == 'progress':
             progress = update['value']
-            self.progress.set(last_progress + progress / self.engines)
-            if progress == 100:
-                last_progress = self.progress.get()
+            self.progress.set(int(progress))
         elif update_type == 'message':
             self.add_update(update['value'], update['engine'])
         elif update_type == 'error':
@@ -1684,12 +1645,26 @@ class ProgressWindow(Toplevel):
 
         return update_type, last_progress
 
-    def add_update(self, update, engine='Main', fg='#006600'):
-        label = Message(self.updates, text=engine + ': ' + update, bg=self.parent.notebook_bg, fg=fg, anchor='w',
-                        width=350)
+    def add_update(self, update, sim_num, fg='#006600'):
+        # If the update is attached to a simulation number, display that number
+        if sim_num is not None:
+            update_text = 'Simulation {}: {}'.format(sim_num, update)
+        else:
+            update_text = update
+
+        # Create the update label and add it to parent
+        label = Message(self.updates, text=update_text, bg=self.parent.notebook_bg,
+                        fg=fg, anchor='w', width=350)
         label.pack(padx=3, fill=X)
+
+        # Update the window to display new widget
         self.update()
+
+        # Update scroll region to account for new widget space
         self.updates_canvas.configure(scrollregion=(0, 0, 0, self.updates.winfo_height()))
+
+        # Move scroll area to bottom
+        self.updates_canvas.yview_moveto(1)
 
     def scroll(self, event):
         move_unit = 0
@@ -1850,14 +1825,8 @@ class TipCheckButton(ttk.Checkbutton):
         CreateToolTip(self, tip)
 
 
-def run_engines(se, counterfactual_se, policy_se, q):
+def run_engines(se, q):
     se.run()
-
-    if counterfactual_se is not None:
-        counterfactual_se.run()
-
-    if policy_se is not None:
-        policy_se.run()
 
     q.put({'type': 'done', 'value': 'done'})
 
