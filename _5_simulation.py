@@ -1,7 +1,7 @@
-'''
+"""
 main simulation engine
 chris zhang 12/4/2019
-'''
+"""
 # CHANGES 11/14/2019
 # Made dual receiver as proportionate parameter of those individuals with >0 prop_pay.
 # Removed imputation of doctor/hospital variables
@@ -27,8 +27,13 @@ import bisect
 import json
 from time import time
 from _5a_aux_functions import get_columns, get_sim_col, get_weighted_draws
-import sklearn.linear_model, sklearn.naive_bayes, sklearn.neighbors, sklearn.tree, sklearn.ensemble, \
-    sklearn.gaussian_process, sklearn.svm
+import sklearn.linear_model
+import sklearn.naive_bayes
+import sklearn.neighbors
+import sklearn.tree
+import sklearn.ensemble
+import sklearn.gaussian_process
+import sklearn.svm
 from datetime import datetime
 import matplotlib.pyplot as plt
 import os
@@ -41,13 +46,13 @@ from Utils import format_chart, check_dependency
 class SimulationEngine:
     def __init__(self, st, yr, fps_in, fps_out, clf_name='Logistic Regression', state_of_work=True,
                  random_state=None, pow_pop_multiplier=1.0217029934467345, q=None):
-        '''
+        """
         :param st: state name, 'ca', 'ma', etc.
         :param yr: end year of 5-year ACS
         :param fps_in: filepaths of infiles (FMLA, ACS h, ACS p, CPS)
         :param fps_out: filepaths of outfiles files (FMLA, CPS, ACS, length distribution, master ACS post sim)
         :param clf_name: classifier name
-        '''
+        """
 
         self.st = st
         self.yr = yr
@@ -139,19 +144,14 @@ class SimulationEngine:
             os.makedirs(output_directory)
 
         # save meta file of program parameters
-        para_labels = ['State', 'Year', 'Place of Work',
-                       'Minimum Annual Wage','Minimum Annual Work Weeks','Minimum Annual Work Hours',
-                       'Minimum Employer Size','Proposed Wage Replacement Ratio','Weekly Benefit Cap',
-                       'Include Goverment Employees, Federal',
-                       'Include Goverment Employees, State',
-                       'Include Goverment Employees, Local',
-                       'Include Self-employed',
-                       'Simulation Method',
-                       'Share of Dual Receivers',
-                       'Clone Factor',
+        para_labels = ['State', 'Year', 'Place of Work', 'Minimum Annual Wage', 'Minimum Annual Work Weeks',
+                       'Minimum Annual Work Hours', 'Minimum Employer Size', 'Proposed Wage Replacement Ratio',
+                       'Weekly Benefit Cap', 'Include Goverment Employees, Federal',
+                       'Include Goverment Employees, State', 'Include Goverment Employees, Local',
+                       'Include Self-employed', 'Simulation Method', 'Share of Dual Receivers', 'Clone Factor',
                        'Random Seed']
         para_labels_m = ['Maximum Week of Benefit Receiving',
-                         'Take Up Rates'] # type-specific parameters
+                         'Take Up Rates']  # type-specific parameters
 
         para_values = [self.st.upper(), self.yr + 2000, self.state_of_work, params['elig_wage12'],
                        params['elig_wkswork'], params['elig_yrhours'], params['elig_empsize'], params['rrp'],
