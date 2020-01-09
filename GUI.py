@@ -259,7 +259,10 @@ class MicrosimGUI(Tk):
         costs = self.se.get_cost_df(0)
 
         total_benefits = list(costs.loc[costs['type'] == 'total', 'cost'])[0]
-        abf_module = ABF(self.se.get_results(0), self.all_settings[0], total_benefits)
+        main_settings = self.all_settings[0]
+        abf_module = ABF(self.se.get_results(0), total_benefits, main_settings.eligible_size,
+                         main_settings.max_taxable_earnings_per_person, main_settings.benefits_tax,
+                         main_settings.average_state_tax, main_settings.payroll_tax)
 
         self.results_windows.append(ResultsWindow(self, self.se, abf_module))
         self.run_button.enable()
@@ -710,9 +713,9 @@ class ComparisonFrame(Frame):
         self.start_button.add_content(button_content)
         self.start_button.pack(side=RIGHT)
 
-        self.add_simulation_button = SubtleButton(self.buttons, text='+', font='-size 11 -weight bold',
-                                                  background=THEME_COLOR, width=3, padx=0, pady=0,
-                                                  command=self.add_simulation)
+        self.add_simulation_button = BorderButton(self.buttons, text=u'\uFF0B', font='-size 10 -weight bold',
+                                                  background=THEME_COLOR, width=0, padx=2, pady=0,
+                                                  highlightthickness=0, command=self.add_simulation)
 
         self.simulations = []
         self.simulations_frame = Frame(self, bg=DARK_COLOR)
@@ -1291,6 +1294,7 @@ class SimulationFrame(NotebookFrame):
 class ResultsWindow(Toplevel):
     def __init__(self, parent, simulation_engine, abf_module):
         super().__init__(parent)
+        self.withdraw()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.icon = PhotoImage(file='impaq_logo.gif')
         self.tk.call('wm', 'iconphoto', self._w, self.icon)
@@ -1329,6 +1333,7 @@ class ResultsWindow(Toplevel):
         self.abf.update_scroll_region()
         self.population_analysis.update_scroll_region()
         self.resizable(False, False)
+        self.deiconify()
 
     def scroll(self, event):
         # In Windows, the delta will be either 120 or -120. In Mac, it will be 1 or -1.
@@ -1530,7 +1535,6 @@ class ABFResults(ScrollFrame):
 
         self.abf_module = abf_module
         abf_output, pivot_tables = self.abf_module.run()
-        top_level = self.winfo_toplevel()
 
         self.abf_summary = ABFResultsSummary(self.content, abf_output)
         self.abf_summary.pack(padx=10, pady=10)
@@ -1539,57 +1543,11 @@ class ABFResults(ScrollFrame):
         self.abf_params_reveal = BorderButton(self, text='ABF Parameters', padx=4, command=self.show_params,
                                               width=16, borderwidth=0, font='-size 12', background='#00e600')
         self.abf_params_reveal.pack(side=BOTTOM, anchor='se', padx=3, pady=2)
-        self.abf_params = Frame(self, bg=VERY_LIGHT_COLOR, borderwidth=1, relief='solid', padx=3, pady=3)
-        self.abf_params_inputs = Frame(self.abf_params, bg=VERY_LIGHT_COLOR, pady=4)
-        self.abf_params_inputs.pack(fill=X, side=TOP)
-        self.abf_params_buttons = Frame(self.abf_params, bg=VERY_LIGHT_COLOR, pady=4)
-        self.abf_params_buttons.pack(side=BOTTOM, fill=X, expand=True)
-        self.abf_params_hide = BorderButton(self.abf_params_buttons, text='Hide', padx=4, command=self.hide_params,
-                                            background='#00e600')
-        self.abf_params_hide.pack(side=LEFT, pady=3, padx=5)
-        self.run_button = BorderButton(self.abf_params_buttons, font='-size 11 -weight bold', text="Run ABF",
-                                       command=self.rerun_abf, padx=4)
-        self.run_button.pack(side=RIGHT, pady=3, padx=5)
+        self.abf_variables = self.create_abf_variables()
+        self.abf_params = ABFParamsPopup(self)
 
         print('Creating ABF graphs')
         self.display_abf_bar_graphs(pivot_tables)
-
-        tip = 'The payroll tax that will be implemented to fund benefits program.'
-        self.payroll_tax_label = TipLabel(self.abf_params_inputs, tip, text='Payroll Tax (%):', bg=VERY_LIGHT_COLOR)
-        self.payroll_tax_input = Entry(self.abf_params_inputs, textvariable=top_level.parent.variables['payroll_tax'])
-
-        tip = 'Whether or not program benefits are taxed.'
-        self.benefits_tax_input = TipCheckButton(self.abf_params_inputs, tip, text='Benefits Tax',
-                                                 variable=top_level.parent.variables['benefits_tax'])
-
-        tip = 'The average tax rate of a selected state.'
-        self.average_state_tax_label = TipLabel(self.abf_params_inputs, tip, text='State Average Tax Rate (%):',
-                                                bg=VERY_LIGHT_COLOR)
-        self.average_state_tax_input = Entry(self.abf_params_inputs,
-                                             textvariable=top_level.parent.variables['average_state_tax'])
-
-        tip = 'The maximum amount that a person can be taxed.'
-        self.max_taxable_earnings_per_person_label = TipLabel(self.abf_params_inputs, tip,
-                                                              text='Maximum Taxable Earnings\nPer Person ($):',
-                                                              bg=VERY_LIGHT_COLOR, justify=LEFT)
-        self.max_taxable_earnings_per_person_input = \
-            Entry(self.abf_params_inputs, textvariable=top_level.parent.variables['max_taxable_earnings_per_person'])
-
-        tip = 'The total earnings that can be taxed.'
-        self.total_taxable_earnings_label = TipLabel(self.abf_params_inputs, tip, text='Total Taxable Earnings ($):',
-                                                     bg=VERY_LIGHT_COLOR)
-        self.total_taxable_earnings_input = Entry(self.abf_params_inputs,
-                                                  textvariable=top_level.parent.variables['total_taxable_earnings'])
-
-        self.payroll_tax_label.grid(column=0, row=0, sticky=W, padx=(8, 0))
-        self.payroll_tax_input.grid(column=1, row=0, sticky=W)
-        self.average_state_tax_label.grid(column=0, row=1, sticky=W, padx=(8, 0))
-        self.average_state_tax_input.grid(column=1, row=1, sticky=W)
-        self.benefits_tax_input.grid(column=0, row=2, columnspan=2, sticky=W, padx=(16, 0))
-        self.max_taxable_earnings_per_person_label.grid(column=0, row=3, sticky=W, padx=(8, 0))
-        self.max_taxable_earnings_per_person_input.grid(column=1, row=3, sticky=W)
-        # self.total_taxable_earnings_label.grid(column=0, row=4, sticky=W, padx=(8, 0))
-        # self.total_taxable_earnings_input.grid(column=1, row=4, sticky=W)
 
     def show_params(self):
         self.abf_params_reveal.pack_forget()
@@ -1607,9 +1565,8 @@ class ABFResults(ScrollFrame):
 
     def create_abf_bar_graphs(self, pivot_tables):
         graphs = []
-        fg_color = 'white'
+        fg_color = '#FFFFFF'
         bg_color = DARK_COLOR
-        # bg_color = '#1a1a1a'
 
         for pivot_table_category, pivot_table in pivot_tables.items():
             fig_pivot = Figure(figsize=(8, 4))
@@ -1640,11 +1597,20 @@ class ABFResults(ScrollFrame):
 
         return graphs
 
+    def create_abf_variables(self):
+        default = self.winfo_toplevel().parent.all_settings[0]
+        variables = {
+            'payroll_tax': DoubleVar(value=default.payroll_tax),
+            'benefits_tax': BooleanVar(value=default.benefits_tax),
+            'average_state_tax': DoubleVar(value=default.average_state_tax),
+            'max_taxable_earnings_per_person': IntVar(value=default.max_taxable_earnings_per_person),
+            'total_taxable_earnings': IntVar(value=default.total_taxable_earnings)
+        }
+        return variables
+
     def rerun_abf(self):
-        settings = self.winfo_toplevel().parent.create_settings()
-        abf_output, pivot_tables = self.abf_module.rerun(settings)
-        # self.results_window.update_abf_output(abf_output)
-        # self.results_window.update_pivot_tables(pivot_tables)
+        parameters = {k: v.get() for k, v in self.abf_variables.items()}
+        abf_output, pivot_tables = self.abf_module.rerun(parameters)
         self.update_abf_output(abf_output, pivot_tables)
 
     def update_abf_output(self, abf_output, pivot_tables):
@@ -1695,6 +1661,58 @@ class ABFResultsSummary(Frame):
         self.income_value.config(text=income)
         self.tax_revenue_value.config(text=tax)
         self.benefits_recouped_value.config(text=benefits_recouped)
+
+
+class ABFParamsPopup(Frame):
+    def __init__(self, parent, **kwargs):
+        super().__init__(parent, bg=VERY_LIGHT_COLOR, borderwidth=1, relief='solid', padx=3, pady=3, **kwargs)
+        self.inputs = Frame(self, bg=VERY_LIGHT_COLOR, pady=4)
+        self.inputs.pack(fill=X, side=TOP)
+
+        abf_variables = parent.abf_variables
+        tip = 'The payroll tax that will be implemented to fund benefits program.'
+        self.payroll_tax_label = TipLabel(self.inputs, tip, text='Payroll Tax (%):', bg=VERY_LIGHT_COLOR)
+        self.payroll_tax_input = Entry(self.inputs, textvariable=abf_variables['payroll_tax'])
+
+        tip = 'Whether or not program benefits are taxed.'
+        self.benefits_tax_input = TipCheckButton(self.inputs, tip, text='Benefits Tax',
+                                                 variable=abf_variables['benefits_tax'])
+
+        tip = 'The average tax rate of a selected state.'
+        self.average_state_tax_label = TipLabel(self.inputs, tip, text='State Average Tax Rate (%):',
+                                                bg=VERY_LIGHT_COLOR)
+        self.average_state_tax_input = Entry(self.inputs, textvariable=abf_variables['average_state_tax'])
+
+        tip = 'The maximum amount that a person can be taxed.'
+        self.max_taxable_earnings_per_person_label = TipLabel(self.inputs, tip,
+                                                              text='Maximum Taxable Earnings\nPer Person ($):',
+                                                              bg=VERY_LIGHT_COLOR, justify=LEFT)
+        self.max_taxable_earnings_per_person_input = \
+            Entry(self.inputs, textvariable=abf_variables['max_taxable_earnings_per_person'])
+
+        tip = 'The total earnings that can be taxed.'
+        self.total_taxable_earnings_label = TipLabel(self.inputs, tip, text='Total Taxable Earnings ($):',
+                                                     bg=VERY_LIGHT_COLOR)
+        self.total_taxable_earnings_input = Entry(self.inputs, textvariable=abf_variables['total_taxable_earnings'])
+
+        self.payroll_tax_label.grid(column=0, row=0, sticky=W, padx=(8, 0))
+        self.payroll_tax_input.grid(column=1, row=0, sticky=W)
+        self.average_state_tax_label.grid(column=0, row=1, sticky=W, padx=(8, 0))
+        self.average_state_tax_input.grid(column=1, row=1, sticky=W)
+        self.benefits_tax_input.grid(column=0, row=2, columnspan=2, sticky=W, padx=(16, 0))
+        self.max_taxable_earnings_per_person_label.grid(column=0, row=3, sticky=W, padx=(8, 0))
+        self.max_taxable_earnings_per_person_input.grid(column=1, row=3, sticky=W)
+        # self.total_taxable_earnings_label.grid(column=0, row=4, sticky=W, padx=(8, 0))
+        # self.total_taxable_earnings_input.grid(column=1, row=4, sticky=W)
+
+        self.abf_params_buttons = Frame(self, bg=VERY_LIGHT_COLOR, pady=4)
+        self.abf_params_buttons.pack(side=BOTTOM, fill=X, expand=True)
+        self.abf_params_hide = BorderButton(self.abf_params_buttons, text='Hide', padx=4, command=parent.hide_params,
+                                            background='#00e600')
+        self.abf_params_hide.pack(side=LEFT, pady=3, padx=5)
+        self.run_button = BorderButton(self.abf_params_buttons, font='-size 11 -weight bold', text="Run ABF",
+                                       command=parent.rerun_abf, padx=4)
+        self.run_button.pack(side=RIGHT, pady=3, padx=5)
 
 
 class ProgressWindow(Toplevel):
@@ -1922,14 +1940,14 @@ class SubtleToggle(SubtleButton):
 # a certain way.
 class BorderButton(Frame):
     def __init__(self, parent=None, custom=False, background='#0074BF', font='-size 11', width=7, pady=0,
-                 foreground='#FFFFFF', activebackground='#FFFFFF', relief='flat', borderwidth=1,
+                 foreground='#FFFFFF', activebackground='#FFFFFF', relief='flat', highlightthickness=1, borderwidth=1,
                  highlightbackground=LIGHT_COLOR, **kwargs):
         super().__init__(parent, highlightbackground=highlightbackground, relief=relief, borderwidth=borderwidth)
 
         if not custom:
             self.button = Button(self, foreground=foreground, background=background, font=font, width=width,
-                                 relief='flat', activebackground=activebackground, pady=pady, bd=0,
-                                 highlightthickness=1, **kwargs)
+                                 relief='flat', activebackground=activebackground, pady=pady, borderwidth=0,
+                                 highlightthickness=highlightthickness, **kwargs)
             self.button.pack()
         else:
             self.button = None

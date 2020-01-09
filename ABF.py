@@ -3,27 +3,23 @@ import numpy as np
 
 
 class ABF:
-    def __init__(self, acs, settings, benefits):
+    def __init__(self, acs, benefits, eligible_size, max_taxable_earnings_per_person, benefits_tax, average_state_tax,
+                 payroll_tax):
         self.df = acs
-        self.update_settings(settings)
+        self.eligible_size = eligible_size
+        self.max_taxable_earnings_per_person = max_taxable_earnings_per_person
+        self.benefits_tax = benefits_tax
+        self.average_state_tax = average_state_tax / 100
+        self.payroll_tax = payroll_tax / 100
 
         self.benefits = benefits
 
-    def update_settings(self, settings):
-        self._update_settings(settings)
+    def update_parameters(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
-    def _update_settings(self, settings):
-        # self.state_of_work = settings.state_of_work
-        # self.state = settings.state
-        self.self_employed = settings.self_employed
-        self.eligible_size = settings.eligible_size
-        self.fed_employees = settings.fed_employees
-        self.state_employees = settings.state_employees
-        self.local_employees = settings.local_employees
-        self.max_taxable_earnings_per_person = settings.max_taxable_earnings_per_person
-        self.benefits_tax = settings.benefits_tax
-        self.average_state_tax = settings.average_state_tax / 100
-        self.payroll_tax = settings.payroll_tax / 100
+        self.average_state_tax = self.average_state_tax / 100
+        self.payroll_tax = self.payroll_tax / 100
 
     # FUNCTION #1: Drop unneeded observations per the Paid Family Leave Policy Parameters
     def abf_data(self):
@@ -351,7 +347,7 @@ class ABF:
         #                        benefits=175000000, paytax_rate=0.012)
         return self.abf_calcs()
 
-    def rerun(self, settings):
-        self.update_settings(settings)
+    def rerun(self, variables):
+        self.update_parameters(**variables)
         self.abf_data()
         return self.abf_calcs()

@@ -128,7 +128,8 @@ class SimulationEngine:
             self.prog_para[sim_num] = params
         else:
             self.prog_para.append(params)
-            self.output_directories.append('./output/output_%s_sim_%s' % (self.out_id, self.sim_count))
+            sim_name = get_sim_name(self.sim_count).lower()
+            self.output_directories.append('./output/output_%s_%s' % (self.out_id, sim_name))
             self.sim_count += 1
 
     def delete_simulation_params(self, sim_num):
@@ -673,8 +674,11 @@ class SimulationEngine:
         self.updates = []
         return result
 
+    def get_results_file(self, sim_num):
+        return '%s/acs_sim_%s.csv' % (self.output_directories[sim_num], self.out_id)
+
     def get_results(self, sim_num):
-        return pd.read_csv('%s/acs_sim_%s.csv' % (self.output_directories[sim_num], self.out_id))
+        return pd.read_csv(self.get_results_file(sim_num))
 
     def get_cost_df(self, sim_num):
         return pd.read_csv('%s/program_cost_%s_%s.csv' % (self.output_directories[sim_num], self.st, self.out_id))

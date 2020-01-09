@@ -174,7 +174,7 @@ def as_currency(amount):
 
 def generate_default_state_params(settings, state='CA'):
     state_params = settings.copy()
-    state_params.update_variables(**DEFAULT_STATE_PARAMS[state.upper()])
+    state_params.update_parameters(**DEFAULT_STATE_PARAMS[state.upper()])
     return state_params
 
 
