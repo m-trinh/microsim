@@ -13,8 +13,8 @@ class ABF:
         self._update_settings(settings)
 
     def _update_settings(self, settings):
-        self.state_of_work = settings.state_of_work
-        self.state = settings.state
+        # self.state_of_work = settings.state_of_work
+        # self.state = settings.state
         self.self_employed = settings.self_employed
         self.eligible_size = settings.eligible_size
         self.fed_employees = settings.fed_employees

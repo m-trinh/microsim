@@ -40,12 +40,12 @@ import os
 import csv
 from _1_clean_FMLA import DataCleanerFMLA
 from _4_clean_ACS import DataCleanerACS
-from Utils import format_chart, check_dependency
+from Utils import format_chart, check_dependency, get_sim_name
 
 
 class SimulationEngine:
     def __init__(self, st, yr, fps_in, fps_out, clf_name='Logistic Regression', state_of_work=True,
-                 random_state=None, pow_pop_multiplier=1.0217029934467345, q=None):
+                 random_state=None, sim_method='Logistic Regression', pow_pop_multiplier=1.0217029934467345, q=None):
         """
         :param st: state name, 'ca', 'ma', etc.
         :param yr: end year of 5-year ACS
@@ -68,6 +68,7 @@ class SimulationEngine:
         self.clf_name = clf_name
         self.state_of_work = state_of_work
         self.random_seed = random_state
+        self.sim_method = sim_method
         print('Random seed:', self.random_seed)
         self.random_state = np.random.RandomState(self.random_seed)
 
@@ -103,7 +104,7 @@ class SimulationEngine:
         self.pow_pop_multiplier = pow_pop_multiplier  # based on 2012-2016 ACS, see project acs_all
 
     def set_simulation_params(self, elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp, wkbene_cap, d_maxwk,
-                              d_takeup, incl_empgov_fed, incl_empgov_st, incl_empgov_loc, incl_empself, sim_method,
+                              d_takeup, incl_empgov_fed, incl_empgov_st, incl_empgov_loc, incl_empself,
                               needers_fully_participate, clone_factor, dual_receivers_share, sim_num=None):
         params = {
             'elig_wage12': elig_wage12,
@@ -118,7 +119,6 @@ class SimulationEngine:
             'incl_empgov_st': incl_empgov_st,
             'incl_empgov_loc': incl_empgov_loc,
             'incl_empself': incl_empself,
-            'sim_method': sim_method,
             'needers_fully_participate': needers_fully_participate,
             'clone_factor': clone_factor,
             'dual_receivers_share': dual_receivers_share,

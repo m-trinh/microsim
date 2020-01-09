@@ -80,22 +80,38 @@ LEAVE_TYPES = ['Own Health', 'Maternity', 'New Child', 'Ill Child', 'Ill Spouse'
 
 
 class Settings:
-    def __init__(self, fmla_file=None, acs_directory=None, output_directory=None, detail=None, state=None,
-                 simulation_method=None, benefit_effect=False, calibrate=True, clone_factor=1, se_analysis=False,
-                 extend=False, fmla_protection_constraint=False, replacement_ratio=0.6, government_employees=True,
-                 needers_fully_participate=False, random_seed=None, self_employed=False, state_of_work=True,
-                 top_off_rate=0, top_off_min_length=0, weekly_ben_cap=795, weight_factor=1,
-                 eligible_earnings=3840, eligible_weeks=1, eligible_hours=1, eligible_size=1, max_weeks=None,
-                 take_up_rates=None, leave_probability_factors=None, payroll_tax=1, benefits_tax=False,
-                 average_state_tax=5, max_taxable_earnings_per_person=100000, total_taxable_earnings=10000000000,
-                 fed_employees=True, state_employees=True, local_employees=True, counterfactual='', policy_sim=False,
-                 existing_program='', dual_receivers_share=0.6, engine_type='Python', r_path=''):
+    def copy(self):
+        return copy.deepcopy(self)
+
+    def update_variables(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+
+class GeneralSettings(Settings):
+    def __init__(self, fmla_file='', acs_directory='', output_directory='', state='',
+                 simulation_method='Logistic Regression', engine_type='Python', r_path='', random_seed=None,
+                 state_of_work=True):
         self.fmla_file = fmla_file
         self.acs_directory = acs_directory
         self.output_directory = output_directory
-        self.detail = detail
         self.state = state
         self.simulation_method = simulation_method
+        self.engine_type = engine_type
+        self.r_path = r_path
+        self.random_seed = random_seed
+        self.state_of_work = state_of_work
+
+
+class OtherSettings(Settings):
+    def __init__(self, se_analysis=False, benefit_effect=False, calibrate=True, clone_factor=1,
+                 extend=False, fmla_protection_constraint=False, replacement_ratio=0.6, government_employees=True,
+                 needers_fully_participate=False, self_employed=False,  top_off_rate=0, top_off_min_length=0,
+                 weekly_ben_cap=795, weight_factor=1, eligible_earnings=3840, eligible_weeks=1, eligible_hours=1,
+                 eligible_size=1, max_weeks=None, take_up_rates=None, leave_probability_factors=None, payroll_tax=1.0,
+                 benefits_tax=False, average_state_tax=5.0, max_taxable_earnings_per_person=100000,
+                 total_taxable_earnings=10000000000, fed_employees=True, state_employees=True, local_employees=True,
+                 counterfactual='', policy_sim=False, existing_program='', dual_receivers_share=0.6):
         self.benefit_effect = benefit_effect
         self.calibrate = calibrate
         self.clone_factor = clone_factor
@@ -108,9 +124,7 @@ class Settings:
         self.state_employees = state_employees
         self.local_employees = local_employees
         self.needers_fully_participate = needers_fully_participate
-        self.random_seed = random_seed
         self.self_employed = self_employed
-        self.state_of_work = state_of_work
         self.top_off_rate = top_off_rate
         self.top_off_min_length = top_off_min_length
         self.weekly_ben_cap = weekly_ben_cap
@@ -128,8 +142,6 @@ class Settings:
         self.policy_sim = policy_sim
         self.existing_program = existing_program
         self.dual_receivers_share = dual_receivers_share
-        self.engine_type = engine_type
-        self.r_path = r_path
         if max_weeks is None:
             self.max_weeks = {'Own Health': 30, 'Maternity': 30, 'New Child': 4, 'Ill Child': 4, 'Ill Spouse': 4,
                               'Ill Parent': 4}
@@ -150,22 +162,6 @@ class Settings:
                                               'Ill Child': 0.667, 'Ill Spouse': 0.667, 'Ill Parent': 0.667}
         else:
             self.leave_probability_factors = leave_probability_factors
-
-    def copy(self):
-        # return Settings(fmla_file=self.fmla_file, acs_directory=self.acs_directory, output_directory=self.output_directory, detail=self.detail, state=self.state,
-        #          simulation_method=self.simulation_method, benefit_effect=self.benefit_effect, calibrate=self.calibrate, clone_factor=self.clone_factor, se_analysis=self.se_analysis,
-        #          extend=self.extend, fmla_protection_constraint=self.fmla_protection_constraint, replacement_ratio=self.replacement_ratio, government_employees=self.government_employees,
-        #          needers_fully_participate=self.needers_fully_participate, random_seed=self.random_seed, self_employed=self.self_employed, state_of_work=self.state_of_work,
-        #          top_off_rate=0, top_off_min_length=0, weekly_ben_cap=99999999, weight_factor=1,
-        #          eligible_earnings=11520, eligible_weeks=1, eligible_hours=1, eligible_size=1, max_weeks=None,
-        #          take_up_rates=None, leave_probability_factors=None, payroll_tax=1, benefits_tax=False,
-        #          average_state_tax=5, max_taxable_earnings_per_person=100000, total_taxable_earnings=10000000000,
-        #          fed_employees=True, state_employees=True, local_employees=True)
-        return copy.deepcopy(self)
-
-    def update_variables(self, **kwargs):
-        for key, value in kwargs.items():
-            setattr(self, key, value)
 
 
 # From https://stackoverflow.com/questions/21208376/converting-float-to-dollars-and-cents
@@ -216,6 +212,10 @@ def display_leave_objects(labels, inputs):
     for idx in range(len(labels)):
         labels[idx].grid(column=idx, row=0, sticky=(E, W))
         inputs[idx].grid(column=idx, row=1, sticky=(E, W), padx=1, pady=(0, 2))
+
+
+def get_sim_name(sim_num):
+    return 'Main Simulation' if sim_num == 0 else 'Comparison {}'.format(sim_num)
 
 
 def create_r_command(settings, progress_file):
