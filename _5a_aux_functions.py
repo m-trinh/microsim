@@ -23,8 +23,8 @@ def get_columns():
     Xs = ['widowed', 'divorced', 'separated', 'nevermarried',
           'female', 'age','agesq',
           'ltHS', 'someCol', 'BA', 'GradSch',
-          'black', 'other', 'asian','native',
-          'hisp','nochildren','faminc','coveligd']
+          'black', 'other', 'asian','native','hisp',
+          'nochildren','faminc','coveligd']
 
     ys = ['take_own', 'take_matdis', 'take_bond', 'take_illchild', 'take_illspouse', 'take_illparent']
     ys += ['need_own', 'need_matdis', 'need_bond', 'need_illchild', 'need_illspouse', 'need_illparent']
@@ -272,8 +272,11 @@ def get_sim_col(X, y, w, Xa, clf, random_state):
                         del df[c]
         else:
             # Data preparing - standardization, (x-mu)/sigma
-            X = pd.DataFrame(sklearn.preprocessing.scale(X), columns=X.columns)
-            Xa = pd.DataFrame(sklearn.preprocessing.scale(Xa), columns=Xa.columns)
+            # for both train/test data
+            for c in X.columns:
+                X[c] = (X[c] - X[c].mean()) / np.std(X[c], axis=0, ddof=1)
+            for c in Xa.columns:
+                Xa[c] = (Xa[c] - Xa[c].mean()) / np.std(Xa[c], axis=0, ddof=1)
 
         # Fit model
         # Weight config for kNN is specified in clf input before fit. For all other clf weight is specified during fit

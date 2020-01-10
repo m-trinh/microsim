@@ -1043,8 +1043,8 @@ class PopulationFrame(NotebookFrame):
         display_leave_objects(self.leave_probability_factors_labels, self.leave_probability_factors_inputs)
         # self.benefit_effect_input.grid(column=0, row=2, columnspan=2, sticky=W)
         # self.extend_input.grid(column=0, row=3, columnspan=3, sticky=W)
-        # self.dual_receivers_share_label.grid(column=0, row=4, sticky=W)
-        # self.dual_receivers_share_input.grid(column=1, row=4, sticky=W)
+        self.dual_receivers_share_label.grid(column=0, row=4, sticky=W)
+        self.dual_receivers_share_input.grid(column=1, row=4, sticky=W)
 
         # Make second column take up more space
         self.columnconfigure(0, weight=0)
