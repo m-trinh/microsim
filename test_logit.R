@@ -33,20 +33,35 @@ d <- na.omit(d)
 # d[Xs] <- d[Xs] %>% psycho::standardize()
 
 for (X in Xs){
-  d[paste0('z_', X)] <- d[X] %>% psycho::standardize()
+  #d[paste0('z_', X)] <- d[X] %>% psycho::standardize() # this will not affect binary cols
+  d[paste0('z_', X)] <- (d[X] - mean(d[, X]))/sd(d[, X])
+
 }
+z_Xs <- paste0('z_', Xs)
 
 # check pre- and post-standardization cols
-head(d[, c('empid', 'age', 'z_age')])
+head(d[, c('empid', 'age', 'z_age', 'female', 'z_female')])
 
 
 ## Fit model
-d <- head(d, 100)
-y <- ys[1]
+#d <- head(d, 100)
+y <- ys[2]
+if (y=='take_matdis'){
+  d <- subset(d, female==1)
+  Xs <- Xs[Xs!='female']
+  z_Xs <- z_Xs[z_Xs!='z_female']
+}
 eq <- as.formula(paste(y, "~", paste(paste0('z_', Xs), collapse="+")))
-logit <- glm(eq, family='binomial',data=d)
+logit <- glm(eq, family='quasibinomial',data=d)
 summary(logit)
+print(head(predict(logit, d[, z_Xs], type='response'), 10))
 
+# weighted model
+des <- svydesign(id = ~empid,  weights = ~weight, data = d)
+wlogit <- svyglm(as.formula(eq), data = d,
+                   family = "quasibinomial",design = des)
+summary(wlogit)
+print(head(predict(wlogit, d[, z_Xs], type='response'), 10))
 
 ####################################
 
