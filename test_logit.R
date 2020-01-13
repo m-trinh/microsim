@@ -1,6 +1,8 @@
 ### Use clean FMLA 2012 data and check coefs of glm 
 library(survey)
 library(psycho)
+library(data.table)
+
 ## set up
 setwd("C:\\workfiles\\Microsimulation\\microsim\\")
 ## Read in data
@@ -25,11 +27,7 @@ d <- na.omit(d)
 
 ## Standardize Xs
 
-# x1 <- c(1, 2, 3, 4)
-# x2 <- c(10, 20, 30, 40)
-# d1 <- data.frame(x1, x2)
-# d1 <- d1 %>% psycho::standardize()
-
+# NOTE: psycho::standardize() does not affect binary vars, so do it manually. R sd uses n-1 as divisor.
 # d[Xs] <- d[Xs] %>% psycho::standardize()
 
 for (X in Xs){
@@ -40,38 +38,108 @@ for (X in Xs){
 z_Xs <- paste0('z_', Xs)
 
 # check pre- and post-standardization cols
-head(d[, c('empid', 'age', 'z_age', 'female', 'z_female')])
+# head(d[, c('empid', 'age', 'z_age', 'female', 'z_female')])
 
 
 ## Fit model
-#d <- head(d, 100)
-y <- ys[2]
-if (y=='take_matdis'){
-  d <- subset(d, female==1)
-  Xs <- Xs[Xs!='female']
-  z_Xs <- z_Xs[z_Xs!='z_female']
+
+fit_logit <- function(d, Xs, w, y, standardized, weighted){
+  
+  # use standardized xvars if opted
+  if (standardized){
+    xvars <- z_Xs
+  }
+  else{
+    xvars <- Xs
+  }
+  
+  # if matdis, reduce to female only rows, remove female from xvar
+  if (is.element(y, c('take_matdis', 'need_matdis'))){
+    d <- subset(d, female==1)
+    if (standardized){
+      xvars <- z_Xs[z_Xs!='z_female']
+    }
+    else{
+      xvars <- Xs[Xs!='female']
+    }
+  }
+  
+  # fit model
+  eq <- as.formula(paste(y, "~", paste(xvars, collapse="+")))
+  
+  if (weighted==FALSE){
+    logit <- glm(eq, family='quasibinomial',data=d)
+  }
+  else{
+    des <- svydesign(id = ~empid,  weights = ~weight, data = d)
+    logit <- svyglm(as.formula(eq), data = d,
+                     family = "quasibinomial",design = des)
+  }
+  
+  # get bs, phats
+  bs <- summary(logit)$coefficients[, 1] # coefs
+  phats <- head(predict(logit, d[, xvars], type='response'), 10) # phats
+  
+  # list to return
+  li <- list('bs'=bs, 'phats'=phats)
+  
+  return (li)
 }
-eq <- as.formula(paste(y, "~", paste(paste0('z_', Xs), collapse="+")))
-logit <- glm(eq, family='quasibinomial',data=d)
-summary(logit)
-print(head(predict(logit, d[, z_Xs], type='response'), 10))
 
-# weighted model
-des <- svydesign(id = ~empid,  weights = ~weight, data = d)
-wlogit <- svyglm(as.formula(eq), data = d,
-                   family = "quasibinomial",design = des)
-summary(wlogit)
-print(head(predict(wlogit, d[, z_Xs], type='response'), 10))
+# # check function works
+# y <- 'take_own'
+# #y <-'take_matdis'
+# li <-fit_logit(d, Xs, w, y, standardized=TRUE, weighted=FALSE)
+# print(li$bs)
+# print(li$phats)
 
-####################################
+# make dfs for bs phats
+Dbs <- data.frame()
+Dps <- data.frame()
+for (y in ys){
+  li<- fit_logit(d, Xs, w, y, standardized=TRUE, weighted=TRUE)
+  
+  dbs <- data.frame(li$bs)
+  names(dbs)[1] <- y
+  if (dim(Dbs)[1]==0){ # empty Dbs
+    Dbs <- transform(merge(Dbs, dbs, by=0, all=TRUE), row.names=Row.names, Row.names=NULL)
+  }
+  else{ # non-empty Dbs, use all.x=TRUE
+    Dbs <- transform(merge(Dbs, dbs, by=0, all.x=TRUE), row.names=Row.names, Row.names=NULL)
+  }
+  
+  dps <- data.frame(li$phats)
+  names(dps)[1] <- y
+  if (dim(Dps)[1]==0){ # empty Dps
+    Dps <- transform(merge(Dps, dps, by=0, all=TRUE), row.names=Row.names, Row.names=NULL)
+  }
+  else{ # non-empty Dps, use all.x=TRUE
+    Dps <- transform(merge(Dps, dps, by=0, all.x=TRUE), row.names=Row.names, Row.names=NULL)
 
-cuse <- read.table("http://data.princeton.edu/wws509/datasets/cuse.dat", 
-                   header=TRUE)
-attach(cuse)
-mod <- glm(cbind(using, notUsing) ~ age + education + wantsMore , family= binomial)
-summary(mod)
+  }  
+  # order by numeric index
+  Dps$index <- as.numeric(row.names(Dps))
+  Dps <- Dps[order(Dps$index), ]
+  Dps$index <- NULL
+}
 
-########
-eq <- as.formula(paste(y, "~", paste(Xs, collapse="+")))
-mod <- glm(eq , family= binomial, data=d)
-summary(mod)
+# output
+write.csv(Dbs, "./PR_comparison/R_bs.csv")
+write.csv(Dps, "./PR_comparison/R_phats.csv")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

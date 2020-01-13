@@ -15,7 +15,7 @@ dr = pd.read_csv("C:\workfiles\Microsimulation\microsim_R-master\output\_test_RI
 dr0 = dr.copy()
 dr = dr[dr['eligworker']==1]
 
-p_run_stamp = '20200109_125429'
+p_run_stamp = '20200113_122631'
 dp = pd.read_csv('./output/output_%s_Main/acs_sim_%s.csv' % (p_run_stamp, p_run_stamp))
 
 ## Check length of DFs
@@ -31,15 +31,33 @@ ids_p = ids_p.groupby(by='SERIALNO').count().reset_index()
 # Case 1: find out which hh ids has persons in Python but none in R
 ids_pr = pd.merge(ids_p, ids_r, how='left', on='SERIALNO', indicator=True)
 ids_p_only = ids_pr[ids_pr['_merge']!='both']
+print(ids_p_only)
+# Case 2: ids in R but not P
+ids_pr = pd.merge(ids_p, ids_r, how='right', on='SERIALNO', indicator=True)
+ids_r_only = ids_pr[ids_pr['_merge']!='both']
+print(ids_r_only)
+
 # examine >> in dr, WAGP is below RI 3840 line
 
-# Case 2: find out which hh ids has more persons in Python than in R (cond' R has any)
-ids_pr['dz'] = (ids_pr['zp'] - ids_pr['zr'])
-ids_p_more = ids_pr[ids_pr['dz']>0]['SERIALNO'].values
-ids_p.loc[ids_p['SERIALNO'].isin(ids_p_more), ]
-ids_r.loc[ids_p['SERIALNO'].isin(ids_p_more), ]
+# Case 3: find out which hh ids has more persons in R than in P (cond' P has any)
+ids_pr['dz'] = (ids_pr['zr'] - ids_pr['zp'])
+ids_r_more = ids_pr[ids_pr['dz']>0]['SERIALNO'].values
+ids_p.loc[ids_p['SERIALNO'].isin(ids_r_more), ]
+ids_r.loc[ids_r['SERIALNO'].isin(ids_r_more), ]
+
 # examine >> in dr, WAGP is below RI 3840 line
-# TODO: (Case 1 & 2)LP to apply ADJINC in ACS: d['wage12'] = d['WAGP'] * d['ADJINC'] / self.adjinc. This affects wage12 for elig
+dr.loc[dr['SERIALNO'].isin(ids_r_more) , 'wage12']
+
+##### read in raw ACS data and check WAGP, ADJINC
+acs = pd.read_csv('./data/acs/pow_person_files/p44_ri_pow.csv')
+acs = acs.loc[acs['SERIALNO'].isin(ids_r_more), ['SERIALNO', 'ADJINC', 'WAGP']]
+acs['wage12'] = acs['WAGP']*acs['ADJINC']/1056030
+acs = acs.sort_values(by=['SERIALNO', 'WAGP'])
+# check P/R acs persons with ids in ids_r_more
+print(acs)
+print(dr.loc[dr['SERIALNO'].isin(ids_r_more), ['SERIALNO', 'WAGP', 'wage12']].sort_values(by=['SERIALNO', 'WAGP']))
+# TODO: Luke to update wage12=WAGP*(ADJINC/1056030) in R cleaning
+
 
 ## Check take/need vars in DFs
 types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
@@ -212,12 +230,14 @@ def get_coefs_phats(fitter, args, ys):
             dbs[y] = bs
         else: # dbs not empty, merge by index
             dbs = dbs.join(bs)
+        dbs = dbs.sort_index()
 
         # build up df for phats
         if dps.shape[1] == 0:
             dps[y] = phats
         else:
             dps = dps.join(phats)
+        dps = dps.sort_index()
     return dbs, dps
 
 # execute
@@ -239,17 +259,40 @@ dbs, dps = get_coefs_phats(fit_logit_sm, args, ys)
 Dbs['sm'] = dbs
 Dps['sm'] = dps
 
-
+# R
+def read_R_output(fp):
+    df = pd.read_csv(fp)
+    df.loc[df['Unnamed: 0']=='(Intercept)', 'Unnamed: 0'] = 'const'
+    try: # if integer index from R, reduce 1 as 0-order in Python
+        df.index= df['Unnamed: 0'] - 1
+    except TypeError:
+        df.index = df['Unnamed: 0']
+    df.index.name = None
+    del df['Unnamed: 0']
+    df = df.sort_index()
+    return df
+fp = './PR_comparison/R_bs.csv'
+dbs = read_R_output(fp)
+fp = './PR_comparison/R_phats.csv'
+dps = read_R_output(fp)
+Dbs['R'] = dbs
+Dps['R'] = dps
 ## Check diffs
 # newton vs liblinear
-Dbs['newton-cg'] - Dbs['liblinear'] # many diffs esp for need_type
+Dbs['newton-cg'] - Dbs['liblinear'] # diffs esp for need_type
 Dps['newton-cg'] - Dps['liblinear'] # diffs O(1e-6) really small
 
 # liblinear vs sm
-Dbs['liblinear'] - Dbs['sm'] # many diffs esp for need_type
+Dbs['liblinear'] - Dbs['sm'] # diffs esp for need_type
 Dps['liblinear'] - Dps['sm'] # diffs really small
 
+# sm vs R
+Dbs['sm'] - Dbs['R'] # very similar overall, except a few cases
+Dps['sm'] - Dps['R'] # diffs really small
 
+# liblinear vs R
+Dbs['liblinear'] - Dbs['R'] # diffs esp for need_type
+Dps['liblinear'] - Dps['R'] # diffs really small
 
 # TODO: newton-cg cannot converge with sample_weights!! Works fine if no weights
 # TODO: after ddof=0 (default) standardization, newton-cg and liblinear gives very similar coefs (up to O(1e-5)). Can use liblinear as Python baseline
