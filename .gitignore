@@ -1,6 +1,7 @@
 .idea/
 __pycache__
 data/*
+draft/demo_external_20191213/*
 from_luke/*
 output/*
 r_engine/*

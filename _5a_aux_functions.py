@@ -9,7 +9,8 @@ import pandas as pd
 import sklearn.preprocessing, sklearn.linear_model, sklearn.naive_bayes, sklearn.neighbors, sklearn.tree, sklearn.ensemble, \
     sklearn.gaussian_process, sklearn.svm
 pd.options.mode.chained_assignment = None
-
+import statsmodels.api as sm
+import statsmodels.genmod
 # a function to get columns
 def get_columns():
     # original CZ's xvars
@@ -23,8 +24,8 @@ def get_columns():
     Xs = ['widowed', 'divorced', 'separated', 'nevermarried',
           'female', 'age','agesq',
           'ltHS', 'someCol', 'BA', 'GradSch',
-          'black', 'other', 'asian','native',
-          'hisp','nochildren','faminc','coveligd']
+          'black', 'other', 'asian','native','hisp',
+          'nochildren','faminc','coveligd']
 
     ys = ['take_own', 'take_matdis', 'take_bond', 'take_illchild', 'take_illspouse', 'take_illparent']
     ys += ['need_own', 'need_matdis', 'need_bond', 'need_illchild', 'need_illspouse', 'need_illparent']
@@ -212,6 +213,11 @@ def get_pred_probs(clf, xts):
         # case of multiclass problem (n class >=3), d is np.array([[...]])
         elif d.ndim == 2:
             phat = np.exp(d) / np.array([[x] * len(d[0]) for x in np.exp(d).sum(axis=1)])
+    elif isinstance(clf, statsmodels.genmod.generalized_linear_model.GLMResultsWrapper):
+        phat = (clf.predict(sm.add_constant(xts))) # statsmodel phat gives pr=1 only
+        phat = np.array([[(1-x), x] for x in phat.values])
+    print('----- phat -----')
+    print(phat)
     return phat
 
 # a function to simulate from wheel of fortune (e.g. simulate leave type from discrete distribution of 6 types)
@@ -246,6 +252,15 @@ def get_sim_col(X, y, w, Xa, clf, random_state):
     y = y[y.columns[0]]
     Xa = fillna_df(Xa, random_state)
 
+    # if matdis, reduce to female only rows, remove female from xvar
+    if y.name in ['take_matdis', 'need_matdis']:
+        X = X[X['female']==1]
+        del X['female']
+        Xa = Xa[Xa['female']==1]
+        del Xa['female']
+        y = y[X.index]
+        w = w[X.index]
+
     # if clf = 'random draw'
     if clf == 'random draw':
         simcol = [y.iloc[z] for z in random_state.choice(len(y), len(Xa))]
@@ -272,21 +287,32 @@ def get_sim_col(X, y, w, Xa, clf, random_state):
                         del df[c]
         else:
             # Data preparing - standardization, (x-mu)/sigma
-            X = pd.DataFrame(sklearn.preprocessing.scale(X), columns=X.columns)
-            Xa = pd.DataFrame(sklearn.preprocessing.scale(Xa), columns=Xa.columns)
+            # for both train/test data
+            Z, Za = pd.DataFrame([]), pd.DataFrame([])
+            for c in X.columns:
+                Z[c] = (X[c] - X[c].mean()) / np.std(X[c], axis=0, ddof=1)
+            for c in Xa.columns:
+                Za[c] = (Xa[c] - Xa[c].mean()) / np.std(Xa[c], axis=0, ddof=1)
 
         # Fit model
         # Weight config for kNN is specified in clf input before fit. For all other clf weight is specified during fit
-        if isinstance(clf, sklearn.neighbors.KNeighborsClassifier):
+        if isinstance(clf, list): # logit GLM = ['logit glm', sklearn logit classifier]
+            if len(y.value_counts())==2: # for (almost all) binary yvars, use statsmodel if user chose logit GLM
+                clf = sm.GLM(y, sm.add_constant(Z), family=sm.families.Binomial(), freq_weights=w).fit()
+            else: # only when yvar is multinomial (e.g. prop_pay), use sklearn logit=clf[1]
+                # if user chose logit GLM, to avoid overfitting
+                clf = clf[1].fit(Z, y, sample_weight=w)
+
+        elif isinstance(clf, sklearn.neighbors.KNeighborsClassifier):
             f = lambda x: np.array([w]) # make sure weights[:, i] can be called in package code classification.py
             clf = clf.__class__(weights=f)
-            clf = clf.fit(X, y)
+            clf = clf.fit(Z, y)
         else:
-            clf = clf.fit(X, y, sample_weight=w)
+            clf = clf.fit(Z, y, sample_weight=w)
 
         # Make prediction
         # get cumulative distribution using phat vector, then draw unif(0,1) to see which segment it falls into
-        phat = get_pred_probs(clf, Xa)
+        phat = get_pred_probs(clf, Za)
         #print('phat top 30 rows = %s ' % phat[:30])
         s = phat.cumsum(axis=1)
         r = random_state.rand(phat.shape[0])

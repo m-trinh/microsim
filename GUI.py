@@ -642,7 +642,7 @@ class GeneralSettingsFrame(Frame):
                        'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV',
                        'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'PR', 'RI', 'SC', 'SD', 'TN',
                        'TX', 'UT', 'VT', 'VA', 'VI', 'WA', 'WV', 'WI', 'WY')
-        self.simulation_methods = ('Logistic Regression', 'Ridge Classifier', 'K Nearest Neighbor', 'Naive Bayes',
+        self.simulation_methods = ('Logistic Regression GLM','Logistic Regression', 'Ridge Classifier', 'K Nearest Neighbor', 'Naive Bayes',
                                    'Support Vector Machine', 'Random Forest')
         self.cwd = os.getcwd()
         self.variables = self.winfo_toplevel().variables
@@ -1180,8 +1180,8 @@ class PopulationFrame(NotebookFrame):
         display_leave_objects(self.leave_probability_factors_labels, self.leave_probability_factors_inputs)
         # self.benefit_effect_input.grid(column=0, row=2, columnspan=2, sticky=W)
         # self.extend_input.grid(column=0, row=3, columnspan=3, sticky=W)
-        # self.dual_receivers_share_label.grid(column=0, row=4, sticky=W)
-        # self.dual_receivers_share_input.grid(column=1, row=4, sticky=W)
+        self.dual_receivers_share_label.grid(column=0, row=4, sticky=W)
+        self.dual_receivers_share_input.grid(column=1, row=4, sticky=W)
 
         # Make second column take up more space
         self.columnconfigure(0, weight=0)
