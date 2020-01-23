@@ -86,6 +86,7 @@ class SimulationEngine:
 
         # a dict from clf_name to clf
         self.d_clf = {}
+        self.d_clf['Logistic Regression GLM'] = ['logit glm', sklearn.linear_model.LogisticRegression(solver='liblinear', multi_class='auto', random_state=self.random_state)]
         self.d_clf['Logistic Regression'] = sklearn.linear_model.LogisticRegression(solver='liblinear', multi_class='auto', random_state=self.random_state)
         self.d_clf['Ridge Classifier'] = sklearn.linear_model.RidgeClassifier(random_state=self.random_state)
         #self.d_clf['Stochastic Gradient Descent'] = sklearn.linear_model.SGDClassifier(loss='modified_huber', max_iter=1000, tol=0.001)
@@ -239,7 +240,12 @@ class SimulationEngine:
         for c in col_ys:
             tt = time()
             y = d[c]
-            acs[c] = get_sim_col(X, y, w, Xa, clf, self.random_state)
+            if c not in ['take_matdis', 'need_matdis']: # sim col same length as acs
+                acs[c] = get_sim_col(X, y, w, Xa, clf, self.random_state)
+            else: # sim col for female only, join using indexed simcol
+                simcol_indexed = get_sim_col(X, y, w, Xa, clf, self.random_state)
+                simcol_indexed = pd.Series(simcol_indexed, index=Xa[Xa['female']==1].index, name=c)
+                acs = acs.join(simcol_indexed)
             print('Simulation of col %s done. Time elapsed = %s' % (c, (time() - tt)))
         print('6+6+1 simulated. Time elapsed = %s' % (time() - t0))
 

@@ -51,9 +51,11 @@ class DataCleanerFMLA:
         d['covwrkplace'] = np.where(d['miscond'] == 1, np.nan, d['covwrkplace'])
 
         # Covered and eligible
-        # set to 1 if both workplace and worker covered, set to nan if either missing
+        # set to 1 if both workplace and worker covered, set to nan if 1/nan, nan/1, or nan/nan
         d['coveligd'] = np.where((d['covwrkplace'] == 1) & (d['eligworker'] == 1), 1, 0)
-        d['coveligd'] = np.where((np.isnan(d['covwrkplace'])) | (np.isnan(d['eligworker'])), np.nan, d['coveligd'])
+        d['coveligd'] = np.where((np.isnan(d['covwrkplace'])) & (np.isnan(d['eligworker'])), np.nan, d['coveligd'])
+        d['coveligd'] = np.where((np.isnan(d['covwrkplace'])) & (d['eligworker'] == 1), np.nan, d['coveligd'])
+        d['coveligd'] = np.where((np.isnan(d['eligworker'])) & (d['covwrkplace'] == 1), np.nan, d['coveligd'])
 
         # Hourly worker
         d['hourly'] = np.where(d['E9_1'] == 2, 1, 0)
@@ -281,20 +283,24 @@ class DataCleanerFMLA:
         # new child/bond
         d['take_bond'] = np.where(((d['take_matdis']==0) | (d['take_matdis'].isna())) &
                                   ( # (d['A5_1_CAT_rev']==31) |
-                                      ((d['A5_1_CAT']==21) & (d['GENDER_CAT']==1)) |
-                                      ((d['A5_1_CAT']==21) & (d['GENDER_CAT']==2) # & (d['A5_1_CAT_rev']!=32)
-                                       )
+                                      (d['A5_1_CAT']==21)  # & (d['A5_1_CAT_rev']!=32)
                                   ) &
+                                  ((d['A11_1'].isna()) | (d['A11_1']==2)) &
                                   ((d['A20']!=2) | (d['A20'].isna())), 1, 0)
+        d['take_bond'] = np.where(((d['take_matdis']==0) | (d['take_matdis'].isna())) &
+                                  ((d['A5_2_CAT'].isna()) & (d['A5_2_CAT']==21)) &
+                                  ((d['A11_2'].isna()) | (d['A11_2']==2)) &
+                                  ((d['A20'].isna()) | (d['A20']==2))
+                                  , 1, d['take_bond'])
         d['take_bond'] = np.where(np.isnan(d['A5_1_CAT']), np.nan, d['take_bond'])
         d['take_bond'] = np.where(np.isnan(d['take_bond']) & ((d['LEAVE_CAT'] == 2) | (d['LEAVE_CAT'] == 3)), 0, d['take_bond'])
 
         d['need_bond'] = np.where(((d['need_matdis']==0) | (d['need_matdis'].isna())) &
                                   ( # (d['B6_1_CAT_rev']==31) |
-                                      ((d['B6_1_CAT']==21) & (d['GENDER_CAT']==1)) |
-                                      ((d['B6_1_CAT']==21) & (d['GENDER_CAT']==2) #  & (d['B6_1_CAT_rev']!=32)
-                                       )
-                                  ), 1, 0)
+                                      (d['B6_1_CAT']==21) #  & (d['B6_1_CAT_rev']!=32)
+                                  ) &
+                                  (d['B12_1']==2), 1, 0)
+        d['need_bond'] = np.where(d['B12_1'].isna(), np.nan, d['need_bond'])
         d['need_bond'] = np.where(np.isnan(d['B6_1_CAT']), np.nan, d['need_bond'])
         d['need_bond'] = np.where(np.isnan(d['need_bond']) & ((d['LEAVE_CAT'] == 1) | (d['LEAVE_CAT'] == 3)), 0, d['need_bond'])
 

@@ -100,6 +100,7 @@ def preprocess_data(fp_fmla):
     ys = ['take_own', 'take_matdis', 'take_bond', 'take_illchild', 'take_illspouse', 'take_illparent']
     ys += ['need_own', 'need_matdis', 'need_bond', 'need_illchild', 'need_illspouse', 'need_illparent']
     ys += ['resp_len']
+    ys += ['anypay', 'prop_pay']
     w = 'weight'
     # reduce cols
     d = d[[id] + Xs + ys+ [w]]
@@ -327,3 +328,19 @@ Dps['liblinear'] - Dps['R'] # diffs really small
 # res = sm.formula.glm("%s ~ %s" % (y, ' + '.join(xvars)),  family=sm.families.Binomial(),
 #                      data=d).fit()
 # res.summary()
+
+## MN logit with statsmodel
+# set up
+fp_fmla = './data/fmla_2012/fmla_clean_2012.csv'
+d, cols = preprocess_data(fp_fmla)
+Xs, ys, w = cols
+y = ['prop_pay']
+
+# two-way dicts from prop_pay values to labels
+v = d.prop_pay.value_counts().sort_index().index
+k = range(len(v))
+d_prop = dict(zip(k, v))
+D_prop = dict(zip(v, k))
+d = d[d['prop_pay']>0]
+d = d[d['prop_pay'].notna()]
+mlogit = sm.MNLogit(d[y], d['female']).fit()
