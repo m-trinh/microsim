@@ -20,7 +20,7 @@ from time import time
 
 class DataCleanerACS:
 
-    def __init__(self, st, yr, fp_h, fp_p, fp_out, state_of_work, random_state, adjinc=1022342):
+    def __init__(self, st, yr, fp_h, fp_p, fp_out, state_of_work, random_state, adjinc=1056030):
         '''
         :param st: state name, e.g.'ma'
         :param yr: end year of 5-year ACS, e.g. 2016

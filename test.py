@@ -719,3 +719,4 @@ else:
                                                     acs.loc[acs['prop_pay'].notna(), 'prop_pay']]
 
 acs[acs['dlen_own']<0][['len_own', 'mnl_own', 'cfl_own', 'prop_pay', 'anypay', 'taker', 'needer', 'len_all', 'cfl_all', 'mnl_all']]
+
