@@ -3,16 +3,17 @@ import numpy as np
 
 
 class ABF:
-    def __init__(self, acs, benefits, eligible_size, max_taxable_earnings_per_person, benefits_tax, average_state_tax,
-                 payroll_tax):
-        self.df = acs
+    def __init__(self, acs_file, benefits, eligible_size, max_taxable_earnings_per_person, benefits_tax,
+                 average_state_tax, payroll_tax):
+        self.reps = ['PWGTP' + str(i) for i in range(1, 81)]
+        self.df = pd.read_csv(acs_file, usecols=['COW', 'POWSP', 'ST', 'wage12', 'PWGTP', 'age', 'male'] + self.reps)
         self.eligible_size = eligible_size
         self.max_taxable_earnings_per_person = max_taxable_earnings_per_person
         self.benefits_tax = benefits_tax
         self.average_state_tax = average_state_tax / 100
         self.payroll_tax = payroll_tax / 100
-
         self.benefits = benefits
+        self.clean_data()
 
     def update_parameters(self, **kwargs):
         for key, value in kwargs.items():
@@ -158,13 +159,13 @@ class ABF:
         # Apply Taxable Wage Max
         if self.max_taxable_earnings_per_person is not None:  # TRUE (Constraint is applied)
             self.df['taxable_income_capped'] = np.where((self.df['wage12'] > self.max_taxable_earnings_per_person),
-                                          self.max_taxable_earnings_per_person, self.df['wage12'])
+                                                         self.max_taxable_earnings_per_person, self.df['wage12'])
             index_names = self.df[self.df['wage12'] > self.max_taxable_earnings_per_person].index
             censor = len(index_names)
             message_censor = "We censored %s observations to the wage max" % censor
             print(message_censor)
         else:
-            self.df['taxable_income_capped'] = self.df['income']
+            self.df['taxable_income_capped'] = self.df['wage12']
 
     # FUNCTION #2: Conduct Final Calculations on the slimmer ABF Output dataset
     def abf_calcs(self):
@@ -206,11 +207,9 @@ class ABF:
 
         # Step 2 - Calculate Standard Errors with 80 Replicate Weights
         # replication weight cols
-        reps = ['PWGTP' + str(i) for i in range(1, 81)]
-
         # Income
         income_r = []
-        for wt in reps:
+        for wt in self.reps:
             income_r.append(((self.df['taxable_income_capped'] * self.df[wt]).sum()))
 
         # print('80 Replicate Income:')
@@ -224,7 +223,7 @@ class ABF:
 
         # Tax Revenue
         tax_r = []
-        for wt in reps:
+        for wt in self.reps:
             tax_r.append(((self.df['ptax_rev_final'] * self.df[wt]).sum()))
 
         # print('80 Replicate Tax Revenue:')
@@ -276,8 +275,7 @@ class ABF:
 
         return abf_output, pivot_tables
 
-    def run(self):
-        # Create Class variable to aggregate the COW variable for display purposes
+    def clean_data(self):
         self.df['class'] = ''
         cleanup = {1: "Private", 2: "Private", 3: "Local Govt.", 4: "State Govt.", 5: "Federal Govt.",
                    6: "Self-Employed", 7: "Self-Employed", 8: "Other", 9: "Other"}
@@ -291,8 +289,12 @@ class ABF:
 
         # Create Gender Categories for display pruposes
         self.df['GENDER_CAT'] = np.where(self.df['male'] == 1, 'male', 'female')
-        self.df['GENDER_CAT'] = np.where(np.isnan(self.df['male']), np.nan, self.df['GENDER_CAT'])  # code missing responses as missing
+        # Code missing responses as missing
+        self.df['GENDER_CAT'] = np.where(np.isnan(self.df['male']), np.nan, self.df['GENDER_CAT'])
 
+    def run(self):
+        # TODO: Chunk this to prevent memory overflow
+        # Create Class variable to aggregate the COW variable for display purposes
         self.abf_data()
 
         # for chunk in pd.read_csv(self.acs_file, chunksize=100000, low_memory=False):
