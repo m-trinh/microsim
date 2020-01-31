@@ -7,6 +7,7 @@ output/*
 r_engine/*
 build/*
 dist/*
+PR_comparison/*
 hook-sklearn.py
 Microsimulator.spec
 *.exe
