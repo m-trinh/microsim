@@ -111,7 +111,7 @@ def preprocess_data(fp_fmla):
 
     # TODO: check how fillna works in R - need to be same as Python
     # drop missing rows if any col is missing
-    d = d.dropna(how='any')
+    d = d.dropna(subset=Xs)
     # standardize
     for X in Xs:
         d['z_%s' % X] = (d[X] - d[X].mean()) / np.std(d[X], axis=0, ddof=1)

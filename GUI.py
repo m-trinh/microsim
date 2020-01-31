@@ -345,7 +345,7 @@ class MicrosimGUI(Tk):
 
     def create_simulation_engine(self, q):
         st = self.general_settings.state.lower()
-        yr = 16
+        yr = 17
         fp_fmla_in = self.general_settings.fmla_file
         fp_cps_in = './data/cps/CPS2014extract.csv'
         fp_acsh_in = self.general_settings.acs_directory + '/household_files'
