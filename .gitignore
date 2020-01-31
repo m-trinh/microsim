@@ -13,3 +13,9 @@ Microsimulator.spec
 log/*
 *.zip
 *.xlsx
+.Rhistory
+*.whl
+test.py
+test_fmla_clean.py
+test_logit.R
+test_r_python.py
