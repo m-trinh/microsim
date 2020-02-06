@@ -1,8 +1,7 @@
 .idea/
 __pycache__
 data/*
-draft/demo_external_20191213/*
-from_luke/*
+draft/*
 output/*
 r_engine/*
 build/*
@@ -19,3 +18,4 @@ test.py
 test_fmla_clean.py
 test_logit.R
 test_r_python.py
+MicrosimTest.py

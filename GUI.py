@@ -26,7 +26,7 @@ THEME_COLOR = '#0074BF'
 class MicrosimGUI(Tk):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # TODO: Remove file locations
+        # TODO: Remove R file location
         self.general_settings = GeneralSettings(fmla_file='./data/fmla_2012/fmla_2012_employee_revised_puf.csv',
                                                 acs_directory='./data/acs', output_directory='./output',
                                                 r_path='/Users/mtrinh/R-3.6.1/bin/Rscript.exe', state='All')
@@ -423,13 +423,13 @@ class MicrosimGUI(Tk):
                            self.settings_notebook.program_frame.eligible_size_input,
                            self.settings_notebook.program_frame.weekly_ben_cap_input,
                            self.settings_notebook.simulation_frame.clone_factor_input,
-                           self.settings_notebook.program_frame.max_taxable_earnings_per_person_input,
+                           self.settings_notebook.program_frame.benefit_financing_frame.max_taxable_earnings_per_person_input,
                            ]
 
         integer_entries += [entry for entry in self.settings_notebook.program_frame.max_weeks_inputs]
 
-        float_entries = [self.settings_notebook.program_frame.payroll_tax_input,
-                         self.settings_notebook.program_frame.average_state_tax_input]
+        float_entries = [self.settings_notebook.program_frame.benefit_financing_frame.payroll_tax_input,
+                         self.settings_notebook.program_frame.benefit_financing_frame.average_state_tax_input]
 
         rate_entries = [self.settings_notebook.program_frame.replacement_ratio_input]
         rate_entries += [entry for entry in self.settings_notebook.population_frame.take_up_rates_inputs]
@@ -610,8 +610,8 @@ class GeneralSettingsFrame(Frame):
         tip = 'The Rscript path on your system.'
         self.r_path_label = TipLabel(self, tip, text="Rscript Path:", bg=DARK_COLOR, fg=LIGHT_COLOR)
         self.r_path_input = GeneralEntry(self, textvariable=self.variables['r_path'])
-        self.r_path_button = BorderButton(self, text="Browse",
-                                          command=lambda: self.browse_file(self.r_path_input, [('Rscript', 'Rscript.exe')]))
+        self.r_path_button = BorderButton(
+            self, text="Browse", command=lambda: self.browse_file(self.r_path_input, [('Rscript', 'Rscript.exe')]))
         self.variables['engine_type'].trace('w', self.toggle_r_path)
 
         # Add the input widgets to the parent widget
@@ -638,8 +638,8 @@ class GeneralSettingsFrame(Frame):
                        'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV',
                        'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'PR', 'RI', 'SC', 'SD', 'TN',
                        'TX', 'UT', 'VT', 'VA', 'VI', 'WA', 'WV', 'WI', 'WY')
-        self.simulation_methods = ('Logistic Regression GLM','Logistic Regression', 'Ridge Classifier', 'K Nearest Neighbor', 'Naive Bayes',
-                                   'Support Vector Machine', 'Random Forest')
+        self.simulation_methods = ('Logistic Regression GLM', 'Logistic Regression', 'Ridge Classifier',
+                                   'K Nearest Neighbor', 'Naive Bayes', 'Support Vector Machine', 'Random Forest')
         self.cwd = os.getcwd()
         self.variables = self.winfo_toplevel().variables
 
@@ -907,7 +907,8 @@ class NotebookFrame(ScrollFrame):
 
     # Some inputs require an entry value for each leave type. It is better to store each input in a list than
     # create separate variables for all of them.
-    def create_leave_objects(self, parent, leave_vars):
+    @ staticmethod
+    def create_leave_objects(parent, leave_vars):
         leave_type_labels = []  # A list of label widgets for inputs
         leave_type_inputs = []  # A list of entry inputs
         for i, leave_type in enumerate(LEAVE_TYPES):
@@ -983,43 +984,8 @@ class ProgramFrame(NotebookFrame):
         self.weekly_ben_cap_input = NotebookEntry(self.content, textvariable=v['weekly_ben_cap'])
 
         # -------------------------------------------- Benefit Financing --------------------------------------------
-        # self.benefit_financing_frame_label = ttk.Label(self.content, text='Benefit Financing:',
-        #                                                style='MSLabelframe.TLabelframe.Label')
-        self.benefit_financing_frame = ttk.LabelFrame(self.content, text='Benefit Financing:',
-                                                      style='MSLabelframe.TLabelframe')
-
-        # Tax on Payroll
-        tip = 'The payroll tax that will be implemented to fund benefits program.'
-        self.payroll_tax_label = TipLabel(self.benefit_financing_frame, tip, text='Payroll Tax (%):',
-                                          bg=VERY_LIGHT_COLOR)
-        self.payroll_tax_input = NotebookEntry(self.benefit_financing_frame, textvariable=v['payroll_tax'])
-
-        # Tax on Benefits
-        tip = 'Whether or not program benefits are taxed.'
-        self.benefits_tax_input = TipCheckButton(self.benefit_financing_frame, tip, text='Benefits Tax',
-                                                 variable=v['benefits_tax'])
-
-        # Average State Tax
-        tip = 'The average tax rate of a selected state.'
-        self.average_state_tax_label = TipLabel(self.benefit_financing_frame, tip, text='State Average Tax Rate (%):',
-                                                bg=VERY_LIGHT_COLOR)
-        self.average_state_tax_input = NotebookEntry(self.benefit_financing_frame,
-                                                     textvariable=v['average_state_tax'])
-
-        # Maximum Taxable Earnings per Person
-        tip = 'The maximum amount that a person can be taxed.'
-        self.max_taxable_earnings_per_person_label = TipLabel(self.benefit_financing_frame, tip,
-                                                              text='Maximum Taxable Earnings Per Person ($):',
-                                                              bg=VERY_LIGHT_COLOR)
-        self.max_taxable_earnings_per_person_input = NotebookEntry(self.benefit_financing_frame,
-                                                                   textvariable=v['max_taxable_earnings_per_person'])
-
-        # Maximum Taxable Earnings Total
-        tip = 'The total earnings that can be taxed.'
-        self.total_taxable_earnings_label = TipLabel(self.benefit_financing_frame, tip,
-                                                     text='Total Taxable Earnings ($):', bg=VERY_LIGHT_COLOR)
-        self.total_taxable_earnings_input = NotebookEntry(self.benefit_financing_frame,
-                                                          textvariable=v['total_taxable_earnings'])
+        self.benefit_financing_frame = BenefitFinancingFrame(self.content, v, text='Benefit Financing:',
+                                                             style='MSLabelframe.TLabelframe')
 
         # ------------------------------------ Government Employees Eligibility -------------------------------------
         # All Government Employees
@@ -1060,15 +1026,13 @@ class ProgramFrame(NotebookFrame):
         self.max_weeks_frame.grid(column=0, row=1, columnspan=2, sticky=(N, E, W), pady=self.row_padding)
         display_leave_objects(self.max_weeks_labels, self.max_weeks_inputs)
         self.benefit_financing_frame.grid(column=0, row=2, columnspan=2, sticky=(N, E, W), pady=self.row_padding)
-        self.payroll_tax_label.grid(column=0, row=0, sticky=W, padx=(8, 0), pady=self.row_padding)
-        self.payroll_tax_input.grid(column=1, row=0, sticky=W, pady=self.row_padding)
-        self.average_state_tax_label.grid(column=0, row=1, sticky=W, padx=(8, 0), pady=self.row_padding)
-        self.average_state_tax_input.grid(column=1, row=1, sticky=W, pady=self.row_padding)
-        self.benefits_tax_input.grid(column=0, row=2, columnspan=2, sticky=W, padx=(16, 0), pady=self.row_padding)
-        self.max_taxable_earnings_per_person_label.grid(column=0, row=3, sticky=W, padx=(8, 0), pady=self.row_padding)
-        self.max_taxable_earnings_per_person_input.grid(column=1, row=3, sticky=W, pady=self.row_padding)
-        # self.total_taxable_earnings_label.grid(column=0, row=4, sticky=W, padx=(8, 0), pady=self.row_padding)
-        # self.total_taxable_earnings_input.grid(column=1, row=4, sticky=W, pady=self.row_padding)
+        # self.payroll_tax_label.grid(column=0, row=0, sticky=W, padx=(8, 0), pady=self.row_padding)
+        # self.payroll_tax_input.grid(column=1, row=0, sticky=W, pady=self.row_padding)
+        # self.max_taxable_earnings_per_person_label.grid(column=0, row=1, sticky=W, padx=(8, 0), pady=self.row_padding)
+        # self.max_taxable_earnings_per_person_input.grid(column=1, row=1, sticky=W, pady=self.row_padding)
+        # self.benefits_tax_input.grid(column=0, row=2, columnspan=2, sticky=W, padx=(8, 0), pady=self.row_padding)
+        # self.average_state_tax_label.grid(column=0, row=3, sticky=W, padx=(16, 0), pady=self.row_padding)
+        # self.average_state_tax_input.grid(column=1, row=3, sticky=W, pady=self.row_padding)
         self.replacement_ratio_label.grid(column=0, row=3, sticky=W, pady=self.row_padding)
         self.replacement_ratio_input.grid(column=1, row=3, sticky=W, pady=self.row_padding)
         self.weekly_ben_cap_label.grid(column=0, row=4, sticky=W, pady=self.row_padding)
@@ -1287,6 +1251,47 @@ class SimulationFrame(NotebookFrame):
         # self.fmla_protection_constraint_input.grid(column=0, row=3, columnspan=2, sticky=W, pady=self.row_padding)
 
 
+class BenefitFinancingFrame(ttk.LabelFrame):
+    def __init__(self, parent, variables, row_padding=4, wraplength=0, **kwargs):
+        super().__init__(parent, **kwargs)
+
+        # Tax on Payroll
+        tip = 'The payroll tax rate that will be assessed to fund the benefits program.'
+        self.payroll_tax_label = TipLabel(self, tip, text='Payroll Tax Rate (%):',
+                                          bg=VERY_LIGHT_COLOR)
+        self.payroll_tax_input = NotebookEntry(self, textvariable=variables['payroll_tax'])
+
+        # Maximum Taxable Earnings per Person
+        tip = 'The maximum income level that can be taxed. For example, if $100,000 is entered then only earnings up ' \
+              'to $100,000 per person will be taxed.'
+        self.max_taxable_earnings_per_person_label = TipLabel(
+            self, tip, text='Maximum Taxable Earnings ($):',
+            bg=VERY_LIGHT_COLOR, wraplength=wraplength)
+        self.max_taxable_earnings_per_person_input = NotebookEntry(
+            self, textvariable=variables['max_taxable_earnings_per_person'])
+
+        # Tax on Benefits
+        tip = 'Check this box to recoup state income taxes from the benefits dollars that are disbursed.'
+        self.benefits_tax_input = TipCheckButton(self, tip,
+                                                 text='Apply Benefits Tax',
+                                                 variable=variables['benefits_tax'])
+
+        # Average State Tax
+        tip = 'The applicable income tax rate on benefits.'
+        self.average_state_tax_label = TipLabel(self, tip,
+                                                text='State Income Tax Rate (%):', bg=VERY_LIGHT_COLOR)
+        self.average_state_tax_input = NotebookEntry(self,
+                                                     textvariable=variables['average_state_tax'])
+
+        self.payroll_tax_label.grid(column=0, row=0, sticky=W, padx=(8, 0), pady=row_padding)
+        self.payroll_tax_input.grid(column=1, row=0, sticky=W, pady=row_padding)
+        self.max_taxable_earnings_per_person_label.grid(column=0, row=1, sticky=W, padx=(8, 0), pady=row_padding)
+        self.max_taxable_earnings_per_person_input.grid(column=1, row=1, sticky=W, pady=row_padding)
+        self.benefits_tax_input.grid(column=0, row=2, columnspan=2, sticky=W, padx=(8, 0), pady=row_padding)
+        self.average_state_tax_label.grid(column=0, row=3, sticky=W, padx=(16, 0), pady=row_padding)
+        self.average_state_tax_input.grid(column=1, row=3, sticky=W, pady=row_padding)
+
+
 class ResultsWindow(Toplevel):
     def __init__(self, parent, simulation_engine, abf_module):
         super().__init__(parent)
@@ -1390,7 +1395,8 @@ class PopulationAnalysis(ScrollFrame):
         self.wage_min_input = GeneralEntry(self.parameters_frame, textvariable=self.wage_min)
         self.wage_max_input = GeneralEntry(self.parameters_frame, textvariable=self.wage_max)
 
-        self.submit_button = BorderButton(self.parameters_frame, text='Submit', command=lambda: self.__update_histograms())
+        self.submit_button = BorderButton(self.parameters_frame, text='Submit',
+                                          command=lambda: self.__update_histograms())
 
         self.gender_label.grid(column=0, row=1, sticky=W, pady=2)
         self.gender_input.grid(column=0, row=2, sticky=W, pady=2)
@@ -1662,45 +1668,10 @@ class ABFResultsSummary(Frame):
 class ABFParamsPopup(Frame):
     def __init__(self, parent, **kwargs):
         super().__init__(parent, bg=VERY_LIGHT_COLOR, borderwidth=1, relief='solid', padx=3, pady=3, **kwargs)
-        self.inputs = Frame(self, bg=VERY_LIGHT_COLOR, pady=4)
-        self.inputs.pack(fill=X, side=TOP)
-
         abf_variables = parent.abf_variables
-        tip = 'The payroll tax that will be implemented to fund benefits program.'
-        self.payroll_tax_label = TipLabel(self.inputs, tip, text='Payroll Tax (%):', bg=VERY_LIGHT_COLOR)
-        self.payroll_tax_input = NotebookEntry(self.inputs, textvariable=abf_variables['payroll_tax'])
-
-        tip = 'Whether or not program benefits are taxed.'
-        self.benefits_tax_input = TipCheckButton(self.inputs, tip, text='Benefits Tax',
-                                                 variable=abf_variables['benefits_tax'])
-
-        tip = 'The average tax rate of a selected state.'
-        self.average_state_tax_label = TipLabel(self.inputs, tip, text='State Average Tax Rate (%):',
-                                                bg=VERY_LIGHT_COLOR)
-        self.average_state_tax_input = NotebookEntry(self.inputs, textvariable=abf_variables['average_state_tax'])
-
-        tip = 'The maximum amount that a person can be taxed.'
-        self.max_taxable_earnings_per_person_label = TipLabel(self.inputs, tip,
-                                                              text='Maximum Taxable Earnings\nPer Person ($):',
-                                                              bg=VERY_LIGHT_COLOR, justify=LEFT)
-        self.max_taxable_earnings_per_person_input = \
-            NotebookEntry(self.inputs, textvariable=abf_variables['max_taxable_earnings_per_person'])
-
-        tip = 'The total earnings that can be taxed.'
-        self.total_taxable_earnings_label = TipLabel(self.inputs, tip, text='Total Taxable Earnings ($):',
-                                                     bg=VERY_LIGHT_COLOR)
-        self.total_taxable_earnings_input = NotebookEntry(self.inputs,
-                                                          textvariable=abf_variables['total_taxable_earnings'])
-
-        self.payroll_tax_label.grid(column=0, row=0, sticky=W, padx=(8, 0))
-        self.payroll_tax_input.grid(column=1, row=0, sticky=W)
-        self.average_state_tax_label.grid(column=0, row=1, sticky=W, padx=(8, 0))
-        self.average_state_tax_input.grid(column=1, row=1, sticky=W)
-        self.benefits_tax_input.grid(column=0, row=2, columnspan=2, sticky=W, padx=(16, 0))
-        self.max_taxable_earnings_per_person_label.grid(column=0, row=3, sticky=W, padx=(8, 0))
-        self.max_taxable_earnings_per_person_input.grid(column=1, row=3, sticky=W)
-        # self.total_taxable_earnings_label.grid(column=0, row=4, sticky=W, padx=(8, 0))
-        # self.total_taxable_earnings_input.grid(column=1, row=4, sticky=W)
+        self.benefit_financing_frame = BenefitFinancingFrame(self, abf_variables, text='Benefit Financing:',
+                                                             style='MSLabelframe.TLabelframe', wraplength=300)
+        self.benefit_financing_frame.pack(fill=X, side=TOP, padx=4, pady=4)
 
         self.abf_params_buttons = Frame(self, bg=VERY_LIGHT_COLOR, pady=4)
         self.abf_params_buttons.pack(side=BOTTOM, fill=X, expand=True)
