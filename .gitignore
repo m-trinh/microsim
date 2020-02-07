@@ -2,8 +2,7 @@
 __pycache__
 _for_dol/*
 data/*
-draft/demo_external_20191213/*
-from_luke/*
+draft/*
 output/*
 r_engine/*
 build/*
@@ -22,3 +21,4 @@ test_fmla_clean.py
 test_logit.R
 test_r_python.py
 *.swp
+MicrosimTest.py

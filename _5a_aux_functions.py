@@ -216,8 +216,7 @@ def get_pred_probs(clf, xts):
     elif isinstance(clf, statsmodels.genmod.generalized_linear_model.GLMResultsWrapper):
         phat = (clf.predict(sm.add_constant(xts))) # statsmodel phat gives pr=1 only
         phat = np.array([[(1-x), x] for x in phat.values])
-    #print('----- phat -----')
-    #print(phat)
+
     return phat
 
 # a function to simulate from wheel of fortune (e.g. simulate leave type from discrete distribution of 6 types)
