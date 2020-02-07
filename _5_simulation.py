@@ -464,6 +464,7 @@ class SimulationEngine:
         for t in self.types:
             acs.loc[acs['cpl_%s' % t] >= 0, 'cpl_%s' % t] = [min(x, 5 * params['d_maxwk'][t]) for x in
                                                              acs.loc[acs['cpl_%s' % t] >= 0, 'cpl_%s' % t]]
+
         # get acs with takeup flags for each leave type
         acs = self.get_acs_with_takeup_flags(acs, acs_neither_taker_needer, 'PWGTP', params)
 

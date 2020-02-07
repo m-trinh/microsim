@@ -77,7 +77,7 @@ for c in num_cols:
             print('nrow missing = %s' % dr[c].isna().value_counts()[True])
         print(dr[c].mean())
 
-#TODO: R - female=1 80+%?
-#TODO: lths Py 433 R 1382, NT check
-#TODO: coveligd Py 13692 R 9457
-#TODO: faminc Py 117342.61 R 118825.41
+#TODO: R - female=1 80+%? - R code error NT fix
+#TODO: [done] ltHS Py 433 R 1382, NT check - Python updated as R now
+#TODO: coveligd Py 13692 R 9457 - CPS imputation xvars - R NT use all ind/occ, use OLS for wks worked, use logit for oneemp - Py can draw. NT confirm 1250/1000 hour thre
+#TODO: faminc Py 117342.61 R 118825.41 - adjinc for 2012$: Py 1056030, R 1042852 - use Py?

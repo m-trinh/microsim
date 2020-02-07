@@ -86,9 +86,9 @@ class DataCleanerACS:
         print('Cleaning ACS data. State chosen = %s. Chunk size = %s ACS rows' % (self.st.upper(), chunk_size))
 
         # set file path to person file, per state_of_work value
-        fp_d_p = self.fp_p + "/ss%sp%s.csv" % (self.yr, self.st)
+        fp_d_p = self.fp_p + "/20%s/ss%sp%s.csv" % (self.yr, self.yr, self.st)
         if self.state_of_work:
-            fp_d_p = self.fp_p + '/p%s_%s_pow.csv' % (self.dct_st[self.st], self.st)
+            fp_d_p = self.fp_p + '/20%s/p%s_%s_pow.csv' % (self.yr, self.dct_st[self.st], self.st)
         # process person data by chunk
         for d in pd.read_csv(fp_d_p, chunksize=chunk_size):
 
@@ -130,8 +130,7 @@ class DataCleanerACS:
 
             # Educational level
             d['sku'] = np.where(d['SCHL'].isna(), 0, d['SCHL'])
-            d['ltHS'] = np.where(d['sku'] <= 11, 1, 0)
-            d['someHS'] = np.where((d['sku'] >= 12) & (d['sku'] <= 15), 1, 0)
+            d['ltHS'] = np.where(d['sku'] <= 15, 1, 0)
             d['HSgrad'] = np.where((d['sku'] >= 16) & (d['sku'] <= 17), 1, 0)
             d['someCol'] = np.where((d['sku'] >= 18) & (d['sku'] <= 20), 1, 0)
             d["BA"] = np.where(d['sku'] == 21, 1, 0)
@@ -335,7 +334,7 @@ class DataCleanerACS:
                     'a_age', 'age', 'agesq',
                     'male', 'female',
                     'nochildren', 'ndep_kid', 'ndep_old',
-                    'ltHS', 'someHS', 'HSgrad', 'someCol', 'BA', 'GradSch', 'noHSdegree', 'BAplus',
+                    'ltHS', 'HSgrad', 'someCol', 'BA', 'GradSch', 'noHSdegree', 'BAplus',
                     'faminc', 'lnfaminc',
                     'married', 'partner', 'separated', 'divorced', 'widowed', 'nevermarried',
                     'asian', 'black', 'white', 'native', 'other', 'hisp',

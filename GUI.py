@@ -260,7 +260,7 @@ class MicrosimGUI(Tk):
 
         total_benefits = list(costs.loc[costs['type'] == 'total', 'cost'])[0]
         main_settings = self.all_settings[0]
-        abf_module = ABF(self.se.get_results(0), total_benefits, main_settings.eligible_size,
+        abf_module = ABF(self.se.get_results_file(0), total_benefits, main_settings.eligible_size,
                          main_settings.max_taxable_earnings_per_person, main_settings.benefits_tax,
                          main_settings.average_state_tax, main_settings.payroll_tax)
 
@@ -345,9 +345,9 @@ class MicrosimGUI(Tk):
 
     def create_simulation_engine(self, q):
         st = self.general_settings.state.lower()
-        yr = 17
+        yr = 16
         fp_fmla_in = self.general_settings.fmla_file
-        fp_cps_in = './data/cps/CPS2014extract.csv'
+        fp_cps_in = './data/cps/CPS20%sextract.csv' % (yr-2)
         fp_acsh_in = self.general_settings.acs_directory + '/household_files'
         fp_acsp_in = self.general_settings.acs_directory + '/person_files'
         state_of_work = self.general_settings.state_of_work
@@ -414,7 +414,6 @@ class MicrosimGUI(Tk):
         else:
             self.run_button.disable()
 
-    # TODO: Fix parameter validation
     def validate_settings(self):
         errors = []
 
@@ -423,21 +422,18 @@ class MicrosimGUI(Tk):
                            self.settings_notebook.program_frame.eligible_hours_input,
                            self.settings_notebook.program_frame.eligible_size_input,
                            self.settings_notebook.program_frame.weekly_ben_cap_input,
-                           self.settings_notebook.population_frame.top_off_min_length_input,
                            self.settings_notebook.simulation_frame.clone_factor_input,
                            self.settings_notebook.program_frame.max_taxable_earnings_per_person_input,
-                           ]  # self.settings_notebook.program_frame.total_taxable_earnings_input
-        # self.settings_notebook.simulation_frame.weight_factor_input
+                           ]
+
         integer_entries += [entry for entry in self.settings_notebook.program_frame.max_weeks_inputs]
 
         float_entries = [self.settings_notebook.program_frame.payroll_tax_input,
-                         self.settings_notebook.program_frame.average_state_tax_input,
-                         ]
+                         self.settings_notebook.program_frame.average_state_tax_input]
 
-        rate_entries = [self.settings_notebook.program_frame.replacement_ratio_input,
-                        self.settings_notebook.population_frame.top_off_rate_input]
+        rate_entries = [self.settings_notebook.program_frame.replacement_ratio_input]
         rate_entries += [entry for entry in self.settings_notebook.population_frame.take_up_rates_inputs]
-        rate_entries += [entry for entry in self.settings_notebook.population_frame.leave_probability_factors_inputs]
+        # rate_entries += [entry for entry in self.settings_notebook.population_frame.leave_probability_factors_inputs]
 
         for entry in integer_entries:
             if not self.validate_integer(entry.get()):
@@ -1672,7 +1668,7 @@ class ABFParamsPopup(Frame):
         abf_variables = parent.abf_variables
         tip = 'The payroll tax that will be implemented to fund benefits program.'
         self.payroll_tax_label = TipLabel(self.inputs, tip, text='Payroll Tax (%):', bg=VERY_LIGHT_COLOR)
-        self.payroll_tax_input = Entry(self.inputs, textvariable=abf_variables['payroll_tax'])
+        self.payroll_tax_input = NotebookEntry(self.inputs, textvariable=abf_variables['payroll_tax'])
 
         tip = 'Whether or not program benefits are taxed.'
         self.benefits_tax_input = TipCheckButton(self.inputs, tip, text='Benefits Tax',
@@ -1681,19 +1677,20 @@ class ABFParamsPopup(Frame):
         tip = 'The average tax rate of a selected state.'
         self.average_state_tax_label = TipLabel(self.inputs, tip, text='State Average Tax Rate (%):',
                                                 bg=VERY_LIGHT_COLOR)
-        self.average_state_tax_input = Entry(self.inputs, textvariable=abf_variables['average_state_tax'])
+        self.average_state_tax_input = NotebookEntry(self.inputs, textvariable=abf_variables['average_state_tax'])
 
         tip = 'The maximum amount that a person can be taxed.'
         self.max_taxable_earnings_per_person_label = TipLabel(self.inputs, tip,
                                                               text='Maximum Taxable Earnings\nPer Person ($):',
                                                               bg=VERY_LIGHT_COLOR, justify=LEFT)
         self.max_taxable_earnings_per_person_input = \
-            Entry(self.inputs, textvariable=abf_variables['max_taxable_earnings_per_person'])
+            NotebookEntry(self.inputs, textvariable=abf_variables['max_taxable_earnings_per_person'])
 
         tip = 'The total earnings that can be taxed.'
         self.total_taxable_earnings_label = TipLabel(self.inputs, tip, text='Total Taxable Earnings ($):',
                                                      bg=VERY_LIGHT_COLOR)
-        self.total_taxable_earnings_input = Entry(self.inputs, textvariable=abf_variables['total_taxable_earnings'])
+        self.total_taxable_earnings_input = NotebookEntry(self.inputs,
+                                                          textvariable=abf_variables['total_taxable_earnings'])
 
         self.payroll_tax_label.grid(column=0, row=0, sticky=W, padx=(8, 0))
         self.payroll_tax_input.grid(column=1, row=0, sticky=W)

@@ -216,8 +216,8 @@ def get_pred_probs(clf, xts):
     elif isinstance(clf, statsmodels.genmod.generalized_linear_model.GLMResultsWrapper):
         phat = (clf.predict(sm.add_constant(xts))) # statsmodel phat gives pr=1 only
         phat = np.array([[(1-x), x] for x in phat.values])
-    print('----- phat -----')
-    print(phat)
+    #print('----- phat -----')
+    #print(phat)
     return phat
 
 # a function to simulate from wheel of fortune (e.g. simulate leave type from discrete distribution of 6 types)
@@ -263,6 +263,7 @@ def get_sim_col(X, y, w, Xa, clf, random_state):
 
     # if clf = 'random draw'
     if clf == 'random draw':
+        # randomly pick len(Xa) values from y, set as pred values for Xa
         simcol = [y.iloc[z] for z in random_state.choice(len(y), len(Xa))]
         return simcol
     else:
@@ -295,24 +296,31 @@ def get_sim_col(X, y, w, Xa, clf, random_state):
                 Za[c] = (Xa[c] - Xa[c].mean()) / np.std(Xa[c], axis=0, ddof=1)
 
         # Fit model
-        # Weight config for kNN is specified in clf input before fit. For all other clf weight is specified during fit
+        # glm logit
         if isinstance(clf, list): # logit GLM = ['logit glm', sklearn logit classifier]
             if len(y.value_counts())==2: # for (almost all) binary yvars, use statsmodel if user chose logit GLM
                 clf = sm.GLM(y, sm.add_constant(Z), family=sm.families.Binomial(), freq_weights=w).fit()
             else: # only when yvar is multinomial (e.g. prop_pay), use sklearn logit=clf[1]
                 # if user chose logit GLM, to avoid overfitting
                 clf = clf[1].fit(Z, y, sample_weight=w)
-
+        # Weight config for kNN is specified in clf input before fit. For all other clf weight is specified during fit
         elif isinstance(clf, sklearn.neighbors.KNeighborsClassifier):
             f = lambda x: np.array([w]) # make sure weights[:, i] can be called in package code classification.py
             clf = clf.__class__(weights=f)
             clf = clf.fit(Z, y)
+        # if NB, use original X (category vars) but not standardized version Z
+        elif isinstance(clf, sklearn.naive_bayes.MultinomialNB):
+            clf = clf.fit(X, y, sample_weight=w)
+        # all other clfs, use Z as xvars
         else:
             clf = clf.fit(Z, y, sample_weight=w)
 
         # Make prediction
         # get cumulative distribution using phat vector, then draw unif(0,1) to see which segment it falls into
-        phat = get_pred_probs(clf, Za)
+        if isinstance(clf, sklearn.naive_bayes.MultinomialNB):
+            phat = get_pred_probs(clf, Xa)
+        else:
+            phat = get_pred_probs(clf, Za)
         #print('phat top 30 rows = %s ' % phat[:30])
         s = phat.cumsum(axis=1)
         r = random_state.rand(phat.shape[0])

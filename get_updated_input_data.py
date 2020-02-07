@@ -1,5 +1,7 @@
 '''
 get updated input data
+- download do/dct file to convert CPS raw dat file to Stata dta file, then read using pandas
+https://data.nber.org/data/cps_progs.html
 
 chris zhang 1/31/2020
 '''
@@ -29,3 +31,11 @@ for c in cols:
 female
 
 '''
+cols = ['a_sex', 'prdtrace', 'a_age', 'a_hga', 'a_mjind', 'a_mjocc', 'a_hrlywk']
+cols += ['noemp', 'phmemprs', 'marsupwt', 'wkswork']
+fp_in = './data/cps/cpsmar2015.dta'
+cps15 = pd.read_stata(fp_in, columns=cols, convert_categoricals=False)
+cps15.to_csv('./data/cps/CPS2015extract.csv', index=False)
+
+cps16 = pd.read_stata(fp_in, columns=cols, convert_categoricals=False)
+cps16.to_csv('./data/cps/CPS2016extract.csv', index=False)
