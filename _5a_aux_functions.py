@@ -25,7 +25,7 @@ def get_columns():
           'female', 'age','agesq',
           'ltHS', 'someCol', 'BA', 'GradSch',
           'black', 'other', 'asian','native','hisp',
-          'nochildren','faminc','coveligd']
+          'nochildren','faminc'] # ,'coveligd'
 
     ys = ['take_own', 'take_matdis', 'take_bond', 'take_illchild', 'take_illspouse', 'take_illparent']
     ys += ['need_own', 'need_matdis', 'need_bond', 'need_illchild', 'need_illspouse', 'need_illparent']
@@ -251,12 +251,37 @@ def get_sim_col(X, y, w, Xa, clf, random_state):
     y = y[y.columns[0]]
     Xa = fillna_df(Xa, random_state)
 
-    # if matdis, reduce to female only rows, remove female from xvar
+    # if matdis, reduce to rows that are female only/child bearing/age<=50
+    # remove female and nochildren from xvar
     if y.name in ['take_matdis', 'need_matdis']:
-        X = X[X['female']==1]
+        X = X[(X['female']==1) & (X['nochildren']==0) & (X['age']<=50)]
         del X['female']
-        Xa = Xa[Xa['female']==1]
+        del X['nochildren']
+        Xa = Xa[(Xa['female']==1) & (Xa['nochildren']==0) & (Xa['age']<=50)]
         del Xa['female']
+        del Xa['nochildren']
+        y = y[X.index]
+        w = w[X.index]
+
+    # if bond, reduce to rows that are child bearing/age<=50
+    # remove nochildren from xvar
+    if y.name in ['take_bond', 'need_bond']:
+        X = X[(X['nochildren']==0) & (X['age']<=50)]
+        del X['nochildren']
+        Xa = Xa[(Xa['nochildren']==0) & (Xa['age']<=50)]
+        del Xa['nochildren']
+        y = y[X.index]
+        w = w[X.index]
+
+    # if illspouse, reduce to rows that are nevermarried=0 and divorced=0
+    # remove nevermarried and divorced
+    if y.name in ['take_illspouse', 'need_illspouse']:
+        X = X[(X['nevermarried']==0) & (X['divorced']==0)]
+        del X['nevermarried']
+        del X['divorced']
+        Xa = Xa[(Xa['nevermarried']==0) & (Xa['divorced']==0)]
+        del Xa['nevermarried']
+        del Xa['divorced']
         y = y[X.index]
         w = w[X.index]
 

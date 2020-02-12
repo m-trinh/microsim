@@ -11,49 +11,59 @@ import numpy as np
 from _5a_aux_functions import get_bool_num_cols
 
 # a function to read in data and reduce cols
-def preprocess_data(fp_acs):
+def preprocess_data(fp_acs, cols):
     # Read in ACS
     d = pd.read_csv(fp_acs)
-    # id
-    id = 'SERIALNO'
-    # Xs, ys, w
-    Xs = ['widowed', 'divorced', 'separated', 'nevermarried',
-              'female', 'age','agesq',
-              'ltHS', 'someCol', 'BA', 'GradSch',
-              'black', 'other', 'asian','native','hisp',
-              'nochildren','faminc','coveligd']
-    w = 'PWGTP'
+    # keep eligible workers
+    try:
+        d = d[d['eligworker']==1]
+    except KeyError:
+        pass
     # reduce cols
-    d = d[[id] + Xs + [w]]
+    d = d[cols]
 
-    ## Standardize
-    # use N-ddof = N-1 as in R
-    # https://stackoverflow.com/questions/27296387/difference-between-r-scale-and-sklearn-preprocessing-scale/27297618
-
-    # TODO: check how fillna works in R - need to be same as Python
-    # drop missing rows if any col is missing
-    d = d.dropna(subset=Xs)
-    # standardize
-    for X in Xs:
-        d['z_%s' % X] = (d[X] - d[X].mean()) / np.std(d[X], axis=0, ddof=1)
-    print(d[['SERIALNO', 'age','z_age', 'female', 'z_female']].head())
+    # ## Standardize
+    # # use N-ddof = N-1 as in R
+    # # https://stackoverflow.com/questions/27296387/difference-between-r-scale-and-sklearn-preprocessing-scale/27297618
+    #
+    # # TODO: check how fillna works in R - need to be same as Python
+    # # drop missing rows if any col is missing
+    # #d = d.dropna(subset=Xs)
+    # # standardize
+    # for X in Xs:
+    #     d['z_%s' % X] = (d[X] - d[X].mean()) / np.std(d[X], axis=0, ddof=1)
+    # print(d[['SERIALNO', 'age','z_age', 'female', 'z_female']].head())
     # cols to return
-    cols = (Xs, w)
-    return (d, cols)
+    return d
 
 
 ## Read in data
 # Python
 #dp = pd.read_csv('./data/acs/ACS_cleaned_forsimulation_2016_ri.csv')
-fp_p = './data/acs/ACS_cleaned_forsimulation_2016_ri.csv'
+#fp_p = './data/acs/ACS_cleaned_forsimulation_2016_ri.csv'
+fp_p = './output/output_20200212_111204_main simulation/acs_sim_20200212_111204.csv'
 # R
 #dr = pd.read_csv('./PR_comparison/check_acs/RI_work.csv')
-fp_r = './PR_comparison/check_acs/RI_work.csv'
+fp_r = './PR_comparison/check_acs/acs_20200206/test_ACS_RI.csv'
 
 ## preprocess
 
-dp, cols = preprocess_data(fp_p)
-dr = preprocess_data(fp_r)[0]
+# id
+id = 'SERIALNO'
+# Xs, ys, w
+Xs = ['widowed', 'divorced', 'separated', 'nevermarried',
+      'female', 'age', 'agesq',
+      'ltHS', 'someCol', 'BA', 'GradSch',
+      'black', 'other', 'asian', 'native', 'hisp',
+      'nochildren', 'faminc', 'coveligd']
+types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
+ys = ['take_%s' % x for x in types] + ['need_%s' % x for x in types] + ['resp_len']
+w = 'PWGTP'
+
+cols = [id] + Xs + ys + [w]
+
+dp = preprocess_data(fp_p, cols)
+dr = preprocess_data(fp_r, cols)
 
 ## Check bool num cols
 bool_cols, num_cols = get_bool_num_cols(dr)
@@ -77,7 +87,4 @@ for c in num_cols:
             print('nrow missing = %s' % dr[c].isna().value_counts()[True])
         print(dr[c].mean())
 
-#TODO: R - female=1 80+%? - R code error NT fix
-#TODO: [done] ltHS Py 433 R 1382, NT check - Python updated as R now
-#TODO: coveligd Py 13692 R 9457 - CPS imputation xvars - R NT use all ind/occ, use OLS for wks worked, use logit for oneemp - Py can draw. NT confirm 1250/1000 hour thre
-#TODO: faminc Py 117342.61 R 118825.41 - adjinc for 2012$: Py 1056030, R 1042852 - use Py?
+# TODO: coveligd - both Py/R no missing. But #s mismatch

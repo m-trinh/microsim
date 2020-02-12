@@ -268,12 +268,24 @@ class SimulationEngine:
         for c in col_ys:
             tt = time()
             y = d[c]
-            if c not in ['take_matdis', 'need_matdis']: # sim col same length as acs
-                acs[c] = get_sim_col(X, y, w, Xa, clf, self.random_state)
-            else: # sim col for female only, join using indexed simcol
+            if c in ['take_matdis', 'need_matdis']: # restricted sample for matdis, join using indexed simcol
                 simcol_indexed = get_sim_col(X, y, w, Xa, clf, self.random_state)
-                simcol_indexed = pd.Series(simcol_indexed, index=Xa[Xa['female']==1].index, name=c)
+                simcol_indexed = pd.Series(simcol_indexed, index=Xa[(Xa['female']==1) &
+                                                                    (Xa['nochildren']==0) &
+                                                                    (Xa['age']<=50)].index, name=c)
                 acs = acs.join(simcol_indexed)
+            elif c in ['take_bond', 'need_bond']: # restricted sample for bond
+                simcol_indexed = get_sim_col(X, y, w, Xa, clf, self.random_state)
+                simcol_indexed = pd.Series(simcol_indexed, index=Xa[(Xa['nochildren']==0) &
+                                                                    (Xa['age']<=50)].index, name=c)
+                acs = acs.join(simcol_indexed)
+            elif c in ['take_illspouse', 'need_illspouse']: # restricted sample for illspouse
+                simcol_indexed = get_sim_col(X, y, w, Xa, clf, self.random_state)
+                simcol_indexed = pd.Series(simcol_indexed, index=Xa[(Xa['nevermarried']==0) &
+                                                                    (Xa['divorced']==0)].index, name=c)
+                acs = acs.join(simcol_indexed)
+            else: # sim col same length as acs
+                acs[c] = get_sim_col(X, y, w, Xa, clf, self.random_state)
             print('Simulation of col %s done. Time elapsed = %s' % (c, (time() - tt)))
         print('6+6+1 simulated. Time elapsed = %s' % (time() - t0))
 
@@ -379,6 +391,8 @@ class SimulationEngine:
         acs.loc[(acs['nevermarried'] == 1) | (acs['divorced'] == 1), 'mnl_illspouse'] = 0
         acs.loc[acs['nochildren'] == 1, 'mnl_bond'] = 0
         acs.loc[acs['nochildren'] == 1, 'mnl_matdis'] = 0
+        acs.loc[acs['age'] > 50, 'mnl_matdis'] = 0
+        acs.loc[acs['age'] > 50, 'mnl_bond'] = 0
 
         # check if sum of mnl hits max = 52*5 = 260. If so, use max=260 to distribute prop to mnl of 6 types
         acs['mnl_all'] = [x.sum() for x in acs[['mnl_%s' % x for x in self.types]].values]
