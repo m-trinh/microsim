@@ -25,29 +25,42 @@ THEME_COLOR = '#0074BF'
 
 class MicrosimGUI(Tk):
     def __init__(self, *args, **kwargs):
+        """Create main window"""
+
         super().__init__(*args, **kwargs)
         # TODO: Remove R file location
+        # Create general settings which will be shared across comparison simulations
         self.general_settings = GeneralSettings(fmla_file='./data/fmla_2012/fmla_2012_employee_revised_puf.csv',
                                                 acs_directory='./data/acs', output_directory='./output',
                                                 r_path='/Users/mtrinh/R-3.6.1/bin/Rscript.exe', state='All')
+        # These are the default settings that will be used to fill inputs upon initial load
         self.default_settings = OtherSettings()
+
+        # When comparing multiple simulations, keep track of each simulation's parameters
         self.all_settings = [self.default_settings]
         self.comparing = False
         self.current_sim_num = 0
-        self.error_tooltips = []
-        # Set the current visible tab to 0, which is the Program tab
-        self.current_tab = 0
-        self.existing_programs = ['', 'CA', 'NJ', 'RI']
-        self.variables = self.__create_variables()
-        self.__set_up_style()
+
+        self.error_tooltips = []  # Tooltips that are used to tell users when they enter an invalid value
+
+        self.current_tab = 0  # Set the current visible tab to 0, which is the Program tab
+        self.variables = self.__create_variables()  # Create the variables that will be tied to each input
+        self.__set_up_style()  # Set up styles for ttk widgets
 
         self.title('Paid Leave Micro-Simulator')  # Add title to window
         self.option_add('*Font', '-size 12')  # Set default font
         # self.resizable(False, False)  # Prevent window from being resized
         self.bind("<MouseWheel>", self.scroll)  # Bind mouse wheel action to scroll function
+
+        # Attach icon to application
         self.icon = PhotoImage(file='impaq_logo.gif')
         self.tk.call('wm', 'iconphoto', self._w, self.icon)
-        self.protocol("WM_DELETE_WINDOW", self.on_close)
+
+        # Need to keep track of the multiple results and progress windows that are created to close them all when
+        # exiting program
+        self.results_windows = []
+        self.progress_windows = []
+        self.protocol("WM_DELETE_WINDOW", self.on_close)  # When the user closes the main window, run this function
 
         # The content frame will hold all widgets
         self.content = Frame(self, padx=15, pady=15, bg=DARK_COLOR)
@@ -73,17 +86,15 @@ class MicrosimGUI(Tk):
         self.advanced_frame.pack(anchor=E, pady=(0, 6))
         self.run_button.pack(anchor=E, fill=Y)
 
-        self.position_window()
-        self.original_height = self.winfo_height()
+        self.position_window()  # Position window in middle of the screen
+        self.original_height = self.winfo_height()  # Need to keep track of original height of window when resizing
 
         self.abf_module = None
-        self.results_windows = []
-        self.progress_windows = []
-        self.check_file_entries()
+        self.check_file_entries()  # Check the file entries on start to disable run button if necessary
 
     def __set_up_style(self):
-        # Edit the style for ttk widgets. These new styles are given their own names, which will have to be provided
-        # by the widgets in order to be used.
+        """Create the style for ttk widgets. These new styles are given their own names, which will have to be provided
+        by the widgets in order to be used."""
         style = ttk.Style()
         style.configure('MSCombobox.TCombobox', relief='flat')
         style.configure('MSCheckbutton.TCheckbutton', background=VERY_LIGHT_COLOR, font='-size 12')
@@ -95,7 +106,8 @@ class MicrosimGUI(Tk):
                         font='-size 12')
 
     def __create_variables(self):
-        # These are the variables that the users will update. These will be passed to the engine.
+        """Create the variables that the users will update in the interface.
+        These variables will be passed to the engine."""
         g = self.general_settings
         d = self.default_settings
         variables = {
@@ -147,6 +159,7 @@ class MicrosimGUI(Tk):
         return variables
 
     def __add_variable_callbacks(self):
+        """Adds a callback when user changes certain inputs"""
         # When the file location entries are modified, check to see if they all have some value
         # If they do, enable the run button
         if sys.version_info[1] < 6:
@@ -161,8 +174,8 @@ class MicrosimGUI(Tk):
         # When users change the existing_program variable, change all parameters to match an existing state program
         self.variables['existing_program'].trace('w', self.set_existing_parameters)
 
-    # Puts the window in the center of the screen
     def position_window(self):
+        """Puts the window in the center of the screen"""
         self.update()  # Update changes to root first
 
         # Get the width and height of both the window and the user's screen
@@ -181,6 +194,7 @@ class MicrosimGUI(Tk):
         self.geometry('%dx%d+%d+%d' % (ww, wh, x, y))
 
     def on_close(self):
+        """When the main window is closed, destroy all progress and result windows. Also destroy main window."""
         for w in self.progress_windows:
             w.quit()
             w.destroy()
@@ -191,7 +205,9 @@ class MicrosimGUI(Tk):
         self.destroy()
 
     def set_existing_parameters(self, *_):
-        # Change all relevant parameters to match an existing state program
+        """Changes all relevant parameters to match an existing state program"""
+
+        # Get the parameters for the state that the user has selected
         state = self.variables['existing_program'].get().upper()
         if state not in DEFAULT_STATE_PARAMS or state == '':
             return
@@ -206,37 +222,48 @@ class MicrosimGUI(Tk):
                 self.variables[param_key].set(param_val)
 
     def __run_simulation(self):
+        """Run the simulation from the parameters that user provides"""
+        # Before running simulation, check for input errors
         self.__clear_errors()
         errors = self.validate_settings()
 
+        # If there are errors, don't run simulation. Instead, display the errors.
         if len(errors) > 0:
             self.display_errors(errors)
             return
 
+        # Save user input values to the setting objects
         self.save_general_settings()
         self.save_settings()
+
+        # Run either to Python or R engine
         if self.general_settings.engine_type == 'Python':
             self.__run_simulation_python()
         elif self.general_settings.engine_type == 'R':
             self.__run_simulation_r(self.general_settings)
 
     def __run_simulation_python(self):
-        # initiate a SimulationEngine instance
-        q = multiprocessing.Queue()
+        """Run Python engine"""
+        q = multiprocessing.Queue()  # This is a messaging queue to get updates from engine
+
+        # Initiate a SimulationEngine instance
         self.se = self.create_simulation_engine(q)
+
+        # If comparing, add parameters for all of the programs to the engine
         for settings in self.all_settings:
             self.add_engine_params(settings)
             if not self.comparing:
                 break
 
-        self.run_button.disable()
-        progress_window = ProgressWindow(self, engine_type='Python', se=self.se)
-        self.progress_windows.append(progress_window)
+        self.run_button.disable()  # Prevent user from running another simulation when one is already running
+        progress_window = ProgressWindow(self, engine_type='Python', se=self.se)   # Create progress window
+        self.progress_windows.append(progress_window)  # Keep track of all progress windows
+
         # Run model
         self.engine_process = multiprocessing.Process(None, target=run_engines, args=(self.se, q))
         self.engine_process.start()
 
-        progress_window.update_progress(q)
+        progress_window.update_progress(q)  # Update progress window with messages in queue
 
     def __run_simulation_r(self, settings):
         progress_file = './log/progress_{}.txt'.format(datetime.datetime.now().strftime('%Y%m%d%H%M%S%f'))
@@ -253,27 +280,34 @@ class MicrosimGUI(Tk):
             progress_window.update_progress_r(f)
 
     def show_results(self):
-        self.engine_process.terminate()
-        # compute program costs
+        """Display the results of the simulation"""
+        self.engine_process.terminate()  # End the process that ran engine
+
+        # Compute program costs
         print('Showing results')
         costs = self.se.get_cost_df(0)
 
+        # Calculate total benefits paid
         total_benefits = list(costs.loc[costs['type'] == 'total', 'cost'])[0]
+
+        # Create instance of ABF module with simulation results and user settings
         main_settings = self.all_settings[0]
         abf_module = ABF(self.se.get_results_file(0), total_benefits, main_settings.eligible_size,
                          main_settings.max_taxable_earnings_per_person, main_settings.benefits_tax,
                          main_settings.average_state_tax, main_settings.payroll_tax)
 
+        # Keep track of all results windows that are created
         self.results_windows.append(ResultsWindow(self, self.se, abf_module))
-        self.run_button.enable()
+        self.run_button.enable()  # Enable run button again after simulation is complete
 
     def create_settings(self):
+        """Create an object to store the non-general setting values"""
         return self.__create_settings()
 
-    # Create an object with all of the setting values
     def __create_settings(self):
+        """Create an object to store the non-general setting values"""
         # The inputs are linked to a tkinter variable. Those values will have to be retrieved from each variable
-        # and passed on to the settings objects
+        # and passed on to the settings objects.
         variable_values = {}
         valid_var_names = vars(self.default_settings).keys()
         for var_name, var_obj in self.variables.items():
@@ -288,30 +322,53 @@ class MicrosimGUI(Tk):
         return OtherSettings(**variable_values)
 
     def start_comparing(self):
+        """Start comparing multiple programs"""
         self.comparing = True
 
     def stop_comparing(self):
+        """Stop comparing programs"""
         self.comparing = False
         self.switch_comparison(0)
 
-    def __set_current_sim_num(self, sim_num):
-        self.current_sim_num = sim_num
-
     def add_comparison(self):
+        """Add a new program to compare"""
         self.all_settings.append(self.default_settings)
 
     def remove_comparison(self, sim_num):
+        """Remove a program from comparisons
+
+        :param sim_num: int, required
+            The index of a comparison program to remove
+        :return: None
+        """
         del self.all_settings[sim_num]
         self.switch_comparison(sim_num - 1, save=False)
 
     def switch_comparison(self, sim_num, save=True):
+        """Switch to a different comparison program
+
+        :param sim_num: int, required
+            The index of a comparison program to switch to
+        :param save: bool, default True
+            Whether or not to save the current input values
+        :return: None
+        """
+        # First, save the changes that users have made to to current program
         if save:
             self.save_settings()
-        self.__set_current_sim_num(sim_num)
+
+        # Switch to the new program
+        self.current_sim_num = sim_num
         self.change_comparison_parameters(sim_num)
 
     def change_comparison_parameters(self, sim_num):
-        settings = self.all_settings[sim_num]
+        """Update the inputs in the interface with the values of a chosen program
+
+        :param sim_num: int, required
+            The index of a comparison program
+        :return: None
+        """
+        settings = self.all_settings[sim_num]   # Get the input values from settings list and sim_num
         for param_key, param_val in vars(settings).items():
             # If value for the parameter is a dictionary, then traverse that dictionary
             if type(param_val) == dict:
@@ -321,11 +378,15 @@ class MicrosimGUI(Tk):
                 self.variables[param_key].set(param_val)
 
     def save_general_settings(self):
+        """Update general settings object with user input values"""
+
+        # Store user-provided values in a dictionary
         variable_values = {}
         for var_name in vars(self.general_settings).keys():
             variable_values[var_name] = self.variables[var_name].get()
         variable_values['random_seed'] = self.check_random_seed(variable_values['random_seed'])
 
+        # Update the GeneralSettings object with dictionary
         self.general_settings.update_variables(**variable_values)
 
     def save_settings(self):
@@ -335,6 +396,11 @@ class MicrosimGUI(Tk):
 
     @staticmethod
     def check_random_seed(random_seed):
+        """Converts string seed to an integer
+
+        :param random_seed: int or str
+        :return: random_seed value converted to an integer
+        """
         if random_seed is None or random_seed == '':
             return None
 
@@ -344,6 +410,14 @@ class MicrosimGUI(Tk):
             return int.from_bytes(random_seed.encode(), 'big')
 
     def create_simulation_engine(self, q):
+        """Create Python engine using settings values
+
+        :param q: multiprocessing.Queue()
+            Will be passed to engine to receive progress updates in interface
+        :return: SimulationEngine
+        """
+
+        # Get values from GeneralSettings object
         st = self.general_settings.state.lower()
         yr = 16
         fp_fmla_in = self.general_settings.fmla_file
@@ -368,6 +442,13 @@ class MicrosimGUI(Tk):
                                 state_of_work=state_of_work, sim_method=sim_method, q=q)
 
     def add_engine_params(self, settings):
+        """Add additional engine parameters from an OtherSettings object
+
+        :param settings: OtherSettings
+        :return: None
+        """
+
+        # Get parameter values from OtherSettings object
         elig_wage12 = settings.eligible_earnings
         elig_wkswork = settings.eligible_weeks
         elig_yrhours = settings.eligible_hours
@@ -403,11 +484,13 @@ class MicrosimGUI(Tk):
         clone_factor = settings.clone_factor
         dual_receivers_share = settings.dual_receivers_share
 
+        # Update simulation engine with the values
         self.se.set_simulation_params(elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp, wkbene_cap, d_maxwk,
                                       d_takeup, incl_empgov_fed, incl_empgov_st, incl_empgov_loc, incl_empself,
                                       needers_fully_participate, clone_factor, dual_receivers_share, sim_num=None)
 
     def check_file_entries(self, *_):
+        """"""
         if self.variables['fmla_file'].get() and self.variables['acs_directory'].get() and \
                 self.variables['output_directory'].get():
             self.run_button.enable()
@@ -1313,7 +1396,7 @@ class ResultsWindow(Toplevel):
         self.notebook.add(self.summary_frame, text='Summary')
         print('Finished adding summary frame to notebook')
 
-        self.abf = ABFResults(self.notebook, abf_module, bg=VERY_LIGHT_COLOR)
+        self.abf = ABFResults(self.notebook, abf_module, simulation_engine, bg=VERY_LIGHT_COLOR)
         print('Creating ABF results summary frame')
         self.notebook.add(self.abf, text="Benefit Financing")
 
@@ -1532,11 +1615,12 @@ class ChartContainer(Frame):
 
 
 class ABFResults(ScrollFrame):
-    def __init__(self, parent, abf_module, **kwargs):
+    def __init__(self, parent, abf_module, simulation_engine, **kwargs):
         super().__init__(parent, **kwargs)
 
         self.abf_module = abf_module
         abf_output, pivot_tables = self.abf_module.run()
+        simulation_engine.save_abf_results(self.abf_module.df, abf_output)
 
         self.abf_summary = ABFResultsSummary(self.content, abf_output)
         self.abf_summary.pack(padx=10, pady=10)

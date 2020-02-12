@@ -712,6 +712,12 @@ class SimulationEngine:
         d = d[columns]
         return d
 
+    def save_abf_results(self, abf_df, abf_output):
+        abf_df.to_csv('%s/abf_individual_%s.csv' % (self.output_directories[0], self.out_id), index=False)
+        pd.DataFrame({'Category': list(abf_output.keys()), 'Value': list(abf_output.values())})\
+            .to_csv('%s/abf_summary_%s.csv' % (self.output_directories[0], self.out_id), index=False)
+
+
 # Other factors
 # Leave prob factors, 6 types - TODO: code in wof in get_sim_col(), bound phat by max = 1
 
