@@ -45,7 +45,7 @@ from Utils import format_chart, check_dependency, get_sim_name
 
 class SimulationEngine:
     def __init__(self, st, yr, fps_in, fps_out, clf_name='Logistic Regression', state_of_work=True,
-                 random_state=None, sim_method='Logistic Regression', pow_pop_multiplier=1.0217029934467345, q=None):
+                 random_state=None, pow_pop_multiplier=1.0217029934467345, q=None):
         """
         :param st: state name, 'ca', 'ma', etc.
         :param yr: end year of 5-year ACS
@@ -68,7 +68,6 @@ class SimulationEngine:
         self.clf_name = clf_name
         self.state_of_work = state_of_work
         self.random_seed = random_state
-        self.sim_method = sim_method
         print('Random seed:', self.random_seed)
         self.random_state = np.random.RandomState(self.random_seed)
 
@@ -77,7 +76,7 @@ class SimulationEngine:
 
         # a dict from clf_name to clf
         self.d_clf = {
-            'Logistic Regression GLM':['logit glm', sklearn.linear_model.LogisticRegression(solver='liblinear', multi_class='auto', random_state=self.random_state)],
+            'Logistic Regression GLM': ['logit glm', sklearn.linear_model.LogisticRegression(solver='liblinear', multi_class='auto', random_state=self.random_state)],
             'Logistic Regression': sklearn.linear_model.LogisticRegression(solver='liblinear', multi_class='auto',
                                                                            random_state=self.random_state),
             'Ridge Classifier': sklearn.linear_model.RidgeClassifier(random_state=self.random_state),

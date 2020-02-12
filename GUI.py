@@ -490,7 +490,8 @@ class MicrosimGUI(Tk):
                                       needers_fully_participate, clone_factor, dual_receivers_share, sim_num=None)
 
     def check_file_entries(self, *_):
-        """"""
+        """Enables run button if locations for ACS, FMLA, and output folders are provided. Otherwise, disables run
+        button."""
         if self.variables['fmla_file'].get() and self.variables['acs_directory'].get() and \
                 self.variables['output_directory'].get():
             self.run_button.enable()
@@ -498,8 +499,13 @@ class MicrosimGUI(Tk):
             self.run_button.disable()
 
     def validate_settings(self):
-        errors = []
+        """Checks each entry value for correct data type and range.
 
+        :return: List of errors
+        """
+        errors = []  # Keep track of errors
+
+        # These are the inputs that are expecting integer values
         integer_entries = [self.settings_notebook.program_frame.eligible_earnings_input,
                            self.settings_notebook.program_frame.eligible_weeks_input,
                            self.settings_notebook.program_frame.eligible_hours_input,
@@ -511,13 +517,16 @@ class MicrosimGUI(Tk):
 
         integer_entries += [entry for entry in self.settings_notebook.program_frame.max_weeks_inputs]
 
+        # These are the inputs that are expecting decimal values
         float_entries = [self.settings_notebook.program_frame.benefit_financing_frame.payroll_tax_input,
                          self.settings_notebook.program_frame.benefit_financing_frame.average_state_tax_input]
 
+        # These are the inputs expecting decimal values between 0 and 1
         rate_entries = [self.settings_notebook.program_frame.replacement_ratio_input]
         rate_entries += [entry for entry in self.settings_notebook.population_frame.take_up_rates_inputs]
         # rate_entries += [entry for entry in self.settings_notebook.population_frame.leave_probability_factors_inputs]
 
+        # Validate all of the inputs
         for entry in integer_entries:
             if not self.validate_integer(entry.get()):
                 errors.append((entry, 'This field should contain an integer greater than or equal to 0'))
