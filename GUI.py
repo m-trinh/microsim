@@ -421,7 +421,7 @@ class MicrosimGUI(Tk):
         st = self.general_settings.state.lower()
         yr = 16
         fp_fmla_in = self.general_settings.fmla_file
-        fp_cps_in = './data/cps/CPS2014extract.csv'
+        fp_cps_in = './data/cps/CPS20%sextract.csv' % (yr-2)
         fp_acsh_in = self.general_settings.acs_directory + '/household_files'
         fp_acsp_in = self.general_settings.acs_directory + '/person_files'
         state_of_work = self.general_settings.state_of_work
@@ -1762,10 +1762,8 @@ class ABFParamsPopup(Frame):
     def __init__(self, parent, **kwargs):
         super().__init__(parent, bg=VERY_LIGHT_COLOR, borderwidth=1, relief='solid', padx=3, pady=3, **kwargs)
         abf_variables = parent.abf_variables
-        self.benefit_financing_frame = BenefitFinancingFrame(self, abf_variables, text='Benefit Financing:',
-                                                             style='MSLabelframe.TLabelframe', wraplength=300)
+        self.benefit_financing_frame = BenefitFinancingFrame(self, abf_variables, text='Benefit Financing:',                                                            style='MSLabelframe.TLabelframe', wraplength=300)
         self.benefit_financing_frame.pack(fill=X, side=TOP, padx=4, pady=4)
-
         self.abf_params_buttons = Frame(self, bg=VERY_LIGHT_COLOR, pady=4)
         self.abf_params_buttons.pack(side=BOTTOM, fill=X, expand=True)
         self.abf_params_hide = BorderButton(self.abf_params_buttons, text='Hide', padx=4, command=parent.hide_params,
