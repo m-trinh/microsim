@@ -47,7 +47,7 @@ class ABF:
         wage_bins = list(range(0, 210000, 25000))
         wage_ranges = ['[{}k - {}k)'.format(wage_bins[i] // 1000, wage_bins[i] // 1000 + 25)
                        for i in range(len(wage_bins) - 1)]
-        self.df['wage_cat'] = pd.cut(x=self.df['income_w'], bins=wage_bins, labels=wage_ranges,
+        self.df['wage_cat'] = pd.cut(x=self.df['wage12'], bins=wage_bins, labels=wage_ranges,
                                      right=False)
         total_income_w = self.df['income_w'].sum()
         print('Output: Weighted Income Base for Full Geographic Area:')

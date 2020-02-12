@@ -25,7 +25,7 @@ def get_columns():
           'female', 'age','agesq',
           'ltHS', 'someCol', 'BA', 'GradSch',
           'black', 'other', 'asian','native','hisp',
-          'nochildren','faminc','coveligd']
+          'nochildren','faminc'] # ,'coveligd'
 
     ys = ['take_own', 'take_matdis', 'take_bond', 'take_illchild', 'take_illspouse', 'take_illparent']
     ys += ['need_own', 'need_matdis', 'need_bond', 'need_illchild', 'need_illspouse', 'need_illparent']
@@ -216,8 +216,7 @@ def get_pred_probs(clf, xts):
     elif isinstance(clf, statsmodels.genmod.generalized_linear_model.GLMResultsWrapper):
         phat = (clf.predict(sm.add_constant(xts))) # statsmodel phat gives pr=1 only
         phat = np.array([[(1-x), x] for x in phat.values])
-    # print('----- phat -----')
-    # print(phat)
+
     return phat
 
 # a function to simulate from wheel of fortune (e.g. simulate leave type from discrete distribution of 6 types)
@@ -252,17 +251,43 @@ def get_sim_col(X, y, w, Xa, clf, random_state):
     y = y[y.columns[0]]
     Xa = fillna_df(Xa, random_state)
 
-    # if matdis, reduce to female only rows, remove female from xvar
+    # if matdis, reduce to rows that are female only/child bearing/age<=50
+    # remove female and nochildren from xvar
     if y.name in ['take_matdis', 'need_matdis']:
-        X = X[X['female']==1]
+        X = X[(X['female']==1) & (X['nochildren']==0) & (X['age']<=50)]
         del X['female']
-        Xa = Xa[Xa['female']==1]
+        del X['nochildren']
+        Xa = Xa[(Xa['female']==1) & (Xa['nochildren']==0) & (Xa['age']<=50)]
         del Xa['female']
+        del Xa['nochildren']
+        y = y[X.index]
+        w = w[X.index]
+
+    # if bond, reduce to rows that are child bearing/age<=50
+    # remove nochildren from xvar
+    if y.name in ['take_bond', 'need_bond']:
+        X = X[(X['nochildren']==0) & (X['age']<=50)]
+        del X['nochildren']
+        Xa = Xa[(Xa['nochildren']==0) & (Xa['age']<=50)]
+        del Xa['nochildren']
+        y = y[X.index]
+        w = w[X.index]
+
+    # if illspouse, reduce to rows that are nevermarried=0 and divorced=0
+    # remove nevermarried and divorced
+    if y.name in ['take_illspouse', 'need_illspouse']:
+        X = X[(X['nevermarried']==0) & (X['divorced']==0)]
+        del X['nevermarried']
+        del X['divorced']
+        Xa = Xa[(Xa['nevermarried']==0) & (Xa['divorced']==0)]
+        del Xa['nevermarried']
+        del Xa['divorced']
         y = y[X.index]
         w = w[X.index]
 
     # if clf = 'random draw'
     if clf == 'random draw':
+        # randomly pick len(Xa) values from y, set as pred values for Xa
         simcol = [y.iloc[z] for z in random_state.choice(len(y), len(Xa))]
         return simcol
     else:
@@ -295,24 +320,31 @@ def get_sim_col(X, y, w, Xa, clf, random_state):
                 Za[c] = (Xa[c] - Xa[c].mean()) / np.std(Xa[c], axis=0, ddof=1)
 
         # Fit model
-        # Weight config for kNN is specified in clf input before fit. For all other clf weight is specified during fit
+        # glm logit
         if isinstance(clf, list): # logit GLM = ['logit glm', sklearn logit classifier]
             if len(y.value_counts())==2: # for (almost all) binary yvars, use statsmodel if user chose logit GLM
                 clf = sm.GLM(y, sm.add_constant(Z), family=sm.families.Binomial(), freq_weights=w).fit()
             else: # only when yvar is multinomial (e.g. prop_pay), use sklearn logit=clf[1]
                 # if user chose logit GLM, to avoid overfitting
                 clf = clf[1].fit(Z, y, sample_weight=w)
-
+        # Weight config for kNN is specified in clf input before fit. For all other clf weight is specified during fit
         elif isinstance(clf, sklearn.neighbors.KNeighborsClassifier):
             f = lambda x: np.array([w]) # make sure weights[:, i] can be called in package code classification.py
             clf = clf.__class__(weights=f)
             clf = clf.fit(Z, y)
+        # if NB, use original X (category vars) but not standardized version Z
+        elif isinstance(clf, sklearn.naive_bayes.MultinomialNB):
+            clf = clf.fit(X, y, sample_weight=w)
+        # all other clfs, use Z as xvars
         else:
             clf = clf.fit(Z, y, sample_weight=w)
 
         # Make prediction
         # get cumulative distribution using phat vector, then draw unif(0,1) to see which segment it falls into
-        phat = get_pred_probs(clf, Za)
+        if isinstance(clf, sklearn.naive_bayes.MultinomialNB):
+            phat = get_pred_probs(clf, Xa)
+        else:
+            phat = get_pred_probs(clf, Za)
         #print('phat top 30 rows = %s ' % phat[:30])
         s = phat.cumsum(axis=1)
         r = random_state.rand(phat.shape[0])

@@ -1,0 +1,98 @@
+{
+    "KNeighborsClassifier1": {
+        "pred": {
+            "n_needers": 16344856.474074874,
+            "n_reasons_taken": 26961798.057754274,
+            "n_takers": 46060359.65649222
+        },
+        "true": {
+            "n_needers": 7542953.901158866,
+            "n_reasons_taken": 25153212.164745867,
+            "n_takers": 22661094.921278514
+        }
+    },
+    "KNeighborsClassifier5": {
+        "pred": {
+            "n_needers": 17703109.851053275,
+            "n_reasons_taken": 26475384.90599739,
+            "n_takers": 48975626.155472785
+        },
+        "true": {
+            "n_needers": 7542953.901158866,
+            "n_reasons_taken": 25153212.164745867,
+            "n_takers": 22661094.921278514
+        }
+    },
+    "LogisticRegression": {
+        "pred": {
+            "n_needers": 8149442.085426295,
+            "n_reasons_taken": 14340192.506156815,
+            "n_takers": 23405158.855737988
+        },
+        "true": {
+            "n_needers": 7542953.901158866,
+            "n_reasons_taken": 25153212.164745867,
+            "n_takers": 22661094.921278514
+        }
+    },
+    "MultinomialNB": {
+        "pred": {
+            "n_needers": 11034314.547887553,
+            "n_reasons_taken": 16475491.62163064,
+            "n_takers": 28031567.689743966
+        },
+        "true": {
+            "n_needers": 7542953.901158866,
+            "n_reasons_taken": 25153212.164745867,
+            "n_takers": 22661094.921278514
+        }
+    },
+    "RandomForestClassifier": {
+        "pred": {
+            "n_needers": 17914405.22545281,
+            "n_reasons_taken": 28997847.59458038,
+            "n_takers": 48053613.47520338
+        },
+        "true": {
+            "n_needers": 7542953.901158866,
+            "n_reasons_taken": 25153212.164745867,
+            "n_takers": 22661094.921278514
+        }
+    },
+    "RidgeClassifier": {
+        "pred": {
+            "n_needers": 94889844.5779571,
+            "n_reasons_taken": 84172532.28547038,
+            "n_takers": 98681017.43378608
+        },
+        "true": {
+            "n_needers": 7542953.901158866,
+            "n_reasons_taken": 25153212.164745867,
+            "n_takers": 22661094.921278514
+        }
+    },
+    "SVC": {
+        "pred": {
+            "n_needers": 15361767.929622399,
+            "n_reasons_taken": 24850600.698659156,
+            "n_takers": 45717419.262308486
+        },
+        "true": {
+            "n_needers": 7542953.901158866,
+            "n_reasons_taken": 25153212.164745867,
+            "n_takers": 22661094.921278514
+        }
+    },
+    "random draw": {
+        "pred": {
+            "n_needers": 15781026.47451165,
+            "n_reasons_taken": 25681967.973962054,
+            "n_takers": 47472498.860128894
+        },
+        "true": {
+            "n_needers": 7542953.901158866,
+            "n_reasons_taken": 25153212.164745867,
+            "n_takers": 22661094.921278514
+        }
+    }
+}
