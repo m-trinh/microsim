@@ -13,7 +13,6 @@ Microsimulator.spec
 *.exe
 log/*
 *.zip
-*.xlsx
 .Rhistory
 *.whl
 test.py
