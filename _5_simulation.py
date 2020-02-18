@@ -1,6 +1,6 @@
 """
 main simulation engine
-chris zhang 12/4/2019
+chris zhang 2/14/2020
 """
 # CHANGES 11/14/2019
 # Made dual receiver as proportionate parameter of those individuals with >0 prop_pay.
@@ -407,6 +407,8 @@ class SimulationEngine:
         # # set covered-by-program leave lengths (cp-len) as maximum needed leave lengths (mn-len) for each type
         # for t in self.types:
         #     acs['cpl_%s' % t] = acs['mnl_%s' % t]
+        # TODO: cpl=f(mnl drawn from JSON) is not long enough, suggested by RI/NJ/CA data. NT scale up by ~2X.
+        # TODO: consider scaling up (mnl drawn from JSON) by a factor
 
         # Given fraction of dual receiver x among anypay=1, simulate dual/single receiver status among anypay=1
         acs['dual_receiver'] = 0
@@ -521,9 +523,11 @@ class SimulationEngine:
                 del acs[c]
 
         # Then perform a weighted random draw using user-specified take up rate until target pop is reached
+        # set min cpl (covered-by-program length) for taking up program
+        min_takeup_cpl = 5
         for t in self.types:
             # cap user-specified take up for type t by max possible takeup = s_positive_cpl, in pop per sim results
-            s_positive_cpl = acs[acs['cpl_%s' % t] > 0][col_w].sum() / acs[col_w].sum()
+            s_positive_cpl = acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w].sum() / acs[col_w].sum()
             # display warning for unable to reach target pop from simulated positive cpl_type pop
             if col_w == 'PWGTP':
                 if params['d_takeup'][t] > s_positive_cpl:
@@ -531,13 +535,13 @@ class SimulationEngine:
                           'by maximum possible take up rate (share of positive covered-by-program length) '
                           'based on simulation results, at %s.' % (t, s_positive_cpl))
             takeup = min(s_positive_cpl, params['d_takeup'][t])
-            p_draw = takeup / s_positive_cpl  # need to draw w/ prob=p_draw from cpl>0 subpop, to get desired takeup
+            p_draw = takeup / s_positive_cpl  # need to draw w/ prob=p_draw from cpl>min_takeup_cpl subpop, to get desired takeup
             # print('p_draw for type -%s- = %s' % (t, p_draw))
-            # get take up indicator for type t - weighted random draw from cpl_type>0 until target is reached
+            # get take up indicator for type t - weighted random draw from cpl_type>min_takeup_cpl until target is reached
             acs['takeup_%s' % t] = 0
-            draws = get_weighted_draws(acs[acs['cpl_%s' % t] > 0][col_w], p_draw, self.random_state)
+            draws = get_weighted_draws(acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w], p_draw, self.random_state)
             # print('draws = %s' % draws)
-            acs.loc[acs['cpl_%s' % t] > 0, 'takeup_%s' % t] \
+            acs.loc[acs['cpl_%s' % t] >= min_takeup_cpl, 'takeup_%s' % t] \
                 = draws
 
             # for main weight, check if target pop is achieved among eligible ACS persons

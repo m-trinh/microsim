@@ -215,7 +215,7 @@ class DataCleanerFMLA:
         # d['length'] = np.where((np.isnan(d['A20']) == False) & (d['A20'] == 2), d['A19_2_CAT_days'], d['A19_1_CAT_days'])
         # d['length'] = [min(x, 261) for x in d['length']]
 
-        ## Use below for getting exact length distribution from restricted FMLA
+        # # Use below for getting exact length distribution from restricted FMLA
         # # length of leave for most recent leave
         # # cap at 365-52*2 = 261 work days a year
         # d['length'] = np.where((np.isnan(d['A20']) == False) & (d['A20'] == 2), d['A19_2_CAT_rev'], d['A19_1_CAT_rev'])
