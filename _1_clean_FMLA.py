@@ -30,7 +30,7 @@ class DataCleanerFMLA:
         d = pd.read_csv(self.fp_fmla_in, low_memory=False)
 
         # Make empid to follow 0-order to be consistent with Python standard (e.g. indices output from kNN)
-        d['empid'] = d['empid'].apply(lambda x: x - 1)
+        d['empid'] = d['empid'] - 1
 
         # FMLA eligible worker
         d['eligworker'] = np.nan
@@ -378,8 +378,8 @@ class DataCleanerFMLA:
 
         # overall taker/needer status, any of 6 types
         types = ['own','matdis','bond','illchild','illspouse','illparent']
-        d['taker'] = d[['take_%s' % t for t in types]].apply(lambda x: max(x), axis=1)
-        d['needer'] = d[['need_%s' % t for t in types]].apply(lambda x: max(x), axis=1)
+        d['taker'] = [max(x) for x in d[['take_%s' % t for t in types]].values]
+        d['needer'] = [max(x) for x in d[['need_%s' % t for t in types]].values]
 
         # most recent take/need leave type in 1 col
 

@@ -69,9 +69,10 @@ class DataCleanerACS:
         d_hh.loc[(d_hh['faminc'] <= 0), 'faminc'] = 0.01 / 1000  # force non-positive income to be epsilon to get meaningful log-income
         d_hh["lnfaminc"] = np.log(d_hh["faminc"])
         # Number of dependents
-        d_hh['ndep_kid'] = d_hh.NOC
-        d_hh['ndep_old'] = d_hh.R65
-
+        d_hh['ndep_kid'] = d_hh['NOC']
+        d_hh['ndep_old'] = d_hh['R65']
+        d_hh['ndep_spouse'] = np.where(d_hh['FES'].isin([2,3]), 1, 0)
+        d_hh['ndep_spouse_kid'] = d_hh['ndep_kid'] + d_hh['ndep_spouse']
         return (d_hh, cps)
 
     def clean_person_data(self, chunk_size=100000):
@@ -93,7 +94,8 @@ class DataCleanerACS:
         for d in pd.read_csv(fp_d_p, chunksize=chunk_size):
 
             # Merge with the household level variables
-            d = pd.merge(d, d_hh[['SERIALNO', 'NPF', 'nochildren', 'faminc', 'lnfaminc', 'PARTNER', 'ndep_kid', 'ndep_old']],
+            d = pd.merge(d, d_hh[['SERIALNO', 'NPF', 'nochildren', 'faminc', 'lnfaminc', 'PARTNER',
+                                  'ndep_kid', 'ndep_old', 'ndep_spouse', 'ndep_spouse_kid']],
                          on='SERIALNO')
 
             # -------------------------- #
@@ -184,12 +186,16 @@ class DataCleanerACS:
                 5: (14, 26),
                 6: (1, 13)
             }
-            d['wkw_min'] = d['WKW'].apply(lambda x: dict_wkwBounds[x][0] if not np.isnan(x) else np.nan)
-            d['wkw_max'] = d['WKW'].apply(lambda x: dict_wkwBounds[x][1] if not np.isnan(x) else np.nan)
+            #d['wkw_min'] = d['WKW'].apply(lambda x: dict_wkwBounds[x][0] if not np.isnan(x) else np.nan)
+            #d['wkw_max'] = d['WKW'].apply(lambda x: dict_wkwBounds[x][1] if not np.isnan(x) else np.nan)
+            d['wkw_min'] = [dict_wkwBounds[x][0] if not np.isnan(x) else np.nan for x in d['WKW']]
+            d['wkw_max'] = [dict_wkwBounds[x][1] if not np.isnan(x) else np.nan for x in d['WKW']]
+
             # Total wage past 12m, adjusted to 2012, and its log
             d['wage12'] = d['WAGP'] * d['ADJINC'] / self.adjinc
             d['lnearn'] = np.nan
-            d.loc[d['wage12'] > 0, 'lnearn'] = d.loc[d['wage12'] > 0, 'wage12'].apply(lambda x: np.log(x))
+            #d.loc[d['wage12'] > 0, 'lnearn'] = d.loc[d['wage12'] > 0, 'wage12'].apply(lambda x: np.log(x))
+            d.loc[d['wage12'] > 0, 'lnearn'] = [np.log(x) for x in d.loc[d['wage12'] > 0, 'wage12']]
 
             # health insurance from employer
             d['hiemp'] = np.where(d['HINS1'] == 1, 1, 0)
@@ -217,14 +223,12 @@ class DataCleanerACS:
             # use numeric OCCP = OCCP12 if ACS 2011-2015, or OCCP = OCCP if ACS 2012-2016
             if self.yr == 15:
                 if 'N.A.' in d['OCCP12'].value_counts().index:
-                    d.loc[d['OCCP12'] == 'N.A.', 'OCCP12'] = d.loc[d['OCCP12'] == 'N.A.', 'OCCP12'].apply(
-                        lambda x: np.nan)
-                d.loc[d['OCCP12'].notna(), 'OCCP12'] = d.loc[d['OCCP12'].notna(), 'OCCP12'].apply(lambda x: int(x))
+                    d.loc[d['OCCP12'] == 'N.A.', 'OCCP12'] = np.nan
+                d.loc[d['OCCP12'].notna(), 'OCCP12'] = [int(x) for x in d.loc[d['OCCP12'].notna(), 'OCCP12']]
 
                 if 'N.A.' in d['OCCP10'].value_counts().index:
-                    d.loc[d['OCCP10'] == 'N.A.', 'OCCP10'] = d.loc[d['OCCP10'] == 'N.A.', 'OCCP10'].apply(
-                        lambda x: np.nan)
-                d.loc[d['OCCP10'].notna(), 'OCCP10'] = d.loc[d['OCCP10'].notna(), 'OCCP10'].apply(lambda x: int(x))
+                    d.loc[d['OCCP10'] == 'N.A.', 'OCCP10'] = np.nan
+                d.loc[d['OCCP10'].notna(), 'OCCP10'] = [int(x) for x in d.loc[d['OCCP10'].notna(), 'OCCP10']]
 
                 d['OCCP'] = np.nan
                 d['OCCP'] = np.where(d['OCCP12'].notna(), d['OCCP12'], d['OCCP'])
@@ -232,8 +236,8 @@ class DataCleanerACS:
                                      d['OCCP'])
             elif self.yr == 16:
                 if 'N.A.' in d['OCCP'].value_counts().index:
-                    d.loc[d['OCCP'] == 'N.A.', 'OCCP'] = d.loc[d['OCCP'] == 'N.A.', 'OCCP'].apply(lambda x: np.nan)
-                d.loc[d['OCCP'].notna(), 'OCCP'] = d.loc[d['OCCP'].notna(), 'OCCP'].apply(lambda x: int(x))
+                    d.loc[d['OCCP'] == 'N.A.', 'OCCP'] = np.nan
+                d.loc[d['OCCP'].notna(), 'OCCP'] = [int(x) for x in d.loc[d['OCCP'].notna(), 'OCCP']]
 
             d['occ_1'] = 0
             d['occ_2'] = 0
@@ -313,8 +317,7 @@ class DataCleanerACS:
             y = cps['wkswork']
             clf = sklearn.linear_model.LinearRegression().fit(X, y, sample_weight=w)
             d['wkswork_dec'] = pd.Series(clf.predict(Xd), index=d.index)
-            d['wkswork'] = d[['wkswork_dec', 'wkw_min', 'wkw_max']].apply(lambda x: min(max(int(x[0]), x[1]), x[2]),
-                                                                          axis=1)
+            d['wkswork'] = [min(max(int(x[0]), x[1]), x[2]) for x in d[['wkswork_dec', 'wkw_min', 'wkw_max']].values]
             # employer size
             y = cps['empsize']
             clf = mord.LogisticAT().fit(X, y)
@@ -333,7 +336,7 @@ class DataCleanerACS:
                     'wkhours', 'weeks_worked_cat', 'wage12', 'lnearn', 'hiemp',
                     'a_age', 'age', 'agesq',
                     'male', 'female',
-                    'nochildren', 'ndep_kid', 'ndep_old',
+                    'nochildren', 'ndep_kid', 'ndep_old', 'ndep_spouse', 'ndep_spouse_kid',
                     'ltHS', 'HSgrad', 'someCol', 'BA', 'GradSch', 'noHSdegree', 'BAplus',
                     'faminc', 'lnfaminc',
                     'married', 'partner', 'separated', 'divorced', 'widowed', 'nevermarried',
@@ -357,7 +360,7 @@ class DataCleanerACS:
 
         t1 = time()
         message = 'ACS data cleaning finished for state %s. Time elapsed = %s seconds' % (self.st.upper(), round((t1 - t0), 0))
-        print()
+        print(message)
         return message
 
 # # -------------------------- #
