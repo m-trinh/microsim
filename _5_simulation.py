@@ -40,7 +40,7 @@ import os
 import csv
 from _1_clean_FMLA import DataCleanerFMLA
 from _4_clean_ACS import DataCleanerACS
-from Utils import format_chart, check_dependency, get_sim_name
+from Utils import check_dependency, get_sim_name, create_cost_chart
 
 
 class SimulationEngine:
@@ -629,22 +629,7 @@ class SimulationEngine:
     def create_chart(self, out, sim_num):
         output_directory = self.output_directories[sim_num]
         # Plot costs and ci
-        total_cost = round(list(out.loc[out['type'] == 'total', 'cost'])[0] / 10 ** 6, 1)
-        spread = round((list(out.loc[out['type'] == 'total', 'ci_upper'])[0] -
-                        list(out.loc[out['type'] == 'total', 'ci_lower'])[0]) / 10 ** 6, 1)
-        title = 'State: %s. Total Benefits Cost = $%s million (\u00B1%s).' % (self.st.upper(), total_cost, spread)
-        fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
-        ind = np.arange(6)
-        ys = out[:-1]['cost'] / 10 ** 6
-        es = 0.5 * (out[:-1]['ci_upper'] - out[:-1]['ci_lower']) / 10 ** 6
-        width = 0.5
-        ax.bar(ind, ys, width, yerr=es, align='center', capsize=5, color='#1aff8c', ecolor='white')
-        ax.set_ylabel('$ millions')
-        ax.set_xticks(ind)
-        ax.set_xticklabels(('Own Health', 'Maternity', 'New Child', 'Ill Child', 'Ill Spouse', 'Ill Parent'))
-        ax.yaxis.grid(False)
-        format_chart(fig, ax, title)
-
+        fig = create_cost_chart(out, self.st)
         plt.savefig('%s/total_cost_%s_%s_%s' % (output_directory, self.yr, self.st, self.out_id),
                     facecolor='#333333', edgecolor='white')
         self.figure = fig
@@ -697,6 +682,9 @@ class SimulationEngine:
     def get_results_file(self, sim_num):
         return '%s/acs_sim_%s.csv' % (self.output_directories[sim_num], self.out_id)
 
+    def get_results_files(self):
+        return[self.get_results_file(i) for i in range(self.sim_count)]
+
     def get_results(self, sim_num):
         return pd.read_csv(self.get_results_file(sim_num))
 
@@ -725,11 +713,6 @@ class SimulationEngine:
                    'other', 'hisp']
         d = d[columns]
         return d
-
-    def save_abf_results(self, abf_df, abf_output):
-        abf_df.to_csv('%s/abf_individual_%s.csv' % (self.output_directories[0], self.out_id), index=False)
-        pd.DataFrame({'Category': list(abf_output.keys()), 'Value': list(abf_output.values())})\
-            .to_csv('%s/abf_summary_%s.csv' % (self.output_directories[0], self.out_id), index=False)
 
 
 # Other factors

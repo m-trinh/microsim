@@ -1,10 +1,11 @@
 import pandas as pd
 import numpy as np
+import os
 
 
 class ABF:
     def __init__(self, acs_file, benefits, eligible_size, max_taxable_earnings_per_person, benefits_tax,
-                 average_state_tax, payroll_tax):
+                 average_state_tax, payroll_tax, output_dir=None):
         self.reps = ['PWGTP' + str(i) for i in range(1, 81)]
         self.df = pd.read_csv(acs_file, usecols=['COW', 'POWSP', 'ST', 'wage12', 'PWGTP', 'age', 'male'] + self.reps)
         self.eligible_size = eligible_size
@@ -13,6 +14,9 @@ class ABF:
         self.average_state_tax = average_state_tax / 100
         self.payroll_tax = payroll_tax / 100
         self.benefits = benefits
+
+        self.output_dir = output_dir
+        self.abf_output = None
         self.clean_data()
 
     def update_parameters(self, **kwargs):
@@ -148,6 +152,7 @@ class ABF:
         pivot_tables = {'Class of Worker': revenue_by_class, 'Age': revenue_by_age,
                         'Gender': revenue_by_gender, 'Wage': revenue_by_wage}
 
+        self.abf_output = abf_output
         return abf_output, pivot_tables
 
     def clean_data(self):
@@ -177,3 +182,14 @@ class ABF:
         self.update_parameters(**variables)
         self.abf_data()
         return self.abf_calcs()
+
+    def save_results(self, output_dir=None):
+        if output_dir is None:
+            output_dir = self.output_dir
+        if self.output_dir is None:
+            raise FileNotFoundError
+
+        self.df.to_csv(os.path.join(output_dir, 'abf_individual.csv'), index=False)
+        pd.DataFrame(
+            {'Category': list(self.abf_output.keys()), 'Value': list(self.abf_output.values())}
+        ).to_csv(os.path.join(output_dir, 'abf_summary.csv'), index=False)

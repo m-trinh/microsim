@@ -2,20 +2,19 @@ from tkinter import *
 from tkinter import ttk, filedialog, messagebox
 import os
 import sys
+import datetime
 import multiprocessing
 import ast
 import queue
-import numpy as np
+import subprocess
 from abc import ABCMeta, abstractmethod
 from _5_simulation import SimulationEngine
+from ABF import ABF
 from Utils import *
 import matplotlib
-
-matplotlib.use("TkAgg")
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-from ABF import ABF
-
+matplotlib.use("TkAgg")
 
 DARK_COLOR = '#333333'
 LIGHT_COLOR = '#f2f2f2'
@@ -29,23 +28,23 @@ class MicrosimGUI(Tk):
 
         super().__init__(*args, **kwargs)
         # TODO: Remove R file location
-        # Create general settings which will be shared across comparison simulations
-        self.general_settings = GeneralSettings(fmla_file='./data/fmla_2012/fmla_2012_employee_revised_puf.csv',
+        # Create general parameters object which will be shared across comparison simulations
+        self.general_params = GeneralParameters(fmla_file='./data/fmla_2012/fmla_2012_employee_revised_puf.csv',
                                                 acs_directory='./data/acs', output_directory='./output',
                                                 r_path='/Users/mtrinh/R-3.6.1/bin/Rscript.exe', state='All')
-        # These are the default settings that will be used to fill inputs upon initial load
-        self.default_settings = OtherSettings()
+        # These are the default parameters object that will be used to fill inputs upon initial load
+        self.default_params = OtherParameters()
 
         # When comparing multiple simulations, keep track of each simulation's parameters
-        self.all_settings = [self.default_settings]
+        self.all_params = [self.default_params]
         self.comparing = False
         self.current_sim_num = 0
 
         self.error_tooltips = []  # Tooltips that are used to tell users when they enter an invalid value
 
         self.current_tab = 0  # Set the current visible tab to 0, which is the Program tab
-        self.variables = self.__create_variables()  # Create the variables that will be tied to each input
-        self.__set_up_style()  # Set up styles for ttk widgets
+        self.variables = self.create_variables()  # Create the variables that will be tied to each input
+        self.set_up_style()  # Set up styles for ttk widgets
 
         self.title('Paid Leave Micro-Simulator')  # Add title to window
         self.option_add('*Font', '-size 12')  # Set default font
@@ -64,35 +63,36 @@ class MicrosimGUI(Tk):
 
         # The content frame will hold all widgets
         self.content = Frame(self, padx=15, pady=15, bg=DARK_COLOR)
-        # This frame holds general settings
-        self.general_settings_frame = GeneralSettingsFrame(self.content, bg=DARK_COLOR)
+        # This frame holds general parameters
+        self.general_params_frame = GeneralParamsFrame(self.content, bg=DARK_COLOR)
         # This frame holds buttons for comparing program parameters
         self.simulation_comparison = ComparisonFrame(self.content, bg=DARK_COLOR)
-        # This notebook will have three tabs for the program, population, and simulation settings
-        self.settings_notebook = SettingsNotebook(self.content)
+        # This notebook will have three tabs for the program, population, and simulation parameters
+        self.parameter_notebook = ParameterNotebook(self.content)
         self.showing_advanced = False
         self.advanced_frame = AdvancedFrame(self.content, self.toggle_advanced_parameters)
-        self.run_button = RunButton(self.content, text="Run", height=1, command=self.__run_simulation)
+        self.run_button = RunButton(self.content, text="Run", height=1, command=self.run_simulation)
 
         # Add callbacks that will run when certain variables are changed
-        self.__add_variable_callbacks()
+        self.add_variable_callbacks()
 
         # ----------------------------------------- Add Widgets to Window --------------------------------------------
 
         self.content.pack(expand=True, fill=BOTH)
-        self.general_settings_frame.pack(fill=X)
+        self.general_params_frame.pack(fill=X)
         self.simulation_comparison.pack(fill=X, pady=(4, 0))
-        self.settings_notebook.pack(expand=True, fill=BOTH, pady=(4, 8))
+        self.parameter_notebook.pack(expand=True, fill=BOTH, pady=(4, 8))
         self.advanced_frame.pack(anchor=E, pady=(0, 6))
         self.run_button.pack(anchor=E, fill=Y)
 
-        self.position_window()  # Position window in middle of the screen
+        center_window(self)  # Position window in middle of the screen
         self.original_height = self.winfo_height()  # Need to keep track of original height of window when resizing
 
-        self.abf_module = None
+        self.abf_module = self.sim_engine = self.engine_process = self.current_state = None
         self.check_file_entries()  # Check the file entries on start to disable run button if necessary
 
-    def __set_up_style(self):
+    @staticmethod
+    def set_up_style():
         """Create the style for ttk widgets. These new styles are given their own names, which will have to be provided
         by the widgets in order to be used."""
         style = ttk.Style()
@@ -105,11 +105,11 @@ class MicrosimGUI(Tk):
         style.configure('MSLabelframe.TLabelframe.Label', background=VERY_LIGHT_COLOR, foreground=THEME_COLOR,
                         font='-size 12')
 
-    def __create_variables(self):
+    def create_variables(self):
         """Create the variables that the users will update in the interface.
         These variables will be passed to the engine."""
-        g = self.general_settings
-        d = self.default_settings
+        g = self.general_params
+        d = self.default_params
         variables = {
             'fmla_file': StringVar(value=g.fmla_file),
             'acs_directory': StringVar(value=g.acs_directory),
@@ -118,7 +118,7 @@ class MicrosimGUI(Tk):
             'simulation_method': StringVar(value=g.simulation_method),
             'existing_program': StringVar(),
             'engine_type': StringVar(value=g.engine_type),
-            'r_path': StringVar(),
+            'r_path': StringVar(value=g.r_path),
             'benefit_effect': BooleanVar(value=d.benefit_effect),
             'calibrate': BooleanVar(value=d.calibrate),
             'clone_factor': IntVar(value=d.clone_factor),
@@ -158,7 +158,7 @@ class MicrosimGUI(Tk):
 
         return variables
 
-    def __add_variable_callbacks(self):
+    def add_variable_callbacks(self):
         """Adds a callback when user changes certain inputs"""
         # When the file location entries are modified, check to see if they all have some value
         # If they do, enable the run button
@@ -173,25 +173,6 @@ class MicrosimGUI(Tk):
 
         # When users change the existing_program variable, change all parameters to match an existing state program
         self.variables['existing_program'].trace('w', self.set_existing_parameters)
-
-    def position_window(self):
-        """Puts the window in the center of the screen"""
-        self.update()  # Update changes to root first
-
-        # Get the width and height of both the window and the user's screen
-        ww = self.winfo_width()
-        wh = self.winfo_height()
-        sw = self.winfo_screenwidth()
-        sh = self.winfo_screenheight()
-
-        # Formula for calculating the center
-        x = (sw / 2) - (ww / 2)
-        y = (sh / 2) - (wh / 2) - 50
-
-        # Set window minimum size
-        self.minsize(ww, wh)
-
-        self.geometry('%dx%d+%d+%d' % (ww, wh, x, y))
 
     def on_close(self):
         """When the main window is closed, destroy all progress and result windows. Also destroy main window."""
@@ -221,11 +202,11 @@ class MicrosimGUI(Tk):
             else:
                 self.variables[param_key].set(param_val)
 
-    def __run_simulation(self):
+    def run_simulation(self):
         """Run the simulation from the parameters that user provides"""
         # Before running simulation, check for input errors
-        self.__clear_errors()
-        errors = self.validate_settings()
+        self.clear_errors()
+        errors = self.validate_inputs()
 
         # If there are errors, don't run simulation. Instead, display the errors.
         if len(errors) > 0:
@@ -233,83 +214,92 @@ class MicrosimGUI(Tk):
             return
 
         # Save user input values to the setting objects
-        self.save_general_settings()
-        self.save_settings()
+        self.save_general_parameters()
+        self.save_params()
+        self.current_state = self.general_params.state
 
         # Run either to Python or R engine
-        if self.general_settings.engine_type == 'Python':
-            self.__run_simulation_python()
-        elif self.general_settings.engine_type == 'R':
-            self.__run_simulation_r(self.general_settings)
+        if self.general_params.engine_type == 'Python':
+            self.run_simulation_python()
+        elif self.general_params.engine_type == 'R':
+            self.run_simulation_r()
 
-    def __run_simulation_python(self):
+    def run_simulation_python(self):
         """Run Python engine"""
         q = multiprocessing.Queue()  # This is a messaging queue to get updates from engine
 
         # Initiate a SimulationEngine instance
-        self.se = self.create_simulation_engine(q)
+        self.sim_engine = self.create_simulation_engine(q)
 
         # If comparing, add parameters for all of the programs to the engine
-        for settings in self.all_settings:
-            self.add_engine_params(settings)
+        for parameter in self.all_params:
+            self.add_engine_params(parameter)
             if not self.comparing:
                 break
 
         self.run_button.disable()  # Prevent user from running another simulation when one is already running
-        progress_window = ProgressWindow(self, engine_type='Python', se=self.se)   # Create progress window
+        progress_window = ProgressWindow(self)  # Create progress window
         self.progress_windows.append(progress_window)  # Keep track of all progress windows
 
         # Run model
-        self.engine_process = multiprocessing.Process(None, target=run_engines, args=(self.se, q))
+        self.engine_process = multiprocessing.Process(None, target=run_engine_python, args=(self.sim_engine, q))
         self.engine_process.start()
 
-        progress_window.update_progress(q)  # Update progress window with messages in queue
+        progress_window.update_progress_python(q)  # Update progress window with messages in queue
 
-    def __run_simulation_r(self, settings):
-        progress_file = './log/progress_{}.txt'.format(datetime.datetime.now().strftime('%Y%m%d%H%M%S%f'))
-        command = create_r_command(settings, progress_file)
-        counterfactual_command = create_r_command(generate_default_state_params(settings), progress_file)
-        policy_command = create_r_command(generate_generous_params(settings), progress_file)
+    def run_simulation_r(self):
+        """Run R Engine"""
+        # Create progress text file to update progress window
+        progress_file = './r_engine/progress/progress_{}.txt'.format(datetime.datetime.now().strftime('%Y%m%d%H%M%S%f'))
         open(progress_file, 'w+').close()
-        self.engine_process = multiprocessing.Process(None, target=run_engines_r, args=(command, counterfactual_command,
-                                                                                        policy_command))
+
+        # Generate command to run R engine from terminal
+        command = create_r_command(self.general_params, self.all_params[0], progress_file)
+
+        # Run command in new process
+        self.engine_process = multiprocessing.Process(None, target=run_engine_r, args=(command,))
         self.engine_process.start()
 
-        progress_window = ProgressWindow(self, engine_type='R')
+        # Display progress window and update with current engine progress
+        progress_window = ProgressWindow(self)
+        self.progress_windows.append(progress_window)  # Keep track of all progress windows
         with open(progress_file, 'r') as f:
             progress_window.update_progress_r(f)
 
-    def show_results(self):
+    def show_results(self, engine='Python'):
         """Display the results of the simulation"""
         self.engine_process.terminate()  # End the process that ran engine
 
         # Compute program costs
         print('Showing results')
-        costs = self.se.get_cost_df(0)
+        if engine == 'Python':
+            costs = self.sim_engine.get_cost_df(0)
+            main_output_dir = self.sim_engine.output_directories[0]
+            results_files = self.sim_engine.get_results_files()
+        else:
+            costs = pd.read_csv('./output/output_20200220_130425_main simulation/program_cost_ri_20200220_130425.csv')
+            main_output_dir = os.path.join('r_engine', 'output')
+            results_files = [os.path.join(main_output_dir, 'output.csv')]
 
         # Calculate total benefits paid
         total_benefits = list(costs.loc[costs['type'] == 'total', 'cost'])[0]
 
-        # Create instance of ABF module with simulation results and user settings
-        main_settings = self.all_settings[0]
-        abf_module = ABF(self.se.get_results_file(0), total_benefits, main_settings.eligible_size,
-                         main_settings.max_taxable_earnings_per_person, main_settings.benefits_tax,
-                         main_settings.average_state_tax, main_settings.payroll_tax)
+        # Create instance of ABF module with simulation results and user parameters
+        main_params = self.all_params[0]
+        abf_module = ABF(results_files[0], total_benefits, main_params.eligible_size,
+                         main_params.max_taxable_earnings_per_person, main_params.benefits_tax,
+                         main_params.average_state_tax, main_params.payroll_tax, output_dir=main_output_dir)
 
         # Keep track of all results windows that are created
-        self.results_windows.append(ResultsWindow(self, self.se, abf_module))
+        self.results_windows.append(ResultsWindow(self, costs, self.current_state, results_files, abf_module))
         self.run_button.enable()  # Enable run button again after simulation is complete
 
-    def create_settings(self):
-        """Create an object to store the non-general setting values"""
-        return self.__create_settings()
-
-    def __create_settings(self):
-        """Create an object to store the non-general setting values"""
+    def create_params(self):
+        """Create an object to store the non-general parameter values"""
         # The inputs are linked to a tkinter variable. Those values will have to be retrieved from each variable
-        # and passed on to the settings objects.
+        # and passed on to the parameter objects.
         variable_values = {}
-        valid_var_names = vars(self.default_settings).keys()
+        valid_var_names = vars(self.default_params).keys()
         for var_name, var_obj in self.variables.items():
             if var_name not in valid_var_names:
                 continue
@@ -319,7 +309,7 @@ class MicrosimGUI(Tk):
             else:
                 variable_values[var_name] = var_obj.get()
 
-        return OtherSettings(**variable_values)
+        return OtherParameters(**variable_values)
 
     def start_comparing(self):
         """Start comparing multiple programs"""
@@ -332,7 +322,7 @@ class MicrosimGUI(Tk):
 
     def add_comparison(self):
         """Add a new program to compare"""
-        self.all_settings.append(self.default_settings)
+        self.all_params.append(self.default_params)
 
     def remove_comparison(self, sim_num):
         """Remove a program from comparisons
@@ -341,7 +331,7 @@ class MicrosimGUI(Tk):
             The index of a comparison program to remove
         :return: None
         """
-        del self.all_settings[sim_num]
+        del self.all_params[sim_num]
         self.switch_comparison(sim_num - 1, save=False)
 
     def switch_comparison(self, sim_num, save=True):
@@ -355,7 +345,7 @@ class MicrosimGUI(Tk):
         """
         # First, save the changes that users have made to to current program
         if save:
-            self.save_settings()
+            self.save_params()
 
         # Switch to the new program
         self.current_sim_num = sim_num
@@ -368,8 +358,8 @@ class MicrosimGUI(Tk):
             The index of a comparison program
         :return: None
         """
-        settings = self.all_settings[sim_num]   # Get the input values from settings list and sim_num
-        for param_key, param_val in vars(settings).items():
+        params = self.all_params[sim_num]  # Get the input values from parameter list and sim_num
+        for param_key, param_val in vars(params).items():
             # If value for the parameter is a dictionary, then traverse that dictionary
             if type(param_val) == dict:
                 for k, v in param_val.items():
@@ -377,22 +367,22 @@ class MicrosimGUI(Tk):
             else:
                 self.variables[param_key].set(param_val)
 
-    def save_general_settings(self):
-        """Update general settings object with user input values"""
+    def save_general_parameters(self):
+        """Update general parameters object with user input values"""
 
         # Store user-provided values in a dictionary
         variable_values = {}
-        for var_name in vars(self.general_settings).keys():
+        for var_name in vars(self.general_params).keys():
             variable_values[var_name] = self.variables[var_name].get()
         variable_values['random_seed'] = self.check_random_seed(variable_values['random_seed'])
 
-        # Update the GeneralSettings object with dictionary
-        self.general_settings.update_variables(**variable_values)
+        # Update the GeneralParameters object with dictionary
+        self.general_params.update_variables(**variable_values)
 
-    def save_settings(self):
-        settings = self.__create_settings()
-        self.all_settings[self.current_sim_num] = settings
-        return settings
+    def save_params(self):
+        params = self.create_params()
+        self.all_params[self.current_sim_num] = params
+        return params
 
     @staticmethod
     def check_random_seed(random_seed):
@@ -410,24 +400,24 @@ class MicrosimGUI(Tk):
             return int.from_bytes(random_seed.encode(), 'big')
 
     def create_simulation_engine(self, q):
-        """Create Python engine using settings values
+        """Create Python engine using parameter values
 
         :param q: multiprocessing.Queue()
             Will be passed to engine to receive progress updates in interface
         :return: SimulationEngine
         """
 
-        # Get values from GeneralSettings object
-        st = self.general_settings.state.lower()
+        # Get values from GeneralParameters object
+        st = self.general_params.state.lower()
         yr = 16
-        fp_fmla_in = self.general_settings.fmla_file
-        fp_cps_in = './data/cps/CPS20%sextract.csv' % (yr-2)
-        fp_acsh_in = self.general_settings.acs_directory + '/household_files'
-        fp_acsp_in = self.general_settings.acs_directory + '/person_files'
-        state_of_work = self.general_settings.state_of_work
+        fp_fmla_in = self.general_params.fmla_file
+        fp_cps_in = './data/cps/CPS20%sextract.csv' % (yr - 2)
+        fp_acsh_in = self.general_params.acs_directory + '/household_files'
+        fp_acsp_in = self.general_params.acs_directory + '/person_files'
+        state_of_work = self.general_params.state_of_work
         if state_of_work:
-            fp_acsh_in = self.general_settings.acs_directory + '/pow_household_files'
-            fp_acsp_in = self.general_settings.acs_directory + '/pow_person_files'
+            fp_acsh_in = self.general_params.acs_directory + '/pow_household_files'
+            fp_acsp_in = self.general_params.acs_directory + '/pow_person_files'
         fp_fmla_out = './data/fmla_2012/fmla_clean_2012.csv'
         fp_cps_out = './data/cps/cps_for_acs_sim.csv'
         fp_acs_out = './data/acs/'
@@ -435,59 +425,59 @@ class MicrosimGUI(Tk):
         fps_in = [fp_fmla_in, fp_cps_in, fp_acsh_in, fp_acsp_in]
         fps_out = [fp_fmla_out, fp_cps_out, fp_acs_out, fp_length_distribution_out]
 
-        clf_name = self.general_settings.simulation_method
-        random_seed = self.general_settings.random_seed
-        sim_method = self.general_settings.simulation_method
+        clf_name = self.general_params.simulation_method
+        random_seed = self.general_params.random_seed
         return SimulationEngine(st, yr, fps_in, fps_out, clf_name=clf_name, random_state=random_seed,
-                                state_of_work=state_of_work, sim_method=sim_method, q=q)
+                                state_of_work=state_of_work, q=q)
 
-    def add_engine_params(self, settings):
-        """Add additional engine parameters from an OtherSettings object
+    def add_engine_params(self, parameters):
+        """Add additional engine parameters from an OtherParameters object
 
-        :param settings: OtherSettings
+        :param parameters: OtherParameters
         :return: None
         """
 
-        # Get parameter values from OtherSettings object
-        elig_wage12 = settings.eligible_earnings
-        elig_wkswork = settings.eligible_weeks
-        elig_yrhours = settings.eligible_hours
-        elig_empsize = settings.eligible_size
-        rrp = settings.replacement_ratio
-        wkbene_cap = settings.weekly_ben_cap
+        # Get parameter values from OtherParameters object
+        elig_wage12 = parameters.eligible_earnings
+        elig_wkswork = parameters.eligible_weeks
+        elig_yrhours = parameters.eligible_hours
+        elig_empsize = parameters.eligible_size
+        rrp = parameters.replacement_ratio
+        wkbene_cap = parameters.weekly_ben_cap
 
         d_maxwk = {
-            'own': settings.max_weeks['Own Health'],
-            'matdis': settings.max_weeks['Maternity'],
-            'bond': settings.max_weeks['New Child'],
-            'illchild': settings.max_weeks['Ill Child'],
-            'illspouse': settings.max_weeks['Ill Spouse'],
-            'illparent': settings.max_weeks['Ill Parent']
+            'own': parameters.max_weeks['Own Health'],
+            'matdis': parameters.max_weeks['Maternity'],
+            'bond': parameters.max_weeks['New Child'],
+            'illchild': parameters.max_weeks['Ill Child'],
+            'illspouse': parameters.max_weeks['Ill Spouse'],
+            'illparent': parameters.max_weeks['Ill Parent']
         }
 
         d_takeup = {
-            'own': settings.take_up_rates['Own Health'],
-            'matdis': settings.take_up_rates['Maternity'],
-            'bond': settings.take_up_rates['New Child'],
-            'illchild': settings.take_up_rates['Ill Child'],
-            'illspouse': settings.take_up_rates['Ill Spouse'],
-            'illparent': settings.take_up_rates['Ill Parent']
+            'own': parameters.take_up_rates['Own Health'],
+            'matdis': parameters.take_up_rates['Maternity'],
+            'bond': parameters.take_up_rates['New Child'],
+            'illchild': parameters.take_up_rates['Ill Child'],
+            'illspouse': parameters.take_up_rates['Ill Spouse'],
+            'illparent': parameters.take_up_rates['Ill Parent']
         }
 
-        incl_empgov_fed = settings.fed_employees
-        incl_empgov_st = settings.state_employees
-        incl_empgov_loc = settings.local_employees
-        incl_empself = settings.self_employed
-        needers_fully_participate = settings.needers_fully_participate
+        incl_empgov_fed = parameters.fed_employees
+        incl_empgov_st = parameters.state_employees
+        incl_empgov_loc = parameters.local_employees
+        incl_empself = parameters.self_employed
+        needers_fully_participate = parameters.needers_fully_participate
         # state_of_work value see above next to fp_acsh_in/fp_acsp_in
-        # weight_factor = settings.weight_factor
-        clone_factor = settings.clone_factor
-        dual_receivers_share = settings.dual_receivers_share
+        # weight_factor = parameters.weight_factor
+        clone_factor = parameters.clone_factor
+        dual_receivers_share = parameters.dual_receivers_share
 
         # Update simulation engine with the values
-        self.se.set_simulation_params(elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp, wkbene_cap, d_maxwk,
-                                      d_takeup, incl_empgov_fed, incl_empgov_st, incl_empgov_loc, incl_empself,
-                                      needers_fully_participate, clone_factor, dual_receivers_share, sim_num=None)
+        self.sim_engine.set_simulation_params(elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp, wkbene_cap,
+                                              d_maxwk, d_takeup, incl_empgov_fed, incl_empgov_st, incl_empgov_loc,
+                                              incl_empself, needers_fully_participate, clone_factor,
+                                              dual_receivers_share, sim_num=None)
 
     def check_file_entries(self, *_):
         """Enables run button if locations for ACS, FMLA, and output folders are provided. Otherwise, disables run
@@ -498,7 +488,7 @@ class MicrosimGUI(Tk):
         else:
             self.run_button.disable()
 
-    def validate_settings(self):
+    def validate_inputs(self):
         """Checks each entry value for correct data type and range.
 
         :return: List of errors
@@ -506,25 +496,26 @@ class MicrosimGUI(Tk):
         errors = []  # Keep track of errors
 
         # These are the inputs that are expecting integer values
-        integer_entries = [self.settings_notebook.program_frame.eligible_earnings_input,
-                           self.settings_notebook.program_frame.eligible_weeks_input,
-                           self.settings_notebook.program_frame.eligible_hours_input,
-                           self.settings_notebook.program_frame.eligible_size_input,
-                           self.settings_notebook.program_frame.weekly_ben_cap_input,
-                           self.settings_notebook.simulation_frame.clone_factor_input,
-                           self.settings_notebook.program_frame.benefit_financing_frame.max_taxable_earnings_per_person_input,
-                           ]
+        integer_entries = [
+            self.parameter_notebook.program_frame.eligible_earnings_input,
+            self.parameter_notebook.program_frame.eligible_weeks_input,
+            self.parameter_notebook.program_frame.eligible_hours_input,
+            self.parameter_notebook.program_frame.eligible_size_input,
+            self.parameter_notebook.program_frame.weekly_ben_cap_input,
+            self.parameter_notebook.simulation_frame.clone_factor_input,
+            self.parameter_notebook.program_frame.benefit_financing_frame.max_taxable_earnings_per_person_input,
+        ]
 
-        integer_entries += [entry for entry in self.settings_notebook.program_frame.max_weeks_inputs]
+        integer_entries += [entry for entry in self.parameter_notebook.program_frame.max_weeks_inputs]
 
         # These are the inputs that are expecting decimal values
-        float_entries = [self.settings_notebook.program_frame.benefit_financing_frame.payroll_tax_input,
-                         self.settings_notebook.program_frame.benefit_financing_frame.average_state_tax_input]
+        float_entries = [self.parameter_notebook.program_frame.benefit_financing_frame.payroll_tax_input,
+                         self.parameter_notebook.program_frame.benefit_financing_frame.average_state_tax_input]
 
         # These are the inputs expecting decimal values between 0 and 1
-        rate_entries = [self.settings_notebook.program_frame.replacement_ratio_input]
-        rate_entries += [entry for entry in self.settings_notebook.population_frame.take_up_rates_inputs]
-        # rate_entries += [entry for entry in self.settings_notebook.population_frame.leave_probability_factors_inputs]
+        rate_entries = [self.parameter_notebook.program_frame.replacement_ratio_input]
+        rate_entries += [entry for entry in self.parameter_notebook.population_frame.take_up_rates_inputs]
+        # rate_entries += [entry for entry in self.parameter_notebook.population_frame.leave_probability_factors_inputs]
 
         # Validate all of the inputs
         for entry in integer_entries:
@@ -544,6 +535,11 @@ class MicrosimGUI(Tk):
 
     @staticmethod
     def validate_integer(value):
+        """Checks if value is an integer greater than 0
+
+        :param value: integer or string
+        :return: bool
+        """
         try:
             return int(value) >= 0
         except ValueError:
@@ -551,6 +547,11 @@ class MicrosimGUI(Tk):
 
     @staticmethod
     def validate_float(value):
+        """Checks if value is a float greater than 0
+
+        :param value: float or string
+        :return: bool
+        """
         try:
             return float(value) >= 0
         except ValueError:
@@ -558,27 +559,49 @@ class MicrosimGUI(Tk):
 
     @staticmethod
     def validate_rate(value):
+        """Checks if value is a float greater than 0 and less than 1
+
+        :param value: float or string
+        :return: bool
+        """
         try:
             return 0 <= float(value) <= 1
         except ValueError:
             return False
 
     def display_errors(self, errors):
-        for widget, error in errors:
-            widget.config(bg='red', fg='white')
-            self.error_tooltips.append((widget, CreateToolTip(widget, error)))
+        """Visually displays error in main window
 
+        :param errors: list of tuples
+            Each tuple consists of a widget and an error message
+        :return: None
+        """
+        for widget, error in errors:
+            widget.config(bg='red', fg='white')  # Change color of input with invalid value to red
+            # Add a tooltip to input to explain problem
+            self.error_tooltips.append((widget, ToolTipCreator(widget, error)))
+
+        # Create popup to alert user that one more more errors occured
         messagebox.showinfo('Error', message='There was an error with one or more entries.')
 
-    def __clear_errors(self):
+    def clear_errors(self):
+        """Removes error visualizations from main window
+
+        :return: None
+        """
         for widget, tooltip in self.error_tooltips:
-            widget.config(bg='white', fg='black')
-            tooltip.hidetip()
+            widget.config(bg='white', fg='black')  # Turn background of entry widgets white
+            tooltip.hidetip()  # Remove any error tooltips created
 
         self.error_tooltips = []
 
-    # Allows the scroll wheel to move a scrollbar
     def scroll(self, event):
+        """Allows the scroll wheel to move a scrollbar
+
+        :param event: Event object
+            Contains information about the scroll direction
+        :return: None
+        """
         # In Windows, the delta will be either 120 or -120. In Mac, it will be 1 or -1.
         # The delta value will determine whether the user is scrolling up or down.
         move_unit = 0
@@ -589,46 +612,74 @@ class MicrosimGUI(Tk):
 
         # Only scroll the tab that is currently visible.
         if self.current_tab == 0:
-            self.settings_notebook.program_frame.canvas.yview_scroll(move_unit, 'units')
+            self.parameter_notebook.program_frame.canvas.yview_scroll(move_unit, 'units')
         elif self.current_tab == 1:
-            self.settings_notebook.population_frame.canvas.yview_scroll(move_unit, 'units')
+            self.parameter_notebook.population_frame.canvas.yview_scroll(move_unit, 'units')
         elif self.current_tab == 2:
-            self.settings_notebook.simulation_frame.canvas.yview_scroll(move_unit, 'units')
+            self.parameter_notebook.simulation_frame.canvas.yview_scroll(move_unit, 'units')
 
-    # Change the currently visible tab.
     def change_current_tab(self, event):
-        self.current_tab = self.settings_notebook.tk.call(self.settings_notebook._w, "identify", "tab", event.x,
-                                                          event.y)
+        """Alerts program when the user clicks on a new tab
+
+        :param event: Event object
+            Contains information about which tab was clicked
+        :return: None
+        """
+        self.current_tab = self.parameter_notebook.tk.call(self.parameter_notebook._w, "identify", "tab", event.x,
+                                                           event.y)
 
     def hide_advanced_parameters(self):
-        self.general_settings_frame.hide_advanced_parameters()
-        self.settings_notebook.hide_advanced_parameters()
+        """Hides inputs that are for advanced users"""
+        self.general_params_frame.hide_advanced_parameters()
+        self.parameter_notebook.hide_advanced_parameters()
 
     def show_advanced_parameters(self):
-        self.general_settings_frame.show_advanced_parameters()
-        self.settings_notebook.show_advanced_parameters()
+        """Reveals inputs that are for advanced users"""
+        self.general_params_frame.show_advanced_parameters()
+        self.parameter_notebook.show_advanced_parameters()
 
     def toggle_advanced_parameters(self):
-        height_change = 125
+        """Switches between either showing or hiding advanced inputs"""
+        # When more inputs are added to the main window, they will take up space. This causes certain widgets to
+        # shrink or even disappear. So we need to increase the window size
+        height_change = 150
         if self.showing_advanced:
             self.showing_advanced = False
             self.hide_advanced_parameters()
-            self.update()
-            self.minsize(self.winfo_width(), self.original_height)
+            self.update_idletasks()
+            self.minsize(self.winfo_width(), self.original_height)  # Return minimum height to original value
         else:
             self.showing_advanced = True
             self.show_advanced_parameters()
-            self.update()
+            self.update_idletasks()
+            # Return minimum height to account for new widgets
             self.minsize(self.winfo_width(), self.original_height + height_change)
 
+        # Change the color for the On and Off buttons in the Advanced Parameters frame
         self.advanced_frame.on_button.toggle()
         self.advanced_frame.off_button.toggle()
 
 
-class GeneralSettingsFrame(Frame):
+class GeneralParamsFrame(Frame):
     def __init__(self, parent=None, **kwargs):
+        """Create a frame to hold general parameters"""
         super().__init__(parent, **kwargs)
-        self.__create_attributes()
+
+        # Valid file types which will be used to restrict input files
+        self.spreadsheet_ftypes = [('All', '*.xlsx; *.xls; *.csv'), ('Excel', '*.xlsx'),
+                                   ('Excel 97-2003', '*.xls'), ('CSV', '*.csv')]
+
+        # State codes
+        self.states = ('All', 'AK', 'AL', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'DC', 'FL', 'GA', 'HI', 'ID', 'IL',
+                       'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV',
+                       'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'PR', 'RI', 'SC', 'SD', 'TN',
+                       'TX', 'UT', 'VT', 'VA', 'VI', 'WA', 'WV', 'WI', 'WY')
+
+        # Currently implemented simulation methods
+        self.simulation_methods = ('Logistic Regression GLM', 'Logistic Regression', 'Ridge Classifier',
+                                   'K Nearest Neighbor', 'Naive Bayes', 'Support Vector Machine', 'Random Forest')
+        self.cwd = os.getcwd()  # Current working directory
+        self.variables = self.winfo_toplevel().variables
 
         # Create the input widgets for general parameters
         # ------------------------------------------------ FMLA File ------------------------------------------------
@@ -723,19 +774,8 @@ class GeneralSettingsFrame(Frame):
         # Give the second column more space than the others
         self.columnconfigure(1, weight=1)
 
-    def __create_attributes(self):
-        self.spreadsheet_ftypes = [('All', '*.xlsx; *.xls; *.csv'), ('Excel', '*.xlsx'),
-                                   ('Excel 97-2003', '*.xls'), ('CSV', '*.csv')]
-        self.states = ('All', 'AK', 'AL', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'DC', 'FL', 'GA', 'HI', 'ID', 'IL',
-                       'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV',
-                       'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'PR', 'RI', 'SC', 'SD', 'TN',
-                       'TX', 'UT', 'VT', 'VA', 'VI', 'WA', 'WV', 'WI', 'WY')
-        self.simulation_methods = ('Logistic Regression GLM', 'Logistic Regression', 'Ridge Classifier',
-                                   'K Nearest Neighbor', 'Naive Bayes', 'Support Vector Machine', 'Random Forest')
-        self.cwd = os.getcwd()
-        self.variables = self.winfo_toplevel().variables
-
     def hide_advanced_parameters(self):
+        """Hides inputs that are for advanced users"""
         # self.detail_label.grid_forget()
         # self.detail_input.grid_forget()
         self.state_of_work_input.grid_forget()
@@ -750,6 +790,7 @@ class GeneralSettingsFrame(Frame):
         self.r_path_button.grid_forget()
 
     def show_advanced_parameters(self):
+        """Reveals inputs that are for advanced users"""
         # self.detail_label.grid(column=0, row=3, sticky=W, pady=self.row_padding)
         # self.detail_input.grid(column=1, row=3, sticky=W, padx=8, pady=self.row_padding)
         self.state_of_work_input.grid(column=1, row=6, columnspan=2, sticky=W, padx=8, pady=(0, self.row_padding))
@@ -762,18 +803,39 @@ class GeneralSettingsFrame(Frame):
         self.toggle_r_path()
 
     def browse_file(self, file_input, filetypes):
-        # Open a file dialogue where user can choose a file. Possible options are limited to CSV and Excel files.
+        """Open a file dialogue where user can choose a file. Possible options are limited to CSV and Excel files
+
+        :param file_input: Entry widget that will hold the name of the file that user chooses
+        :param filetypes: List of tuples, required
+            Each tuple contains the name of a file category and the file extensions in that category
+        :return: None
+        """
+
+        # Open the file dialog
         file_name = filedialog.askopenfilename(initialdir=self.cwd, filetypes=filetypes)
-        file_input.delete(0, END)  # Clear current value in entry widget
-        file_input.insert(0, file_name)  # Add user-selected value to entry widget
+
+        # Don't replace the file input value if user cancels
+        if file_name is not None and file_name != '':
+            file_input.delete(0, END)  # Clear current value in entry widget
+            file_input.insert(0, file_name)  # Add user-selected value to entry widget
 
     def browse_directory(self, directory_input):
-        # Open a file dialogue where user can choose a directory.
+        """Open a file dialogue where user can choose a directory.
+
+        :param directory_input: Entry widget that will hold the name of the directory that user chooses
+        :return: None
+        """
+
+        # Open the file dialogue
         directory_name = filedialog.askdirectory(initialdir=self.cwd)
-        directory_input.delete(0, END)  # Clear current value in entry widget
-        directory_input.insert(0, directory_name)  # Add user-selected value to entry widget
+
+        # Don't replace the directory input value if user cancels
+        if directory_name is not None and directory_name != '':
+            directory_input.delete(0, END)  # Clear current value in entry widget
+            directory_input.insert(0, directory_name)  # Add user-selected value to entry widget
 
     def toggle_r_path(self, *_):
+        """Either reveals or hides the widgets related to specifying path of Rscript.exe"""
         if self.variables['engine_type'].get() == 'R':
             self.r_path_label.grid(column=0, row=10, sticky=W, pady=self.row_padding)
             self.r_path_input.grid(column=1, row=10, padx=8, sticky=(E, W), pady=self.row_padding)
@@ -786,14 +848,18 @@ class GeneralSettingsFrame(Frame):
 
 class ComparisonFrame(Frame):
     def __init__(self, parent=None, **kwargs):
+        """Frame to hold buttons to control program comparison functionalities"""
         super().__init__(parent, **kwargs)
-        self.showing_comparisons = False
-        self.comparison_count = 0
-        self.comparison_max = 4
 
+        self.showing_comparisons = False  # Indicator for whether or not the program is currently in comparison mode
+        self.comparison_count = 0  # Number of programs that are user is comparing
+        self.comparison_max = 4  # Max number of programs allowed
+
+        # Frame to hold buttons to start and stop comparison mode as well as to add additional programs to compare
         self.buttons = Frame(self, bg=DARK_COLOR)
         self.buttons.pack(side=RIGHT, anchor=E, fill=Y)
 
+        # Button to start comparison mode
         self.start_button = BorderButton(self.buttons, custom=True, borderwidth=1, relief='flat',
                                          highlightbackground='#FFFFFF')
         button_content = SubtleToggle(self.start_button, text='Compare', font='-size 9 -weight bold',
@@ -801,43 +867,56 @@ class ComparisonFrame(Frame):
         self.start_button.add_content(button_content)
         self.start_button.pack(side=RIGHT)
 
+        # Button to add one comparison
         self.add_simulation_button = BorderButton(self.buttons, text=u'\uFF0B', font='-size 10 -weight bold',
                                                   background=THEME_COLOR, width=0, padx=2, pady=0,
                                                   highlightthickness=0, command=self.add_simulation)
 
-        self.simulations = []
+        #  Frame to hold comparison proram buttons
         self.simulations_frame = Frame(self, bg=DARK_COLOR)
         self.main_sim = SimulationSelectFrame(self, parent=self.simulations_frame)
         self.main_sim.toggle_on()
         self.main_sim.pack(side=LEFT, anchor=E, padx=(0, 3))
 
-        self.simulations.append(self.main_sim)
+        # List of comparison program buttons
+        self.simulations = [self.main_sim]
 
     def toggle_show_comparison(self):
+        """Starts or stops comparison mode depending on the current state"""
         if not self.showing_comparisons:
+            # Show the buttons related to comparison mode functionality
             self.simulations_frame.pack(side=RIGHT, anchor=E, fill=BOTH)
             self.add_simulation_button.pack(side=LEFT, padx=(0, 6))
             self.start_button.button.toggle()
             self.showing_comparisons = True
-            self.winfo_toplevel().start_comparing()
+            self.winfo_toplevel().start_comparing()  # Inform main window that comparison mode has started
         else:
+            # Hide the buttons related to comparison mode functionality
             self.simulations_frame.pack_forget()
             self.add_simulation_button.pack_forget()
             self.start_button.button.toggle()
             self.showing_comparisons = False
-            self.winfo_toplevel().stop_comparing()
+            self.winfo_toplevel().stop_comparing()  # Inform main window that comparison mode has stopped
 
     def add_simulation(self):
+        """Add a program to compare"""
+
+        # Do not allow user to add more than the max number of comparison programs
         if self.comparison_count >= self.comparison_max:
             return
 
-        self.comparison_count += 1
+        self.comparison_count += 1  # Increment the count of comparisons
+
+        # Create a new button for the new comparison program
         new_sim = SimulationSelectFrame(self, parent=self.simulations_frame, sim_num=self.comparison_count)
         new_sim.pack(side=LEFT, anchor=E, padx=(0, 3))
-        self.simulations.append(new_sim)
-        self.winfo_toplevel().add_comparison()
+        self.simulations.append(new_sim)  # Add new program to list of comparisons
+        self.winfo_toplevel().add_comparison()  # Add new program's parameters to the list of parameters
 
     def select_simulation(self, sim_num):
+        """Set a comparison simulation as the currently selected one"""
+
+        # Toggle all programs buttons off except for the one that is selected
         for i in range(len(self.simulations)):
             if i != sim_num:
                 self.simulations[i].toggle_off()
@@ -845,57 +924,78 @@ class ComparisonFrame(Frame):
                 self.simulations[i].toggle_on()
 
     def remove_simulation(self, sim_num):
+        """Removes the currently selected program from the set of comparison programs"""
+
+        # Since the current program is being removed, switch to the previous program in the ordered list
         self.select_simulation(sim_num - 1)
+
+        # Decrement the number of each program after the one that has just been removed
         for i in range(sim_num + 1, self.comparison_count + 1):
             self.simulations[i].update_sim_num(i - 1)
+
+        # Remove current program button from window
         self.simulations[sim_num].pack_forget()
         del self.simulations[sim_num]
-        self.comparison_count -= 1
+        self.comparison_count -= 1  # Decrement the count of simulations
 
 
 class SimulationSelectFrame(Frame):
     def __init__(self, comparison_frame, parent=None, sim_num=0, width=None, **kwargs):
-        self.comparison_frame = comparison_frame
-        self.non_selected_color = '#808080'
-        self.selected_color = '#FFFFFF'
+        """A frame that holds the button for a comparison program as well as a button to remove the program"""
+
+        self.comparison_frame = comparison_frame  # Need to keep track of this frame when removing a program
+        self.non_selected_color = '#808080'  # Color when button is not selected
+        self.selected_color = '#FFFFFF'  # Color when button is selected
         super().__init__(parent, relief='flat', highlightbackground=self.non_selected_color, highlightthickness=1,
                          **kwargs)
-        self.sim_num = sim_num
 
+        self.sim_num = sim_num  # Comparison program number - used to determine its name
         self.name = get_sim_name(sim_num)
+
+        # Button to select the program
         self.select_button = SubtleButton(self, text=self.name, fg=self.non_selected_color, width=width,
                                           command=self.select)
         self.select_button.pack(side=LEFT)
+
+        # Button to remove the program
         self.remove_button = SubtleButton(self, text=u'\u2A09', bg='#d9d9d9', fg='#666666', width=2,
                                           command=self.remove)
 
     def toggle_off(self):
+        """Visually show that this program is not selected"""
         self.config(highlightbackground=self.non_selected_color)
         self.select_button.config(fg=self.non_selected_color)
-        self.remove_button.pack_forget()
+        self.remove_button.pack_forget()  # Remove option to remove this program
 
     def toggle_on(self):
+        """Visually show that this program is selected"""
         self.config(highlightbackground=self.selected_color)
         self.select_button.config(fg=self.selected_color)
         if self.sim_num > 0:
-            self.remove_button.pack(side=LEFT)
+            self.remove_button.pack(side=LEFT)  # Show option to remove this program if it's not the main simulation
 
     def select(self):
+        """Select this program"""
         self.comparison_frame.select_simulation(self.sim_num)
         self.winfo_toplevel().switch_comparison(self.sim_num)
 
     def remove(self):
+        """Remove this program"""
         self.comparison_frame.remove_simulation(self.sim_num)
         self.winfo_toplevel().remove_comparison(self.sim_num)
 
     def update_sim_num(self, sim_num):
+        """Change this program's number and update its name"""
         self.sim_num = sim_num
+
+        # Change the button's text
         self.name = 'Comparison {}'.format(self.sim_num)
         self.select_button.config(text=self.name)
 
 
-class SettingsNotebook(ttk.Notebook):
+class ParameterNotebook(ttk.Notebook):
     def __init__(self, parent=None, **kwargs):
+        """Notebook that holds all of the program parameter types"""
         super().__init__(parent, style='MSNotebook.TNotebook', **kwargs)
 
         # Create frames for each notebook tab. Each frame needs a canvas because scroll bars cannot be added to a frame.
@@ -916,40 +1016,59 @@ class SettingsNotebook(ttk.Notebook):
         # When the top window gets resized, the scroll regions in the notebook should be resized too
         self.bind('<Configure>', self.resize)
 
-        self.update()
+        self.update_idletasks()
+        # Set the width of notebook to fit the content of the the content of all of its frames
         self.set_notebook_width(self.program_frame.content.winfo_width())
         self.config(width=self.program_frame.content.winfo_width() + 18)
 
-    # Change the currently visible tab.
     def change_current_tab(self, event):
+        """Change the currently visible tab."""
         self.winfo_toplevel().current_tab = self.tk.call(self._w, "identify", "tab", event.x, event.y)
 
     def set_scroll_region(self, height=-1):
+        """Changes the space that the vertical scrollbar can move through
+
+        :param height: int
+            Height to set the parameter frames in the notebook. If it is negative, then use the tallest frame's height
+            as the height
+        :return: None
+        """
+
         scroll_frames = [self.program_frame, self.population_frame, self.simulation_frame]
+        # If height is negative, use program_frame's canvas's height since it is the tallest
         canvas_height = self.program_frame.canvas.winfo_height() if height < 0 else height
 
         for frame in scroll_frames:
             frame_height = frame.content.winfo_height()
 
+            # Update canvas to the new height if it is not larger than the frame height
             new_height = frame_height if frame_height > canvas_height else canvas_height
             frame.canvas.configure(scrollregion=(0, 0, 0, new_height))
 
     def set_notebook_width(self, width):
+        """Changes the width of notebook's frames
+
+        :param width: int, width to set each frame
+        :return:
+        """
         self.program_frame.canvas.itemconfig(1, width=width)
         self.population_frame.canvas.itemconfig(1, width=width)
         self.simulation_frame.canvas.itemconfig(1, width=width)
 
     def resize(self, event):
+        """Is called when main window is resized to change the height and width of the notebook's frames"""
         new_width = event.width - 30
         self.set_notebook_width(new_width)
         self.set_scroll_region(event.height - 30)
 
     def hide_advanced_parameters(self):
+        """Hides inputs that are for advanced users"""
         self.program_frame.hide_advanced_parameters()
         self.population_frame.hide_advanced_parameters()
         self.simulation_frame.hide_advanced_parameters()
 
     def show_advanced_parameters(self):
+        """Reveals inputs that are for advanced users"""
         self.program_frame.show_advanced_parameters()
         self.population_frame.show_advanced_parameters()
         self.simulation_frame.show_advanced_parameters()
@@ -957,6 +1076,7 @@ class SettingsNotebook(ttk.Notebook):
 
 class ScrollFrame(Frame):
     def __init__(self, parent=None, **kwargs):
+        """A frame with a vertical scroll bar that allows scrolling through the frame's content"""
         super().__init__(parent, **kwargs)
 
         # Create scroll bar
@@ -973,7 +1093,8 @@ class ScrollFrame(Frame):
         self.scroll_bar.config(command=self.canvas.yview)
 
     def update_scroll_region(self):
-        self.update()
+        """Sets the scroll region to the height of the frame's content"""
+        self.update_idletasks()
         self.canvas.configure(scrollregion=(0, 0, 0, self.content.winfo_height()))
 
 
@@ -982,25 +1103,29 @@ class NotebookFrame(ScrollFrame):
 
     def __init__(self, parent=None, **kwargs):
         super().__init__(parent, **kwargs)
-        self.default_settings = self.winfo_toplevel().default_settings
+        self.default_params = self.winfo_toplevel().default_params
         self.row_padding = 4
 
     @abstractmethod
-    def __create_attributes(self):
-        raise NotImplementedError
-
-    @abstractmethod
     def hide_advanced_parameters(self):
+        """Hides inputs for advanced users"""
         raise NotImplementedError
 
     @abstractmethod
     def show_advanced_parameters(self):
+        """Reveals inputs for advanced users"""
         raise NotImplementedError
 
-    # Some inputs require an entry value for each leave type. It is better to store each input in a list than
-    # create separate variables for all of them.
-    @ staticmethod
+    @staticmethod
     def create_leave_objects(parent, leave_vars):
+        """Some inputs require an entry value for each leave type. It is better to store each input in a list than to
+        create separate variables for all of them.
+
+        :param parent: widget
+        :param leave_vars: dict of Tk variables,
+            Requires one variable for each leave type
+        :return: list of label widgets and input widgets
+        """
         leave_type_labels = []  # A list of label widgets for inputs
         leave_type_inputs = []  # A list of entry inputs
         for i, leave_type in enumerate(LEAVE_TYPES):
@@ -1015,8 +1140,10 @@ class NotebookFrame(ScrollFrame):
 
 class ProgramFrame(NotebookFrame):
     def __init__(self, parent=None, **kwargs):
+        """Frame to hold inputs related to Program parameters"""
+
         super().__init__(parent, **kwargs)
-        self.__create_attributes()
+        self.variables = self.winfo_toplevel().variables
         v = self.variables
 
         # Create the input widgets for program parameters
@@ -1026,7 +1153,7 @@ class ProgramFrame(NotebookFrame):
                                                  style='MSLabelframe.TLabelframe.Label', font='-size 10')
         self.eligibility_frame = ttk.Labelframe(self.content, labelwidget=self.eligibility_frame_label,
                                                 style='MSLabelframe.TLabelframe')
-        CreateToolTip(self.eligibility_frame_label, 'The requirements to be eligible for the paid leave program.')
+        ToolTipCreator(self.eligibility_frame_label, 'The requirements to be eligible for the paid leave program.')
 
         # Earnings
         tip = 'The amount of money earned in the last year.'
@@ -1062,8 +1189,8 @@ class ProgramFrame(NotebookFrame):
         self.max_weeks_frame = ttk.Labelframe(self.content, labelwidget=self.max_weeks_frame_label,
                                               style='MSLabelframe.TLabelframe')
         self.max_weeks_labels, self.max_weeks_inputs = self.create_leave_objects(self.max_weeks_frame, v['max_weeks'])
-        CreateToolTip(self.max_weeks_frame_label,
-                      'The maximum number of weeks for each leave type that the program will pay for.')
+        ToolTipCreator(self.max_weeks_frame_label,
+                       'The maximum number of weeks for each leave type that the program will pay for.')
 
         # ----------------------------------------- Wage Replacement Ratio ------------------------------------------
         tip = 'The percentage of wage that the program will pay.'
@@ -1142,9 +1269,6 @@ class ProgramFrame(NotebookFrame):
         for i in range(4):
             self.eligibility_frame.columnconfigure(i, weight=1)
 
-    def __create_attributes(self):
-        self.variables = self.winfo_toplevel().variables
-
     def hide_advanced_parameters(self):
         pass
 
@@ -1152,12 +1276,15 @@ class ProgramFrame(NotebookFrame):
         pass
 
     def check_all_gov_employees(self, _=None):
+        """Sets federal, state, and local employee variables to the value to the government employee variable"""
         checked = self.variables['government_employees'].get()
         self.variables['fed_employees'].set(checked)
         self.variables['state_employees'].set(checked)
         self.variables['local_employees'].set(checked)
 
     def check_gov_employees(self):
+        """Sets government employee variable to True if federal, state, and local employee variables are all True.
+        Otherwise, sets it to False."""
         if self.variables['fed_employees'].get() and self.variables['state_employees'].get() and \
                 self.variables['local_employees'].get():
             self.variables['government_employees'].set(1)
@@ -1167,8 +1294,9 @@ class ProgramFrame(NotebookFrame):
 
 class PopulationFrame(NotebookFrame):
     def __init__(self, parent=None, **kwargs):
+        """Frame to hold inputs related to Population parameters"""
         super().__init__(parent, **kwargs)
-        self.__create_attributes()
+        self.variables = self.winfo_toplevel().variables
 
         # Create the input widgets for population parameters
         # ---------------------------------------------- Take Up Rates ----------------------------------------------
@@ -1178,8 +1306,8 @@ class PopulationFrame(NotebookFrame):
                                                   style='MSLabelframe.TLabelframe')
         self.take_up_rates_labels, self.take_up_rates_inputs = \
             self.create_leave_objects(self.take_up_rates_frame, self.variables['take_up_rates'])
-        CreateToolTip(self.take_up_rates_frame_label, 'The proportion of eligible leave takers who decide to use the '
-                                                      'program for each leave type.')
+        ToolTipCreator(self.take_up_rates_frame_label, 'The proportion of eligible leave takers who decide to use the '
+                                                       'program for each leave type.')
 
         # ---------------------------------------- Leave Probability Factors ----------------------------------------
         self.leave_probability_factors_frame_label = ttk.Label(self.content, text='Leave Probability Factors:',
@@ -1190,8 +1318,8 @@ class PopulationFrame(NotebookFrame):
                                                               style='MSLabelframe.TLabelframe')
         self.leave_probability_factors_labels, self.leave_probability_factors_inputs = \
             self.create_leave_objects(self.leave_probability_factors_frame, self.variables['leave_probability_factors'])
-        CreateToolTip(self.leave_probability_factors_frame_label, 'Factors the probability of needing or taking '
-                                                                  'a leave for each type of leave.')
+        ToolTipCreator(self.leave_probability_factors_frame_label, 'Factors the probability of needing or taking '
+                                                                   'a leave for each type of leave.')
 
         # --------------------------------------------- Benefit Effect ----------------------------------------------
         tip = 'Whether or not the benefit amount affects participation in the program.'
@@ -1239,9 +1367,6 @@ class PopulationFrame(NotebookFrame):
         self.columnconfigure(0, weight=0)
         self.columnconfigure(1, weight=1)
 
-    def __create_attributes(self):
-        self.variables = self.winfo_toplevel().variables
-
     def hide_advanced_parameters(self):
         # self.leave_probability_factors_frame.grid_forget()
         # self.needers_fully_participate_input.grid_forget()
@@ -1264,8 +1389,9 @@ class PopulationFrame(NotebookFrame):
 
 class SimulationFrame(NotebookFrame):
     def __init__(self, parent=None, **kwargs):
+        """Frame to hold inputs related to Simulation parameters"""
         super().__init__(parent, **kwargs)
-        self.__create_attributes()
+        self.variables = self.winfo_toplevel().variables
         v = self.variables
 
         # ----------------------------------------- Existing State Program ------------------------------------------
@@ -1325,9 +1451,6 @@ class SimulationFrame(NotebookFrame):
         # self.se_analysis_input.grid(column=0, row=1, columnspan=2, sticky=W)
         # self.calibrate_input.grid(column=0, row=4, columnspan=2, sticky=W)
 
-    def __create_attributes(self):
-        self.variables = self.winfo_toplevel().variables
-
     def hide_advanced_parameters(self):
         # self.weight_factor_label.grid_forget()
         # self.weight_factor_input.grid_forget()
@@ -1345,6 +1468,7 @@ class SimulationFrame(NotebookFrame):
 
 class BenefitFinancingFrame(ttk.LabelFrame):
     def __init__(self, parent, variables, row_padding=4, wraplength=0, **kwargs):
+        """Frame to hold inputs related to Benefit financing parameters"""
         super().__init__(parent, **kwargs)
 
         # Tax on Payroll
@@ -1375,6 +1499,7 @@ class BenefitFinancingFrame(ttk.LabelFrame):
         self.average_state_tax_input = NotebookEntry(self,
                                                      textvariable=variables['average_state_tax'])
 
+        # Add input widgets to the parent widget
         self.payroll_tax_label.grid(column=0, row=0, sticky=W, padx=(8, 0), pady=row_padding)
         self.payroll_tax_input.grid(column=1, row=0, sticky=W, pady=row_padding)
         self.max_taxable_earnings_per_person_label.grid(column=0, row=1, sticky=W, padx=(8, 0), pady=row_padding)
@@ -1385,50 +1510,68 @@ class BenefitFinancingFrame(ttk.LabelFrame):
 
 
 class ResultsWindow(Toplevel):
-    def __init__(self, parent, simulation_engine, abf_module):
+    def __init__(self, parent, costs, state, results_files, abf_module):
+        """Window to display results
+
+        :param parent: Parent widget
+        :param costs: pd.DataFrame, required
+            Benefits paid for each leave type, along with confidence intervals
+        :param state: str, required
+            State that the simulation was run on
+        :param results_files: list of file paths, required
+            File paths to the CSV results of main simulation as well as comparison simulations
+        :param abf_module: ABF, required
+            Instance of ABF() used to calculate program revenue
+        """
+
         super().__init__(parent)
-        self.withdraw()
-        self.protocol("WM_DELETE_WINDOW", self.on_close)
+
+        self.withdraw()  # Hide window until all of the widgets have been created
+        self.protocol("WM_DELETE_WINDOW", self.on_close)  # To be executed when window in closed
+
+        # Attach icon to window
         self.icon = PhotoImage(file='impaq_logo.gif')
         self.tk.call('wm', 'iconphoto', self._w, self.icon)
 
         self.parent = parent
-
         self.content = Frame(self, bg=DARK_COLOR)
+
+        # Notebook will be used to separate the different types of result visualizations
         self.notebook = ttk.Notebook(self.content, style='MSNotebook.TNotebook')
         self.notebook.bind('<Button-1>', self.change_current_tab)
         self.current_tab = 0
 
-        print('Creating summary frame')
-        self.summary_frame = ResultsSummary(self, simulation_engine)
-        print('Finished summary frame, adding to notebook')
+        # Summary tab will display the costs of the each leave type of the main simulation
+        self.summary_frame = ResultsSummary(self, costs, state)
         self.notebook.add(self.summary_frame, text='Summary')
-        print('Finished adding summary frame to notebook')
 
-        self.abf = ABFResults(self.notebook, abf_module, simulation_engine, bg=VERY_LIGHT_COLOR)
-        print('Creating ABF results summary frame')
+        # ABF tab wil display the revenue information and functionalities
+        self.abf = ABFResults(self.notebook, abf_module, bg=VERY_LIGHT_COLOR)
         self.notebook.add(self.abf, text="Benefit Financing")
 
-        self.population_analysis = PopulationAnalysis(self.notebook, simulation_engine)
+        # Population analysis tab will display the information and functionalities of leave taken
+        self.population_analysis = PopulationAnalysis(self.notebook, results_files)
         self.notebook.add(self.population_analysis, text='Population Analysis')
 
+        # Add the content and notebook frame to the window
         self.content.pack(expand=True, fill=BOTH)
         self.notebook.pack(expand=True, fill=BOTH)
         self.notebook.select(self.summary_frame)
-        self.notebook.enable_traversal()
+        self.notebook.enable_traversal()  # Allow traversal of tabs using keyboard
 
-        self.bind("<MouseWheel>", self.scroll)
+        self.bind("<MouseWheel>", self.scroll)  # Enable scrolling with scroll wheel
         # self.bind('<Configure>', self.resize)
 
-        print('Updating widgets')
-        self.update()
+        # Set the notebook size to fit its contents
+        self.update_idletasks()
         self.notebook.config(width=self.abf.content.winfo_width() + 25)
         self.abf.update_scroll_region()
         self.population_analysis.update_scroll_region()
         self.resizable(False, False)
-        self.deiconify()
+        self.deiconify()  # Reveal window now that widgets have been created
 
     def scroll(self, event):
+        """Scrolls window based on the mouse wheel event"""
         # In Windows, the delta will be either 120 or -120. In Mac, it will be 1 or -1.
         # The delta value will determine whether the user is scrolling up or down.
         move_unit = 0
@@ -1444,24 +1587,41 @@ class ResultsWindow(Toplevel):
             self.population_analysis.canvas.yview_scroll(move_unit, 'units')
 
     def change_current_tab(self, event):
+        """Set current tab to the one that user selects. Used for scrolling with mouse wheel."""
         self.current_tab = self.notebook.tk.call(self.notebook._w, "identify", "tab", event.x, event.y)
 
     def set_notebook_width(self, width):
+        """Changes width of the notebook widget
+
+        :param width: int, required
+            Width to set notebook
+        :return: None
+        """
         self.abf.canvas.itemconfig(1, width=width)
         self.population_analysis.canvas.itemconfig(1, width=width)
 
     def on_close(self):
+        """Destroys window on close"""
         self.destroy()
 
 
 class PopulationAnalysis(ScrollFrame):
-    def __init__(self, parent, simulation_engine):
-        super().__init__(parent)
-        self.simulation_engine = simulation_engine
+    def __init__(self, parent, results_files):
+        """Frame holds widgets related to leave days taken based on population characteristics
 
+        :param parent: Tk widget, required
+        :param results_files: list of file paths, required
+            File paths to the CSV results of main simulation as well as comparison simulations
+        """
+
+        super().__init__(parent)
+        self.results_files = results_files
+
+        # Frame to hold inputs for population characteristics
         self.parameters_frame = Frame(self.content, padx=4, pady=4, bg=DARK_COLOR)
         self.parameters_frame.pack(fill=X, pady=(0, 4))
 
+        # Gender input
         self.gender = StringVar()
         self.gender_label = Label(self.parameters_frame, text='Gender:', font='Helvetica 12 bold', bg=DARK_COLOR,
                                   fg=LIGHT_COLOR)
@@ -1469,6 +1629,7 @@ class PopulationAnalysis(ScrollFrame):
                                          values=['Both', 'Male', 'Female'])
         self.gender_input.current(0)
 
+        # Age input (max and min)
         self.age_min = IntVar()
         self.age_max = IntVar()
         self.age_label = Label(self.parameters_frame, text='Age:', font='Helvetica 12 bold', bg=DARK_COLOR,
@@ -1478,6 +1639,7 @@ class PopulationAnalysis(ScrollFrame):
         self.age_min_input = GeneralEntry(self.parameters_frame, textvariable=self.age_min)
         self.age_max_input = GeneralEntry(self.parameters_frame, textvariable=self.age_max)
 
+        # Wage input (max and min)
         self.wage_min = DoubleVar()
         self.wage_max = DoubleVar()
         self.wage_label = Label(self.parameters_frame, text='Wage:', font='Helvetica 12 bold', bg=DARK_COLOR,
@@ -1487,9 +1649,11 @@ class PopulationAnalysis(ScrollFrame):
         self.wage_min_input = GeneralEntry(self.parameters_frame, textvariable=self.wage_min)
         self.wage_max_input = GeneralEntry(self.parameters_frame, textvariable=self.wage_max)
 
+        # Parameter submission button
         self.submit_button = BorderButton(self.parameters_frame, text='Submit',
-                                          command=lambda: self.__update_histograms())
+                                          command=lambda: self.update_histograms())
 
+        # Add all widgets to the frame
         self.gender_label.grid(column=0, row=1, sticky=W, pady=2)
         self.gender_input.grid(column=0, row=2, sticky=W, pady=2)
         self.age_label.grid(column=1, row=0, sticky=W, pady=2)
@@ -1505,49 +1669,72 @@ class PopulationAnalysis(ScrollFrame):
         self.submit_button.grid(column=0, row=3, sticky=W, pady=4)
 
         # Histogram properties
-        self.bin_size = 5
-        self.max_weekdays = 262
+        self.bin_size = 5  # Bin size is one work week
+        self.max_weekdays = 262  # This is the maximum number of work days in a year
         self.bins = list(range(0, self.max_weekdays, self.bin_size))
         self.xticks = list(range(0, self.max_weekdays, 20))
 
+        # Frame to hold histograms
         self.histogram_frame = Frame(self.content, bg=DARK_COLOR)
         self.histograms = []
-        self.__create_histograms()
         self.histogram_frame.pack(side=TOP, fill=BOTH, expand=True)
 
-    def __create_histograms(self):
-        # Create new charts for each simulation
-        for sim_num in range(self.simulation_engine.sim_count):
-            simulation_data = self.filter_data(self.simulation_engine.get_population_analysis_results(sim_num))
-            title = get_sim_name(sim_num)
-            histogram = self.create_histogram(simulation_data['cpl'], self.bins, simulation_data['PWGTP'], title,
-                                              self.xticks)
-            self.histograms.append(histogram)
+        # Upon first initialization, add histograms to the frame
+        self.create_histograms()
+
+    def create_histograms(self):
+        """Create new histogram charts for each simulation"""
+        for sim_num in range(len(self.results_files)):
+            # Get data from results files and user inputs
+            simulation_data = self.filter_data(get_population_analysis_results(self.results_files[sim_num]))
+            title = get_sim_name(sim_num)  # Get title from simulation number
+
+            # Create histogram from data
+            histogram = self.create_histogram(simulation_data['cpl'], self.bins, title,
+                                              weights=simulation_data['PWGTP'], xticks=self.xticks)
+            self.histograms.append(histogram)  # Add histogram to list of histograms
             chart_container = ChartContainer(self.histogram_frame, histogram, DARK_COLOR)
             chart_container.pack()
 
-    def __update_histograms(self):
-        for sim_num in range(self.simulation_engine.sim_count):
-            simulation_data = self.filter_data(self.simulation_engine.get_population_analysis_results(sim_num))
+    def update_histograms(self):
+        """Update histogram charts for each simulation"""
+        for sim_num in range(len(self.results_files)):
+            # Get data from results files and user inputs
+            simulation_data = self.filter_data(get_population_analysis_results(self.results_files[sim_num]))
+
+            # Find created histogram chart in list
             fig = self.histograms[sim_num]
             ax = fig.axes[0]
             ax.cla()
+
+            # Change histogram data
             ax.hist(simulation_data['cpl'], self.bins, weights=simulation_data['PWGTP'], color='#1aff8c', rwidth=0.9)
-            self.set_histogram_properties(fig, ax, self.xticks, get_sim_name(sim_num))
+            # Set the chart's style back to original
+            self.set_histogram_properties(fig, ax, get_sim_name(sim_num), xticks=self.xticks)
             fig.canvas.draw()
             fig.canvas.flush_events()
 
     def filter_data(self, data):
+        """Filter out data and keep rows based on user population characteristic inputs
+
+        :param data: pd.DataFrame, required
+            Individual results data from simulation
+        :return: Filtered dataframe
+        """
+
+        # Filter based on gender input
         if self.gender.get() == 'Male':
             data = data[data['female'] == 0]
         elif self.gender.get() == 'Female':
             data = data[data['female'] == 1]
 
+        # Filter based on maximum and minimum wage inputs
         if self.age_min.get() is not None:
             data = data[data['age'] >= self.age_min.get()]
         if self.age_max.get() is not None and self.age_max.get() > 0:
             data = data[data['age'] <= self.age_max.get()]
 
+        # Filter based on maximum and minimum wage inputs
         if self.wage_min.get() is not None:
             data = data[data['wage12'] >= self.wage_min.get()]
         if self.wage_max.get() is not None and self.wage_max.get() > 0:
@@ -1555,145 +1742,254 @@ class PopulationAnalysis(ScrollFrame):
 
         return data
 
-    def create_histogram(self, data, bins, weights, title_str, xticks=None):
+    def create_histogram(self, data, bins, title_str, weights=None, xticks=None):
+        """Create histogram for leave days taken
+
+        :param data: pd.DataFrame, required
+            Individual results data from simulation
+        :param bins: int or sequence or str, required
+            Bins used for histogram. See matplotlib.pyplot.hist
+        :param title_str: str, required
+            Title of chart
+        :param weights: array_like or None, optional
+            Weights used for histogram. See matplotlib.pyplot.hist
+        :param xticks: list or None, optional
+            List of x-axis tick locations
+        :return: instance of matplotlib.figure.Figure
+        """
+
+        # Create matplotlib figure
         fig = Figure(figsize=(8, 4))
         ax = fig.add_subplot(111)
+
+        # Create histogram from data, bins, and weights
         ax.hist(data, bins, weights=weights, color='#1aff8c', rwidth=0.9)
-        self.set_histogram_properties(fig, ax, xticks, title_str)
+        self.set_histogram_properties(fig, ax, title_str, xticks=xticks)  # Set various chart properties
         return fig
 
-    def set_histogram_properties(self, fig, ax, xticks, title_str):
+    def set_histogram_properties(self, fig, ax, title_str, xticks=None):
+        """Set histogram title, axis labels, x axis ticks, and various styles
+
+        :param fig: matplotlib.figure.Figure, required
+        :param ax:  matplotlib.axes.Axes, required
+        :param title_str: str, required
+            Title of chart
+        :param xticks:  list or None, optional
+            List of x-axis tick locations
+        :return: None
+        """
+
+        # Set x and y axis labels
         ax.set_ylabel('Number of Days', fontsize=9)
         ax.set_xlabel('Number of Workers', fontsize=9)
+
+        # Set axis ticks
         if xticks is not None:
             ax.set_xticks(xticks)
-        title = 'State: {}. Leaves Taken under Program. {}'.format(self.winfo_toplevel().parent.general_settings.state,
+
+        # Create axis title
+        title = 'State: {}. Leaves Taken under Program. {}'.format(self.winfo_toplevel().parent.general_params.state,
                                                                    title_str)
-        format_chart(fig, ax, title, DARK_COLOR, 'white')
+        format_chart(fig, ax, title, DARK_COLOR, 'white')  # Change chart's style
 
 
 class ResultsSummary(Frame):
-    def __init__(self, parent, engine):
+    def __init__(self, parent, costs, state):
+        """Frame to hold summary results from main simulation
+
+        :param parent: Tk widget, required
+        :param costs: pd.DataFrame, required
+            Benefits paid for each leave type, along with confidence intervals
+        :param state: string, required
+            State that was analyzed in the simulation
+        """
+
         super().__init__(parent)
-        print('Creating and saving summary chart')
-        self.chart = engine.create_chart(engine.get_cost_df(0), 0)
+
+        # Create summary chart
+        self.chart = create_cost_chart(costs, state)
         self.chart_container = Frame(self)
 
-        print('Creating summary chart canvas')
+        # Create canvas for summary chart
         canvas = FigureCanvasTkAgg(self.chart, self.chart_container)
         canvas.draw()
         canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True)
         self.chart_container.pack(fill=X, padx=15, pady=15)
 
+        # Create button to save chart
         save_button = BorderButton(self.chart_container, text='Save Figure', width=10, pady=1,
                                    command=lambda: self.save_file())
-        print('Created save button')
         save_button.pack(side=RIGHT, padx=10, pady=10)
 
     def save_file(self):
-        filename = filedialog.asksaveasfilename(defaultextension='.png', initialdir=os.getcwd(),
-                                                filetypes=[('PNG', '.png'), ('PDF', '*.pdf'), ('PGF', '*.pgf'),
-                                                           ('EPS', '*.eps'), ('PS', '*.ps'), ('Raw', '*.raw'),
-                                                           ('RGBA', '*.rgba'), ('SVG', '*.svg'), ('SVGZ', '*.svgz')])
-        if filename is None:
+        """Saves matplotlib chart"""
+        filename = filedialog.asksaveasfilename(
+            defaultextension='.png', initialdir=os.getcwd(),
+            filetypes=[('PNG', '.png'), ('PDF', '*.pdf'), ('PGF', '*.pgf'), ('EPS', '*.eps'), ('PS', '*.ps'),
+                       ('Raw', '*.raw'), ('RGBA', '*.rgba'), ('SVG', '*.svg'), ('SVGZ', '*.svgz')]
+        )
+
+        # Don't save if user cancels
+        if filename is None or filename == '':
             return
         self.chart.savefig(filename, facecolor='#333333', edgecolor='white')
 
 
 class ChartContainer(Frame):
     def __init__(self, parent, chart, bg_color):
+        """Container that displays a matplotlib chart
+
+        :param parent: Tk widget, required
+        :param chart: matplotlib.figure.Figure, required
+            Chart created using matplotlib
+        :param bg_color: str, required
+            Background color of chart
+        """
+
         super().__init__(parent, bg=bg_color)
         self.chart = chart
         self.bg_color = bg_color
+
+        # Create canvas for to hold chart
         self.canvas = FigureCanvasTkAgg(chart, self)
         self.canvas.draw()
         self.canvas.get_tk_widget().config(height=300)
         self.canvas.get_tk_widget().pack(side=TOP, fill=X)
 
+        # Create button to save chart
         save_button = BorderButton(self, text='Save Figure', width=10, command=lambda: self.save_file())
         save_button.pack(side=LEFT, padx=10, pady=4)
 
     def save_file(self):
-        filename = filedialog.asksaveasfilename(defaultextension='.png', initialdir=os.getcwd(),
-                                                filetypes=[('PNG', '.png'), ('PDF', '*.pdf'), ('PGF', '*.pgf'),
-                                                           ('EPS', '*.eps'), ('PS', '*.ps'), ('Raw', '*.raw'),
-                                                           ('RGBA', '*.rgba'), ('SVG', '*.svg'), ('SVGZ', '*.svgz')])
-        if filename is None:
+        """Saves matplotlib chart"""
+        filename = filedialog.asksaveasfilename(
+            defaultextension='.png', initialdir=os.getcwd(),
+            filetypes=[('PNG', '.png'), ('PDF', '*.pdf'), ('PGF', '*.pgf'), ('EPS', '*.eps'), ('PS', '*.ps'),
+                       ('Raw', '*.raw'), ('RGBA', '*.rgba'), ('SVG', '*.svg'), ('SVGZ', '*.svgz')]
+        )
+
+        # Don't save if user cancels
+        if filename is None or filename == '':
             return
         self.chart.savefig(filename, facecolor=self.bg_color, edgecolor='white')
 
 
 class ABFResults(ScrollFrame):
-    def __init__(self, parent, abf_module, simulation_engine, **kwargs):
+    def __init__(self, parent, abf_module, **kwargs):
+        """Frame to hold results of ABF module
+
+        :param parent: Tk widget, required
+        :param abf_module: ABF, required
+            Instance of ABF() used to calculate program revenue
+        :param kwargs: Other widget options
+        """
         super().__init__(parent, **kwargs)
 
+        # Get ABF results from module
         self.abf_module = abf_module
         abf_output, pivot_tables = self.abf_module.run()
-        simulation_engine.save_abf_results(self.abf_module.df, abf_output)
+        abf_module.save_results()  # Save ABF results
 
+        # Create frame to hold summary of ABF results
         self.abf_summary = ABFResultsSummary(self.content, abf_output)
         self.abf_summary.pack(padx=10, pady=10)
+
+        # Create frame to hold pivot tables for ABF results
         self.abf_pivot_tables = Frame(self.content, bg=DARK_COLOR)
         self.abf_pivot_tables.pack(fill=X, expand=True)
+        self.display_abf_bar_graphs(pivot_tables)
+
+        # Create frame to hold widgets used to rerun ABF module
         self.abf_params_reveal = BorderButton(self, text='ABF Parameters', padx=4, command=self.show_params,
                                               width=16, borderwidth=0, font='-size 12', background='#00e600')
         self.abf_params_reveal.pack(side=BOTTOM, anchor='se', padx=3, pady=2)
         self.abf_variables = self.create_abf_variables()
         self.abf_params = ABFParamsPopup(self)
 
-        print('Creating ABF graphs')
-        self.display_abf_bar_graphs(pivot_tables)
-
     def show_params(self):
+        """Show the popup for rerunning ABF module"""
         self.abf_params_reveal.pack_forget()
         self.abf_params.pack(side=BOTTOM, anchor='se', padx=1)
 
     def hide_params(self):
+        """Hide the popup for rerunning ABF module"""
         self.abf_params.pack_forget()
         self.abf_params_reveal.pack(side=BOTTOM, anchor='se', padx=3, pady=2)
 
     def display_abf_bar_graphs(self, pivot_tables):
-        graphs = self.create_abf_bar_graphs(pivot_tables)
+        """Creates and displays charts from pivot tables
+
+        :param pivot_tables: dict, required
+            Keys are the names of the pivot tables, and values are pivot tables in the form of pandas dataframes
+        :return: None
+        """
+
+        graphs = self.create_abf_bar_graphs(pivot_tables)  # Create matplotlib charts from data frames
+
+        # Create Tk chart widgets from matplotlib charts
         for graph in graphs:
             chart_container = ChartContainer(self.abf_pivot_tables, graph, DARK_COLOR)
             chart_container.pack()
 
     def create_abf_bar_graphs(self, pivot_tables):
-        graphs = []
+        """Creates matplotlib charts from pivot tables
+
+        :param pivot_tables: dict, required
+            Keys are the pivot table categories, and values are pivot table data in the form of pandas dataframes
+        :return: list of matplotlib.figure.Figure
+            Returns one figure for each pivot table
+        """
+
+        graphs = []  # List of charts to be returned at end of method
+
+        # Chart style options
         fg_color = '#FFFFFF'
         bg_color = DARK_COLOR
+        bar_width = 0.5
 
+        # Create charts from pivot tables
         for pivot_table_category, pivot_table in pivot_tables.items():
-            fig_pivot = Figure(figsize=(8, 4))
-            ax_pivot = fig_pivot.add_subplot(111)
+            # Create figure
+            fig = Figure(figsize=(8, 4))
+            ax = fig.add_subplot(111)
 
+            # Get information from pivot table dataframe
             categories = pivot_table.index.tolist()
-            ind_pivot = np.arange(len(categories))
-            width_pivot = 0.5
-            ys_pivot = pivot_table[('sum', 'ptax_rev_w')].values / 10 ** 6
-            title_pivot = 'State: {}. {} by {}'.format(self.winfo_toplevel().parent.general_settings.state,
-                                                       'Total Tax Revenue', pivot_table_category)
+            ind = list(range(len(categories)))
+            ys = pivot_table[('sum', 'ptax_rev_w')].values / 10 ** 6
+            title = 'State: {}. {} by {}'.format(self.winfo_toplevel().parent.general_params.state,
+                                                 'Total Tax Revenue', pivot_table_category)
+
+            # If there are fewer than 3 categories, make the chart a horizontal bar graph
             if len(categories) > 3:
-                ax_pivot.bar(ind_pivot, ys_pivot, width_pivot, align='center', color='#1aff8c')
-                ax_pivot.set_ylabel('$ millions', fontsize=9)
-                ax_pivot.set_xticks(ind_pivot)
-                ax_pivot.set_xticklabels(categories)
-                ax_pivot.yaxis.grid(False)
+                ax.bar(ind, ys, bar_width, align='center', color='#1aff8c')
+                ax.set_ylabel('$ millions', fontsize=9)
+                ax.set_xticks(ind)
+                ax.set_xticklabels(categories)
+                ax.yaxis.grid(False)
             else:
-                ax_pivot.barh(ind_pivot, ys_pivot, width_pivot, align='center', color='#1aff8c')
-                ax_pivot.set_xlabel('$ millions', fontsize=9)
-                ax_pivot.set_yticks(ind_pivot)
-                ax_pivot.set_yticklabels(categories)
-                ax_pivot.xaxis.grid(False)
+                ax.barh(ind, ys, bar_width, align='center', color='#1aff8c')
+                ax.set_xlabel('$ millions', fontsize=9)
+                ax.set_yticks(ind)
+                ax.set_yticklabels(categories)
+                ax.xaxis.grid(False)
 
-            format_chart(fig_pivot, ax_pivot, title_pivot, bg_color, fg_color)
-
-            graphs.append(fig_pivot)
+            format_chart(fig, ax, title, bg_color, fg_color)
+            graphs.append(fig)
 
         return graphs
 
     def create_abf_variables(self):
-        default = self.winfo_toplevel().parent.all_settings[0]
+        """Create Tk variables used to rerun ABF parameter
+
+        :return: dict,
+            Returns dictionary where keys are the name of the variables and values are the variables
+        """
+
+        # Set the current value of all variables equal to the values of those same variables in the top level widget
+        default = self.winfo_toplevel().parent.all_params[0]
+
+        # Create the variables
         variables = {
             'payroll_tax': DoubleVar(value=default.payroll_tax),
             'benefits_tax': BooleanVar(value=default.benefits_tax),
@@ -1704,36 +2000,62 @@ class ABFResults(ScrollFrame):
         return variables
 
     def rerun_abf(self):
+        """Run the ABF again with user inputs and update ABF results"""
+
+        # Get user input values for each parameter
         parameters = {k: v.get() for k, v in self.abf_variables.items()}
+
+        # Rerun ABF module with new parameters
         abf_output, pivot_tables = self.abf_module.rerun(parameters)
+
+        # Update ABF summary and pivot table charts
         self.update_abf_output(abf_output, pivot_tables)
 
     def update_abf_output(self, abf_output, pivot_tables):
+        """
+
+        :param abf_output: dict, required
+            Keys are the type of summary information, and values are floats
+        :param pivot_tables: dict, required
+            Keys are the pivot table categories, and values are pivot table data in the form of pandas dataframes
+        :return: None
+        """
+
+        self.abf_summary.update_results(abf_output)  # Update summary frame
+
+        # Remove previous pivot table charts
         for graph in self.abf_pivot_tables.winfo_children():
             graph.destroy()
-
-        self.display_abf_bar_graphs(pivot_tables)
-        self.abf_summary.update_results(abf_output)
+        self.display_abf_bar_graphs(pivot_tables)  # Recreate the pivot table charts with the new data
 
 
 class ABFResultsSummary(Frame):
     def __init__(self, parent, output):
+        """Frame that holds ABF summary information such as total income and tax revenue
+
+        :param parent: tk widget, required
+        :param output: dict, required
+            Keys are the type of summary information, and values are floats
+        """
+
         super().__init__(parent, bg=DARK_COLOR, highlightcolor='white', highlightthickness=1, pady=8, padx=10)
 
+        # Total income of workers
         self.income_label = Label(self, text='Total Income:', bg=DARK_COLOR, fg=LIGHT_COLOR, anchor='e',
                                   font='-size 12 -weight bold')
+        self.income_value = Label(self, bg=LIGHT_COLOR, fg=DARK_COLOR, anchor='e', padx=5, font='-size 12')
+
+        # Total revenue from taxing workers
         self.tax_revenue_label = Label(self, text='Total Tax Revenue:', bg=DARK_COLOR, fg=LIGHT_COLOR, anchor='e',
                                        font='-size 12 -weight bold')
+        self.tax_revenue_value = Label(self, bg=LIGHT_COLOR, fg=DARK_COLOR, anchor='e', padx=5, font='-size 12')
+
+        # Total revenue from taxing benefits
         self.benefits_recouped_label = Label(self, text='Tax Revenue Recouped from Benefits:', bg=DARK_COLOR,
                                              fg=LIGHT_COLOR, anchor='e', font='-size 12 -weight bold')
-
-        self.income_value = Label(self, bg=LIGHT_COLOR, fg=DARK_COLOR, anchor='e', padx=5, font='-size 12')
-        self.tax_revenue_value = Label(self, bg=LIGHT_COLOR, fg=DARK_COLOR, anchor='e', padx=5, font='-size 12')
         self.benefits_recouped_value = Label(self, bg=LIGHT_COLOR, fg=DARK_COLOR, anchor='e', padx=5, font='-size 12')
 
-        print('Updating ABF results summary values')
-        self.update_results(output)
-
+        # Add labels to the frame
         self.income_label.grid(row=0, column=0, sticky='we', padx=3, pady=2)
         self.tax_revenue_label.grid(row=1, column=0, sticky='we', padx=3, pady=2)
         self.benefits_recouped_label.grid(row=2, column=0, sticky='we', padx=3, pady=2)
@@ -1741,7 +2063,17 @@ class ABFResultsSummary(Frame):
         self.tax_revenue_value.grid(row=1, column=1, sticky='we', padx=3, pady=2)
         self.benefits_recouped_value.grid(row=2, column=1, sticky='we', padx=3, pady=2)
 
+        self.update_results(output)  # Fill the labels with values from ABF output
+
     def update_results(self, output):
+        """Fills the frame labels with values from ABF output
+
+        :param output: dict, required
+            Keys are the type of summary information, and values are floats
+        :return: None
+        """
+
+        # Convert output data to string, including confidence intervals
         income = '{} (\u00B1{:,.1f}) million'.format(as_currency(output['Total Income (Weighted)'] / 10 ** 6),
                                                      0.5 * (output['Total Income Upper Confidence Interval'] -
                                                             output['Total Income Lower Confidence Interval']) / 10 ** 6)
@@ -1753,6 +2085,7 @@ class ABFResultsSummary(Frame):
 
         benefits_recouped = '{} million'.format(as_currency(output['Tax Revenue Recouped from Benefits'] / 10 ** 6))
 
+        # Update the text of the income, tax, and benefits recouped labels with data strings
         self.income_value.config(text=income)
         self.tax_revenue_value.config(text=tax)
         self.benefits_recouped_value.config(text=benefits_recouped)
@@ -1760,10 +2093,17 @@ class ABFResultsSummary(Frame):
 
 class ABFParamsPopup(Frame):
     def __init__(self, parent, **kwargs):
+        """Popup frame that contains widgets for rerunning ABF module"""
+
         super().__init__(parent, bg=VERY_LIGHT_COLOR, borderwidth=1, relief='solid', padx=3, pady=3, **kwargs)
+
+        # Create frame to hold widgets for user inputs related to benefit financing
         abf_variables = parent.abf_variables
-        self.benefit_financing_frame = BenefitFinancingFrame(self, abf_variables, text='Benefit Financing:',                                                            style='MSLabelframe.TLabelframe', wraplength=300)
+        self.benefit_financing_frame = BenefitFinancingFrame(self, abf_variables, text='Benefit Financing:',
+                                                             style='MSLabelframe.TLabelframe', wraplength=300)
         self.benefit_financing_frame.pack(fill=X, side=TOP, padx=4, pady=4)
+
+        # Buttons to rerun ABF module and to hide this popup
         self.abf_params_buttons = Frame(self, bg=VERY_LIGHT_COLOR, pady=4)
         self.abf_params_buttons.pack(side=BOTTOM, fill=X, expand=True)
         self.abf_params_hide = BorderButton(self.abf_params_buttons, text='Hide', padx=4, command=parent.hide_params,
@@ -1775,169 +2115,206 @@ class ABFParamsPopup(Frame):
 
 
 class ProgressWindow(Toplevel):
-    def __init__(self, parent, engine_type='Python', se=None):
+    def __init__(self, parent):
+        """Window to show realtime progress of simulation engine"""
+
         super().__init__(parent)
+
+        # Add icon to window
         self.icon = PhotoImage(file='impaq_logo.gif')
         self.tk.call('wm', 'iconphoto', self._w, self.icon)
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
         self.parent = parent
-        self.se = se
 
+        # Frame to hold all of window's contents
         self.content = Frame(self, width=100)
         self.content.pack(fill=BOTH, expand=True)
+
+        # Progress is a value between 0 and 100. When this variable changes, the bar automatically updates.
         self.progress = DoubleVar(0)
+        # Progress bar that fills up as progress value changes
         self.progress_bar = ttk.Progressbar(self.content, orient=HORIZONTAL, length=100, variable=self.progress,
                                             max=100)
         self.progress_bar.pack(fill=X, padx=10, pady=5)
-        self.updates_container = Frame(self.content, height=30, bg=VERY_LIGHT_COLOR)
-        self.updates_canvas = Canvas(self.updates_container, bg=VERY_LIGHT_COLOR)
-        self.updates = Frame(self.updates_container, bg=VERY_LIGHT_COLOR)
-        self.updates_canvas.create_window((0, 0), window=self.updates, anchor='nw')  # Add frame to canvas
-        self.updates_info_scroll = ttk.Scrollbar(self.updates_container, orient=VERTICAL,
-                                                 command=self.updates_canvas.yview)
-        self.updates_canvas.configure(yscrollcommand=self.updates_info_scroll.set)
-        # self.abf_info_container.pack(side=TOP, fill=BOTH, expand=True)
+
+        # Frame to hold text description of current simulation progress
+        self.updates_container = ScrollFrame(self.content, height=30, bg=VERY_LIGHT_COLOR)
         self.updates_container.pack(fill=BOTH, expand=True)
-        self.updates_canvas.pack(side=LEFT, fill=BOTH, expand=True)
-        self.updates_info_scroll.pack(side=RIGHT, fill=Y)
 
-        self.bind("<MouseWheel>", self.scroll)
-        self.position_window()
+        self.bind("<MouseWheel>", self.scroll)  # Allow scrolling with mouse wheel
+        center_window(self)  # Position window in middle of the screen
 
-    def update_progress(self, q, last_progress=0):
+    def update_progress_python(self, q):
+        """Updates the progress bar and messages for Python engine
+
+        :param q: multiprocessing.Queue, required
+            Queue used to check for current status of the simulation engine
+        :return: None
+        """
         try:  # Try to check if there is data in the queue
-            update = q.get_nowait()
-            update_type, last_progress = self.parse_update(update, last_progress)
-            if update_type == 'done':
-                self.parent.show_results()
-            elif update_type == 'error':
-                self.parent.run_button.enable()
-            else:
-                self.after(500, self.update_progress, q, last_progress)
-        except queue.Empty:
-            self.after(500, self.update_progress, q, last_progress)
+            update = q.get_nowait()   # Get update from queue
+            complete = self.parse_update(update, engine='Python')  # Parse the update message
+            if not complete:  # If engine is still running, check for progress again after 0.5 seconds.
+                self.after(500, self.update_progress_python, q)
+        except queue.Empty:  # If there are no updates in the queue, do nothing and check again in 0.5 seconds
+            self.after(500, self.update_progress_python, q)
 
-    def update_progress_r(self, progress_file, last_progress=0):
+    def update_progress_r(self, progress_file):
+        """Updates the progress bar and messages for R engine
+
+        :param progress_file: Text file, required
+            The file to be read to get engine progress. Progress messages are separated by newlines.
+        :return: None
+        """
         while True:
-            line = progress_file.readline()
-            if line == '':
-                self.after(500, self.update_progress_r, progress_file, last_progress)
+            line = progress_file.readline()   # Get update from text file
+            if line == '':  # If there are no updates in the queue, do nothing and check again in 0.5 seconds
+                self.after(500, self.update_progress_r, progress_file)
             else:
-                update = ast.literal_eval(line)
-                done, last_progress = self.parse_update(update, last_progress)
-                if done:
-                    self.parent.show_results()
-                else:
-                    self.after(500, self.update_progress_r, progress_file, last_progress)
+                update = ast.literal_eval(line)  # Convert string update to a dictionary
+                complete = self.parse_update(update, engine='R')  # Parse the update message
+                if not complete:
+                    # If engine is still running, check for progress again after 0.5 seconds.
+                    self.after(500, self.update_progress_r, progress_file)
 
-    def parse_update(self, update, last_progress):
+    def parse_update(self, update, engine='Python'):
+        """Perform certain action depending on update from simulation engine
+
+        :param update: dict, required
+            Dictionary should contain information about the update's type and value. Valid types are "progress",
+            "message", "done", "error", and "warning".
+        :param engine: str, optional
+            The engine type that is running. Valid engines are "Python" and "R".
+        :return: bool
+            Whether the engine has completed simulation or encountered an error
+        """
+
         update_type = update['type']
-        self.update_idletasks()
         if update_type == 'progress':
-            progress = update['value']
-            self.progress.set(int(progress))
+            # Update progress bar
+            self.progress.set(int(update['value']))
         elif update_type == 'message':
+            # Add new message to updates_container
             self.add_update(update['value'], update['engine'])
+        elif update_type == 'done':
+            # Show results window
+            self.parent.show_results(engine=engine)
         elif update_type == 'error':
+            # Display error message
             error_message = '{}: {}'.format(type(update['value']).__name__, str(update['value']))
             self.add_update(error_message, update['engine'], fg='#e60000')
+            self.parent.run_button.enable()  # Enable run button to allow user to run simulation again
         elif update_type == 'warning':
+            # Display warning if a user's installed libraries are a lower version than recommended
             dependency, dependency_version = update['value']
-            warning_message = 'Warning: {} library might need to be updated to at least version {}'\
+            warning_message = 'Warning: {} library might need to be updated to at least version {}' \
                 .format(dependency, dependency_version)
             self.add_update(warning_message, update['engine'], fg='#ff9900')
 
-        return update_type, last_progress
+        self.update_idletasks()  # Update window with changes
+        return update_type == 'done' or update_type == 'error'
 
-    def add_update(self, update, sim_num, fg='#006600'):
+    def add_update(self, message, sim_num, fg='#006600'):
+        """Adds a label to updates container with the contents of an update message
+
+        :param message: str, required
+            Text that will be displayed in the updates container
+        :param sim_num: int, required
+            Used to inform user about which comparison program this message is associated to
+        :param fg: str, optional
+            Foreground color of the text label
+        :return: None
+        """
+
         # If the update is attached to a simulation number, display that number
         if sim_num is not None:
             sim_name = get_sim_name(sim_num)
-            update_text = '{}: {}'.format(sim_name, update)
+            update_text = '{}: {}'.format(sim_name, message)
         else:
-            update_text = update
+            update_text = message
 
         # Create the update label and add it to parent
-        label = Message(self.updates, text=update_text, bg=VERY_LIGHT_COLOR,
+        label = Message(self.updates_container.content, text=update_text, bg=VERY_LIGHT_COLOR,
                         fg=fg, anchor='w', width=350)
         label.pack(padx=3, fill=X)
 
-        # Update the window to display new widget
-        self.update()
-
-        # Update scroll region to account for new widget space
-        self.updates_canvas.configure(scrollregion=(0, 0, 0, self.updates.winfo_height()))
-
-        # Move scroll area to bottom
-        self.updates_canvas.yview_moveto(1)
+        self.update_idletasks()  # Update the window to display new widget
+        self.updates_container.update_scroll_region()  # Update scroll region to account for new widget space
+        self.updates_container.canvas.yview_moveto(1)  # Move scroll area to bottom
 
     def scroll(self, event):
+        """Scrolls window based on the mouse wheel event"""
+        # In Windows, the delta will be either 120 or -120. In Mac, it will be 1 or -1.
+        # The delta value will determine whether the user is scrolling up or down.
         move_unit = 0
         if event.num == 5 or event.delta > 0:
             move_unit = -1
         elif event.num == 4 or event.delta < 0:
             move_unit = 1
 
-        self.updates_canvas.yview_scroll(move_unit, 'units')
-
-    def position_window(self):
-        self.update()  # Update changes to root first
-
-        # Get the width and height of both the window and the user's screen
-        ww = self.winfo_width()
-        wh = self.winfo_height()
-        sw = self.winfo_screenwidth()
-        sh = self.winfo_screenheight()
-
-        # Formula for calculating the center
-        x = (sw / 2) - (ww / 2)
-        y = (sh / 2) - (wh / 2) - 50
-
-        # Set window minimum size
-        self.minsize(ww, wh)
-
-        self.geometry('%dx%d+%d+%d' % (ww, wh, x, y))
+        # Scroll the updates container
+        self.updates_container.canvas.yview_scroll(move_unit, 'units')
 
     def on_close(self):
+        """Destroy this window when it is closed"""
         self.destroy()
 
 
 # From StackOverflow: https://stackoverflow.com/questions/3221956/how-do-i-display-tooltips-in-tkinter
-class CreateToolTip(object):
-    def __init__(self, widget, text='widget info'):
-        self.waittime = 500  # milliseconds
-        self.wraplength = 250  # pixels
+class ToolTipCreator:
+    def __init__(self, widget, text, waittime=500, wraplength=250):
+        """Tooltip that appears when user hovers the mouse over a widget
+
+        :param widget: Tk widget, required
+            The widget that will trigger the tooltip
+        :param text: str, required
+            The text that will appear in the tooltip
+        :param waittime: int, default 500
+            The number of milliseconds to wait before displaying tooltip
+        :param wraplength: int, default 250
+            The max width of the tool tip in pixels before text wraps to new line
+        """
+
         self.widget = widget
         self.text = text
-        self.widget.bind("<Enter>", self.enter)
-        self.widget.bind("<Leave>", self.leave)
+        self.waittime = waittime
+        self.wraplength = wraplength
+        self.widget.bind("<Enter>", self.enter)  # Bind action when mouse enters widget
+        self.widget.bind("<Leave>", self.leave)  # Bind action when mouse leaves widget
+        # If user clicks widget, it performs the same action as mouse leave
         self.widget.bind("<ButtonPress>", self.leave)
         self.id = None
         self.tw = None
 
     def enter(self, _=None):
+        """Schedule tooltip reveal on mouse enter"""
         self.schedule()
 
     def leave(self, _=None):
+        """Hide tooltip on mouse leave"""
         self.unschedule()
         self.hidetip()
 
     def schedule(self):
+        """Show tooltip after waiting"""
         self.unschedule()
         self.id = self.widget.after(self.waittime, self.showtip)
 
     def unschedule(self):
+        """Cancel tooltip reveal"""
         tooltip_id = self.id
         self.id = None
         if tooltip_id:
             self.widget.after_cancel(tooltip_id)
 
     def showtip(self, _=None):
+        """Create a tooltip and reveal it"""
+        # Get location of widget, which is used to insert the tooltip
         x, y, cx, cy = self.widget.bbox("insert")
         x += self.widget.winfo_rootx() + 25
         y += self.widget.winfo_rooty() + 20
-        # creates a top level window
+        # Creates a top level window
         self.tw = Toplevel(self.widget)
         # Leaves only the label and removes the app window
         self.tw.wm_overrideredirect(True)
@@ -1947,6 +2324,7 @@ class CreateToolTip(object):
         label.pack(ipadx=1)
 
     def hidetip(self):
+        """Destroy tooltip window"""
         tw = self.tw
         self.tw = None
         if tw:
@@ -1955,15 +2333,28 @@ class CreateToolTip(object):
 
 class AdvancedFrame(Frame):
     def __init__(self, parent, toggle_function, **kwargs):
+        """
+
+        :param parent: Tk widget, required
+        :param toggle_function: function, required
+            Function to be performed when on and off buttons are clicked
+        :param kwargs: Other widget options
+        """
+
         super().__init__(parent, **kwargs)
+
+        # Label to describe the functions of the buttons
         tip = 'Reveal advanced simulation parameters'
         self.advanced_label = TipLabel(self, tip, text="Advanced Parameters:", bg=DARK_COLOR, fg=LIGHT_COLOR,
                                        font='-size 9 -weight bold')
         self.button_container = Frame(self, highlightbackground='#FFFFFF', borderwidth=1, relief='flat')
+
+        # Buttons that reveal or hide the advanced parameters
         self.on_button = SubtleToggle(self.button_container, text='On', width=3, command=toggle_function)
-        self.off_button = SubtleToggle(self.button_container,  text='Off', width=3, command=toggle_function)
+        self.off_button = SubtleToggle(self.button_container, text='Off', width=3, command=toggle_function)
         self.off_button.toggle()
 
+        # Add all widgets to the frame
         self.advanced_label.pack(side=LEFT, anchor=E, fill=BOTH)
         self.button_container.pack(side=LEFT, anchor=E)
         self.on_button.pack(side=LEFT)
@@ -1973,96 +2364,159 @@ class AdvancedFrame(Frame):
 class SubtleButton(Button):
     def __init__(self, parent=None, foreground='#FFFFFF', font='-size 8 -weight bold', pady=2, padx=3,
                  relief='flat', highlightthickness=0, borderwidth=0, background=DARK_COLOR, **kwargs):
+        """Button that blends in with the background"""
         super().__init__(parent, background=background, activebackground=background, foreground=foreground,
                          activeforeground=foreground, font=font, pady=pady, padx=padx, relief=relief,
                          highlightthickness=highlightthickness, borderwidth=borderwidth, **kwargs)
 
 
 class SubtleToggle(SubtleButton):
+    """Button that blends in with the background when it is 'off' and has a a different background when it is 'on'"""
     def __init__(self, parent=None, on_background='#00CC00', off_background=DARK_COLOR, **kwargs):
         super().__init__(parent, **kwargs)
 
-        self.toggled_on = False
+        self.toggled_on = False  # Button is off by default
         self.on_background = on_background
         self.off_background = off_background
 
     def toggle(self):
-        if self.toggled_on:
+        """Changes the background of the button based on the current state"""
+        if self.toggled_on:  # If button is on, then turn off
             self.toggled_on = False
             self.config(background=self.off_background)
-        else:
+        else:  # If button is off, then turn on
             self.toggled_on = True
             self.config(background=self.on_background)
 
 
-# The following classes are used so that style options don't have to be reentered for each widget that should be styled
-# a certain way.
 class BorderButton(Frame):
     def __init__(self, parent=None, custom=False, background='#0074BF', font='-size 11', width=7, pady=0,
                  foreground='#FFFFFF', activebackground='#FFFFFF', relief='flat', highlightthickness=1, borderwidth=1,
                  highlightbackground=LIGHT_COLOR, **kwargs):
+        """A frame that imitates a button that has a border around it
+
+        :param parent: Tk widget
+        :param custom: bool, default False
+            If set to false, the frame will not be prepopulated with a default button. A custom button can be added.
+        :param options: Other widget options
+        """
         super().__init__(parent, highlightbackground=highlightbackground, relief=relief, borderwidth=borderwidth)
 
         if not custom:
+            # If not custom, then add a default button to frame
             self.button = Button(self, foreground=foreground, background=background, font=font, width=width,
                                  relief='flat', activebackground=activebackground, pady=pady, borderwidth=0,
                                  highlightthickness=highlightthickness, **kwargs)
             self.button.pack()
         else:
+            # If custom, do not add a button now. A button will need to be added later.
             self.button = None
 
     def add_content(self, content):
+        """Adds a custom button to the frame instead of a default one
+
+        :param content: Tk Button, required
+            The button that will populate the frame
+        :return: None
+        """
         self.button = content
         content.pack()
 
 
 class RunButton(BorderButton):
     def __init__(self, parent=None, **kwargs):
+        """A button that can be disabled or enabled with visual indicators for each state
+
+        :param parent: Tk widget
+        :param kwargs: Other widget options
+        """
         super().__init__(parent, custom=True)
         button = Button(self, foreground='#FFFFFF', background='#ccebff', font='-size 11 -weight bold', width=8,
                         relief='flat', activebackground='#FFFFFF', disabledforeground='#FFFFFF', state=DISABLED,
                         highlightthickness=0, borderwidth=0, pady=1, **kwargs)
         self.add_content(button)
-        
+
     def enable(self):
+        """Enable button and change background to indicate state"""
         self.button.config(state=NORMAL, bg=THEME_COLOR)
 
     def disable(self):
+        """Disable button and change background to indicate state"""
         self.button.config(state=DISABLED, bg='#99d6ff')
 
 
 class GeneralEntry(Entry):
     def __init__(self, parent=None, **kwargs):
+        """Entry with default styling"""
         super().__init__(parent, borderwidth=2, highlightbackground='#FFFFFF', relief='flat',
                          highlightthickness=1, font='-size 11', **kwargs)
 
 
 class NotebookEntry(Entry):
     def __init__(self, parent=None, **kwargs):
+        """Entry with default styling"""
         super().__init__(parent, borderwidth=2, highlightbackground='#999999', relief='flat',
                          highlightthickness=1, font='-size 11', **kwargs)
 
 
 class TipLabel(Label):
     def __init__(self, parent=None, tip='', cursor='question_arrow', **kwargs):
+        """Label that will reveal a tooltip when cursor is hovered over it
+
+        :param parent: Tk widget
+        :param tip: str, default ''
+            The text that will appear in the tooltip
+        :param cursor: str, default 'question_arrow'
+            The type of cursor that appears when hovering over the label
+        :param kwargs: Other widget options
+        """
+
         super().__init__(parent, cursor=cursor, **kwargs)
-        CreateToolTip(self, tip)
+        ToolTipCreator(self, tip)
 
 
 class TipCheckButton(ttk.Checkbutton):
     def __init__(self, parent=None, tip='', cursor='question_arrow', onvalue=True, offvalue=False,
                  style='MSCheckbutton.TCheckbutton', **kwargs):
+        """Check button that will reveal a tooltip when cursor is hovered over it
+
+        :param parent: Tk widget
+        :param tip: str, default ''
+            The text that will appear in the tooltip
+        :param cursor: str, default 'question_arrow'
+            The type of cursor that appears when hovering over the label
+        :param onvalue: bool, default True
+        :param offvalue: bool, default False
+        :param style: str, default 'MSCheckbutton.TCheckbutton'
+        :param kwargs: Other widget options
+        """
+
         super().__init__(parent, cursor=cursor, onvalue=onvalue, offvalue=offvalue, style=style, **kwargs)
-        CreateToolTip(self, tip)
+        ToolTipCreator(self, tip)
 
 
-def run_engines(se, q):
+def run_engine_python(se, q):
+    """Run the Python engine
+
+    :param se: SimulationEngine, required
+        Instance of Python simulation engine to be run
+    :param q: multiprocessing.Queue
+        Queue used to check for current status of the simulation engine
+    :return: None
+    """
+
     se.run()
-
+    # When engine is done, add a message to the queue to notify progress window
     q.put({'type': 'done', 'value': 'done'})
 
 
-def run_engines_r(command, counterfactual_command, policy_command):
-    subprocess.call(command, shell=True)
-    subprocess.call(counterfactual_command, shell=True)
-    subprocess.call(policy_command, shell=True)
+def run_engine_r(command):
+    """Run the R engine
+
+    :param command: str, required
+        The command that will be run in the subprocess
+    :return: None
+    """
+
+    # Run the engine as a command in a new process
+    subprocess.call(command, shell=True, cwd='./r_engine')
