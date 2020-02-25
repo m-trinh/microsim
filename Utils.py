@@ -26,8 +26,8 @@ DEFAULT_STATE_PARAMS = {
         'state_employees': False,
         'local_employees': False,
         'self_employed': False,
-        'take_up_rates': {'Own Health': 0.0438, 'Maternity': 0.0127, 'New Child': 0.0154,
-                          'Ill Child': 0.0032, 'Ill Spouse': 0.0052, 'Ill Parent': 0.0052}
+        'take_up_rates': {'Own Health': 0.0363, 'Maternity': 0.0127, 'New Child': 0.0152,
+                          'Ill Child': 0.0004, 'Ill Spouse': 0.0007, 'Ill Parent': 0.0007}
     },
     'NJ': {
         'replacement_ratio': 0.66,

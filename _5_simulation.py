@@ -562,8 +562,10 @@ class SimulationEngine:
         # set min cpl (covered-by-program length) for taking up program
         # TODO: add min_takeup_cpl in params
         # TODO: for CA this value needs to be 25~30 for own/matdis to match mean cpl with state data (~75 days)
-        # TODO: instead of using min_takeup_cpl to disqualify rows for draws, consider prob draw = f(cpl)
+        # TODO: instead of using min_takeup_cpl to d isqualify rows for draws, consider prob draw = f(cpl)
+        # TODO: add alpha as paramter (=0 for NJ/RI, =3 for CA, further increase alpha minimal effect)
         min_takeup_cpl = 5
+        alpha = 1
         for t in self.types:
             # cap user-specified take up for type t by max possible takeup = s_positive_cpl, in pop per sim results
             s_positive_cpl = acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w].sum() / acs[col_w].sum()
@@ -578,7 +580,8 @@ class SimulationEngine:
             # print('p_draw for type -%s- = %s' % (t, p_draw))
             # get take up indicator for type t - weighted random draw from cpl_type>min_takeup_cpl until target is reached
             acs['takeup_%s' % t] = 0
-            draws = get_weighted_draws(acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w], p_draw, self.random_state)
+            draws = get_weighted_draws(acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w], p_draw, self.random_state,
+                                       shuffle_weights=(acs[acs['cpl_%s' % t] >= min_takeup_cpl]['cpl_%s' % t])**alpha)
             # print('draws = %s' % draws)
             acs.loc[acs['cpl_%s' % t] >= min_takeup_cpl, 'takeup_%s' % t] \
                 = draws

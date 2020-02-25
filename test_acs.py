@@ -14,7 +14,7 @@ from _5a_aux_functions import get_bool_num_cols
 def preprocess_data(fp_acs, cols):
     # Read in ACS
     d = pd.read_csv(fp_acs)
-    # R - keep eligible workers
+    # R - keep eligible workerstry:
     try:
         d = d[d['eligworker']==1]
     except KeyError:
@@ -55,10 +55,10 @@ def preprocess_data(fp_acs, cols):
 # Python
 #dp = pd.read_csv('./data/acs/ACS_cleaned_forsimulation_2016_ri.csv')
 #fp_p = './data/acs/ACS_cleaned_forsimulation_2016_ri.csv'
-fp_p = './output/output_20200220_113100_main simulation/acs_sim_20200220_113100.csv'
+fp_p = './output/output_20200224_222639_main simulation/acs_sim_20200224_222639.csv'
 # R
 #dr = pd.read_csv('./PR_comparison/check_acs/RI_work.csv')
-fp_r = './PR_comparison/check_acs/acs_R/RI_logitfull_test.csv'
+fp_r = './PR_comparison/check_acs/acs_R/RI_logitfull_no full takeup_test.csv'
 
 ## preprocess
 
@@ -204,7 +204,7 @@ for x in types:
 # check take up flags for types
 for t in types:
     print('dp[dp[takeup_%s]==1][PWGTP].sum()\n' % t, dp[dp['takeup_%s' % t]==1]['PWGTP'].sum())
-    #print('dr[dr[takeup_%s]==1][PWGTP].sum()\n' % t, dr[dr['takeup_%s' % t]==1]['PWGTP'].sum())
+    print('dr[dr[takeup_%s]==1][PWGTP].sum()\n' % t, dr[dr['takeup_%s' % t]==1]['PWGTP'].sum())
     print('--------------------')
 # much bigger! seems like R has used wrong base for eligible worker pop
 # should be ~350k but not 415k as in Excel state take up data
@@ -249,9 +249,10 @@ acsr = pd.read_csv(fp_r)
 1.02*sum([x[0]*x[1] for x in acsr[acsr['eligworker']==1][['actual_benefits', 'PWGTP']].values])
 
 # re-draw take up flags by updating min_takeup_cpl
-from _5a_aux_functions import get_columns, get_sim_col, get_weighted_draws
+from _5a_aux_functions import get_columns, get_sim_col, get_weighted_draws, weighted_shuffle
 acs = dp.copy()
 col_w='PWGTP'
+
 def get_dp_with_updated_takeup_flag(acs, min_takeup_cpl):
     params = {}
     params['d_takeup'] = dict(zip(types, [0.0438, 0.0127, 0.0154, 0.0032, 0.0052, 0.0052]))
@@ -269,7 +270,11 @@ def get_dp_with_updated_takeup_flag(acs, min_takeup_cpl):
         # print('p_draw for type -%s- = %s' % (t, p_draw))
         # get take up indicator for type t - weighted random draw from cpl_type>min_takeup_cpl until target is reached
         acs['takeup_%s' % t] = 0
-        draws = get_weighted_draws(acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w], p_draw, random_state=np.random.RandomState(12345))
+        # TODO: set alpha as parameter in GUI?
+        alpha = 3 # exponent of CPL for mapping CPL to shuffle_weights = f(CPL)
+        draws = get_weighted_draws(acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w], p_draw,
+                                   random_state=np.random.RandomState(12345),
+                                   shuffle_weights=(acs[acs['cpl_%s' % t] >= min_takeup_cpl]['cpl_%s' % t])**alpha)
         # print('draws = %s' % draws)
         acs.loc[acs['cpl_%s' % t] >= min_takeup_cpl, 'takeup_%s' % t] \
             = draws
@@ -282,8 +287,20 @@ def get_dp_with_updated_takeup_flag(acs, min_takeup_cpl):
                   'Effective takeup = %s. '
                   'Post-sim weighted share = %s' % (t, params['d_takeup'][t], takeup, s_takeup))
     return acs
-dp = get_dp_with_updated_takeup_flag(acs, 25)
+dp = get_dp_with_updated_takeup_flag(acs, 5)
+
+# update below for different output based on alpha values
+fp_p = './output/output_20200224_202316_main simulation/acs_sim_20200224_202316.csv'
+dp = preprocess_data(fp_p, cols)
+# check take up flags for types
 for t in types:
-    print('conditional mean of cpl_%s among takeup persons' % t,
-          dp[(dp['cpl_%s' % t]>0) & (dp['takeup_%s' % t]==1)]['cpl_%s' % t].mean())
+    print('dp[dp[takeup_%s]==1][PWGTP].sum()\n' % t, dp[dp['takeup_%s' % t]==1]['PWGTP'].sum())
+    #print('dr[dr[takeup_%s]==1][PWGTP].sum()\n' % t, dr[dr['takeup_%s' % t]==1]['PWGTP'].sum())
+    print('--------------------')
+# check cond' CPF of draw program takers
+for t in types:
+    print('conditional weighted mean of cpl_%s among takeup persons' % t,
+          np.average(dp[(dp['cpl_%s' % t] > 0) & (dp['takeup_%s' % t] == 1)]['cpl_%s' % t],
+                     weights=dp[(dp['cpl_%s' % t] > 0) & (dp['takeup_%s' % t] == 1)]['PWGTP']))
+
 

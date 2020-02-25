@@ -11,6 +11,8 @@ import sklearn.preprocessing, sklearn.linear_model, sklearn.naive_bayes, sklearn
 pd.options.mode.chained_assignment = None
 import statsmodels.api as sm
 import statsmodels.genmod
+from bisect import bisect_right, bisect_left
+
 # a function to get columns
 def get_columns():
     # original CZ's xvars
@@ -166,15 +168,25 @@ def get_wquantile(v, w, q):
     return v_q
 
 # a function to draw 0/1 from weighted population with prob = p, until target proportion is reached
-def get_weighted_draws(ws, p, random_state):
+def get_weighted_draws(ws, p, random_state, shuffle_weights=None):
     # ws = pop weight vector
     # p = probability of draw
+    # shuffle_weights = weights that guide the shuffling of ws order, an array or series with len = len(ws)
 
     # get target population to receive 1s
     target = sum(ws)*p
     # shuffle weights and get cumsums
     ws = np.array(list(enumerate(ws)))
-    random_state.shuffle(ws)
+    if shuffle_weights is None:
+        random_state.shuffle(ws)
+    else:
+        # check if shuffle weights has required length and all positive
+        if len(shuffle_weights)!=len(ws) or shuffle_weights.min()<=0:
+            print('ERROR: Supplied takeup draw shuffling weights has incompatible length as population weight of ACS'
+                  'data frame, or has negative/zero min weight. Please check shuffle_weights')
+        else: # shuffle_weights is valid entry, perform weighted shuffle
+            ws = weighted_shuffle(ws, shuffle_weights, random_state)
+
     cumsums = np.cumsum([x[1] for x in ws])
     # max index in shuffled indexed weight vector
     # must have equal sign! otherwise if target = 1 then will never reach it, and will receive 0 for all elements
@@ -188,7 +200,28 @@ def get_weighted_draws(ws, p, random_state):
 
     return draws
 
-# a function to get predicted probabilies of classifiers
+# a function to do weighted shuffle
+def weighted_shuffle(a,w, random_state):
+    '''
+
+    :param a: values to be shuffled
+    :param w: weights of values (pd.Series, np.array, or list)
+    :return:
+    '''
+    r = np.empty_like(a)
+    w = list(w) # convert w to list for index tracking
+    cumWeights = np.cumsum(w)
+    for i in range(len(a)):
+        # randomly pick a cum weight from cumWeights, get the picked index j (up bound by max index of cumWeights)
+        rnd = random_state.random() * cumWeights[-1]
+        j = min(bisect_right(cumWeights,rnd), len(cumWeights)-1)
+        # pick a[j], send to i-th elt of r to be returned
+        r[i]=a[j]
+        # update cumWeights: from j and onwards, reduce by w[j] which has been used
+        cumWeights[j:] -= w[j]
+    return r
+
+# a function to get predicted probabilities of classifiers
 def get_pred_probs(clf, xts):
     '''
     get predicted probabilities of all classes for the post-fit classfier
@@ -792,3 +825,4 @@ def get_multiple_leave_vars(d, types, random_state):
         d['length_%s' % t] = np.where(d['take_%s' % t].isna(), np.nan, d['length_%s' % t])
 
     return d
+
