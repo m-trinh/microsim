@@ -1,6 +1,6 @@
 """
 main simulation engine
-chris zhang 12/4/2019
+chris zhang 2/14/2020
 """
 # CHANGES 11/14/2019
 # Made dual receiver as proportionate parameter of those individuals with >0 prop_pay.
@@ -420,6 +420,18 @@ class SimulationEngine:
               (params['dual_receivers_share'], s_dual_receiver))
 
         # Simulate counterfactual leave lengths (cf-len) for dual receivers
+        # First get col of effective rrp for each person, subject to adding any dependency allowance, up to 1
+        # TODO: add dependency_allowance in params
+        dependency_allowance = False
+        dependency_allowance_profile = [0.07, 0.04, 0.04] # rrp increment by ndep, len of this is max ndep allowed
+        cum_profile = np.cumsum(np.array(dependency_allowance_profile))
+        acs['effective_rrp'] = params['rrp']
+        if dependency_allowance:
+            acs['effective_rrp'] += [cum_profile[int(min(x, len(cum_profile)))-1] # ndep-1 to get index in cum_profile
+                                     if x>0 else 0 for x in acs['ndep_spouse_kid']]
+            acs['effective_rrp'] = [min(x, 1) for x in acs['effective_rrp']]
+
+
         # Given cf-len, get cp-len
         # With program, effective rr =min(rre+rrp, 1), assuming responsiveness diminishes if full replacement attainable
         for t in self.types:
@@ -428,39 +440,56 @@ class SimulationEngine:
             # use [(rre, sql), (1, mnl)] to interpolate cfl at rre+rrp, regardless rre+rrp<1 or not
             acs.loc[acs['dual_receiver'] == 1, 'cfl_%s' % t] = \
                 acs.loc[acs['dual_receiver'] == 1, 'len_%s' % t] + \
-                (acs.loc[acs['dual_receiver'] == 1, 'mnl_%s' % t] - acs.loc[acs['dual_receiver'] == 1, 'len_%s' % t]) *\
-                params['rrp'] / (1 - acs.loc[acs['dual_receiver'] == 1, 'prop_pay'])
+                (acs.loc[acs['dual_receiver'] == 1, 'mnl_%s' % t] - acs.loc[acs['dual_receiver'] == 1, 'len_%s' % t]) * \
+                acs.loc[acs['dual_receiver'] == 1, 'effective_rrp'] / (1 - acs.loc[acs['dual_receiver'] == 1, 'prop_pay'])
             # if rre+rrp>=1, set cfl = mnl
-            acs.loc[(acs['dual_receiver'] == 1) & (acs['prop_pay'] >= 1-params['rrp']), 'cfl_%s' % t] = \
-                acs.loc[(acs['dual_receiver'] == 1) & (acs['prop_pay'] >= 1-params['rrp']), 'mnl_%s' % t]
+            acs.loc[(acs['dual_receiver'] == 1) & (acs['prop_pay'] >= 1-acs['effective_rrp']), 'cfl_%s' % t] = \
+                acs.loc[(acs['dual_receiver'] == 1) & (acs['prop_pay'] >= 1-acs['effective_rrp']), 'mnl_%s' % t]
             # Get covered-by-program leave lengths (cp-len) for dual receivers among anypay=1
-            # allocate cf-len between employer and state according to rre/rrp ratio
-            acs.loc[acs['dual_receiver'] == 1, 'cpl_%s' % t] = \
-                acs.loc[acs['dual_receiver'] == 1, 'cfl_%s' % t] * params['rrp'] / \
-                (params['rrp'] + acs.loc[acs['dual_receiver'] == 1, 'prop_pay'])
+            # subtract wait period, down to 0
+            # TODO: add wait_period, recollect, min_cfl_recollect in params
+            # wait period benefit recollection indicator, min cfl needed for recollection
+            # RI = [False, nan], NJ = [True, 15]
+            wait_period = 5
+            recollect, min_cfl_recollect = [False, np.nan]
+
+            acs.loc[acs['dual_receiver']==1, 'cpl_%s'% t] =\
+                [max(x, 0) for x in (acs.loc[acs['dual_receiver']==1, 'cfl_%s' % t] - wait_period).values]
+            if recollect:
+                acs.loc[(acs['dual_receiver'] == 1) & (acs['cfl_%s' % t]>=15), 'cpl_%s' % t] = \
+                    acs.loc[(acs['dual_receiver'] == 1) & (acs['cfl_%s' % t]>=15), 'cfl_%s' % t]
+            # later will apply cap of coverage period (in weeks)
 
         # Simulate cf-len for single receivers among anypay=1
         # Given cf-len, get cp-len
         for t in self.types:
             # single receiver, rrp>rre. Assume will use state program benefit to replace employer benefit
-            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < params['rrp']), 'cfl_%s' % t] = \
-                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < params['rrp']), 'len_%s' % t] + \
-                (acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < params['rrp']), 'mnl_%s' % t] -
-                 acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < params['rrp']), 'len_%s' % t]) * \
-                (params['rrp'] - acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < params['rrp']), 'prop_pay']) \
-                / (1 - acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < params['rrp']), 'prop_pay'])
+            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < acs['effective_rrp']), 'cfl_%s' % t] = \
+                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < acs['effective_rrp']), 'len_%s' % t] + \
+                (acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < acs['effective_rrp']), 'mnl_%s' % t] -
+                 acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < acs['effective_rrp']), 'len_%s' % t]) * \
+                (acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < acs['effective_rrp']), 'effective_rrp']
+                 - acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < acs['effective_rrp']), 'prop_pay']) \
+                / (1 - acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < acs['effective_rrp']), 'prop_pay'])
             # single receiver, rrp<=rre. Assume will not use any state program benefit
             # so still using same employer benefit as status-quo, thus cf-len = sq-len
-            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >= params['rrp']), 'cfl_%s' % t] = \
-                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >= params['rrp']), 'len_%s' % t]
+            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >= acs['effective_rrp']), 'cfl_%s' % t] = \
+                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >= acs['effective_rrp']), 'len_%s' % t]
             # Get covered-by-program leave lengths (cp-len) for single receivers
-            # if rrp>rre, cp-len = cf-len
-            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < params['rrp']), 'cpl_%s' % t] = \
-                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < params['rrp']), 'cfl_%s' % t]
             # if rrp<=rre, cp-len = 0
-            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >= params['rrp']), 'cpl_%s' % t] = 0
-            # set cp-len = 0 if missing
-            acs.loc[acs['cpl_%s' % t].isna(), 'cpl_%s' % t] = 0
+            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >=acs['effective_rrp']), 'cpl_%s' % t] = 0
+            # if rrp>rre, cp-len = cf-len - wait period (assume covered by company), down to 0
+            acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < acs['effective_rrp']), 'cpl_%s' % t] = \
+                [max(x, 0) for x in
+                 (acs.loc[(acs['dual_receiver'] == 0) &
+                          (acs['prop_pay'] < acs['effective_rrp']), 'cfl_%s' % t] - wait_period).values]
+            # recollect if any
+            if recollect:
+                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < acs['effective_rrp']) &
+                        (acs['cfl_%s' % t]>=15), 'cpl_%s' % t] = \
+                    acs.loc[(acs['dual_receiver'] == 0)  & (acs['prop_pay'] < acs['effective_rrp']) &
+                                (acs['cfl_%s' % t]>=15), 'cfl_%s' % t]
+            # later will apply cap of coverage period (in weeks)
 
         # Simulate cf-len for anypay=0 workers
         # Given cf-len, get cp-len
@@ -469,9 +498,18 @@ class SimulationEngine:
             acs.loc[(acs['anypay'] == 0), 'cfl_%s' % t] = \
                 acs.loc[(acs['anypay'] == 0), 'len_%s' % t] + \
                 (acs.loc[(acs['anypay'] == 0), 'mnl_%s' % t] -
-                 acs.loc[(acs['anypay'] == 0), 'len_%s' % t]) * params['rrp']
-            # anypay=0 workers' cp-len is just cf-len, as they don't have company benefits
-            acs.loc[(acs['anypay'] == 0), 'cpl_%s' % t] = acs.loc[(acs['anypay'] == 0), 'cfl_%s' % t]
+                 acs.loc[(acs['anypay'] == 0), 'len_%s' % t]) * acs['effective_rrp']
+            # anypay=0 workers' cp-len is just cf-len - wait_period, down to 0, as they don't have company benefits
+            acs.loc[(acs['anypay'] == 0), 'cpl_%s' % t] =\
+                [max(x, 0) for x in (acs.loc[(acs['anypay'] == 0), 'cfl_%s' % t] - wait_period).values]
+            # recollect if any
+            if recollect:
+                acs.loc[(acs['anypay'] == 0) & (acs['cfl_%s' % t]>=15), 'cpl_%s' % t] = \
+                    acs.loc[(acs['anypay'] == 0) & (acs['cfl_%s' % t]>=15), 'cfl_%s' % t]
+
+        # Set cp-len = 0 if missing
+        for t in self.types:
+            acs.loc[acs['cpl_%s' % t].isna(), 'cpl_%s' % t] = 0
 
         # Apply cap of coverage period (in weeks) to cpl_type (in days) for each leave type
         for t in self.types:
@@ -489,7 +527,7 @@ class SimulationEngine:
             # v = capped weekly benefit of leave type
             v = [min(x, params['wkbene_cap']) for x in
                  ((acs_taker_needer['cpl_%s' % t] / 5) *
-                  (acs_taker_needer['wage12'] / acs_taker_needer['wkswork'] * params['rrp']))]
+                  (acs_taker_needer['wage12'] / acs_taker_needer['wkswork'] * acs_taker_needer['effective_rrp']))]
             # get annual benefit for leave type t - sumprod of capped benefit, and takeup flag for each ACS row
             acs_taker_needer['annual_benefit_%s' % t] = (v * acs_taker_needer['cpl_%s' % t] / 5 *
                                                          acs_taker_needer['takeup_%s' % t])
@@ -520,9 +558,16 @@ class SimulationEngine:
                 del acs[c]
 
         # Then perform a weighted random draw using user-specified take up rate until target pop is reached
+        # set min cpl (covered-by-program length) for taking up program
+        # TODO: add min_takeup_cpl in params
+        # TODO: for CA this value needs to be 25~30 for own/matdis to match mean cpl with state data (~75 days)
+        # TODO: instead of using min_takeup_cpl to d isqualify rows for draws, consider prob draw = f(cpl)
+        # TODO: add alpha as paramter (=0 for NJ/RI, =2 for CA (1 outlay too small, 2.5~3 too much), further increase alpha minimal effect)
+        min_takeup_cpl = 5
+        alpha = 0
         for t in self.types:
             # cap user-specified take up for type t by max possible takeup = s_positive_cpl, in pop per sim results
-            s_positive_cpl = acs[acs['cpl_%s' % t] > 0][col_w].sum() / acs[col_w].sum()
+            s_positive_cpl = acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w].sum() / acs[col_w].sum()
             # display warning for unable to reach target pop from simulated positive cpl_type pop
             if col_w == 'PWGTP':
                 if params['d_takeup'][t] > s_positive_cpl:
@@ -530,13 +575,20 @@ class SimulationEngine:
                           'by maximum possible take up rate (share of positive covered-by-program length) '
                           'based on simulation results, at %s.' % (t, s_positive_cpl))
             takeup = min(s_positive_cpl, params['d_takeup'][t])
-            p_draw = takeup / s_positive_cpl  # need to draw w/ prob=p_draw from cpl>0 subpop, to get desired takeup
+            p_draw = takeup / s_positive_cpl  # need to draw w/ prob=p_draw from cpl>min_takeup_cpl subpop, to get desired takeup
             # print('p_draw for type -%s- = %s' % (t, p_draw))
-            # get take up indicator for type t - weighted random draw from cpl_type>0 until target is reached
+            # get take up indicator for type t - weighted random draw from cpl_type>min_takeup_cpl until target is reached
             acs['takeup_%s' % t] = 0
-            draws = get_weighted_draws(acs[acs['cpl_%s' % t] > 0][col_w], p_draw, self.random_state)
+            if alpha >0:
+                draws = get_weighted_draws(acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w], p_draw, self.random_state,
+                                           shuffle_weights=(acs[acs['cpl_%s' % t] >= min_takeup_cpl]['cpl_%s' % t])**alpha)
+            elif alpha==0:
+                draws = get_weighted_draws(acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w], p_draw, self.random_state,
+                                           shuffle_weights=None)
+            else:
+                print('ERROR: alpha (exponent) of shuffle_weights should be non-negative. Please check!')
             # print('draws = %s' % draws)
-            acs.loc[acs['cpl_%s' % t] > 0, 'takeup_%s' % t] \
+            acs.loc[acs['cpl_%s' % t] >= min_takeup_cpl, 'takeup_%s' % t] \
                 = draws
 
             # for main weight, check if target pop is achieved among eligible ACS persons
@@ -563,8 +615,7 @@ class SimulationEngine:
         for t in self.types:
             # v = capped weekly benefit of leave type
             v = [min(x, params['wkbene_cap']) for x in
-                 ((acs_taker_needer['cpl_%s' % t] / 5) * (acs_taker_needer['wage12'] /
-                                                          acs_taker_needer['wkswork'] * params['rrp']))]
+                 ((acs_taker_needer['wage12'] / acs_taker_needer['wkswork'] * acs_taker_needer['effective_rrp']))]
             # inflate weight for missing POW
             w = acs_taker_needer['PWGTP'] * self.pow_pop_multiplier
 
@@ -572,7 +623,7 @@ class SimulationEngine:
             costs[t] = (v * acs_taker_needer['cpl_%s' % t] / 5 * w * acs_taker_needer['takeup_%s' % t]).sum()
         costs['total'] = sum(list(costs.values()))
 
-        # compute standard error using replication weights, then compute confidence interval
+        # compute standard error using replication weights, then compute confidence interval (lower bound at 0)
         sesq = dict(zip(costs.keys(), [0]*len(costs.keys())))
         for wt in ['PWGTP%s' % x for x in range(1, 81)]:
             # initialize costs dict for current rep weight
@@ -583,8 +634,7 @@ class SimulationEngine:
 
             for t in self.types:
                 v = [min(x, params['wkbene_cap']) for x in
-                     ((acs_taker_needer['cpl_%s' % t] / 5) * (acs_taker_needer['wage12'] /
-                                                              acs_taker_needer['wkswork'] * params['rrp']))]
+                     ((acs_taker_needer['wage12'] / acs_taker_needer['wkswork'] * acs_taker_needer['effective_rrp']))]
                 # inflate weight for missing POW
                 w = acs_taker_needer[wt] * self.pow_pop_multiplier
 
@@ -599,7 +649,7 @@ class SimulationEngine:
             sesq[k] = v**0.5
         ci = {}
         for k, v in sesq.items():
-            ci[k] = (costs[k] - 1.96*sesq[k], costs[k] + 1.96*sesq[k])
+            ci[k] = (max(costs[k] - 1.96*sesq[k], 0), costs[k] + 1.96*sesq[k])
 
         # Save output
         out_costs = pd.DataFrame.from_dict(costs, orient='index')
@@ -613,7 +663,8 @@ class SimulationEngine:
         out = pd.merge(out_costs, out_ci, how='left', on='type')
 
         d_tix = {'own': 1, 'matdis': 2, 'bond': 3, 'illchild': 4, 'illspouse': 5, 'illparent': 6, 'total': 7}
-        out['tix'] = out['type'].apply(lambda x: d_tix[x])
+        out['tix'] = [d_tix[x] for x in out['type']]
+
         out = out.sort_values(by='tix')
         del out['tix']
 

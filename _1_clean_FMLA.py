@@ -30,7 +30,7 @@ class DataCleanerFMLA:
         d = pd.read_csv(self.fp_fmla_in, low_memory=False)
 
         # Make empid to follow 0-order to be consistent with Python standard (e.g. indices output from kNN)
-        d['empid'] = d['empid'].apply(lambda x: x - 1)
+        d['empid'] = d['empid'] - 1
 
         # FMLA eligible worker
         d['eligworker'] = np.nan
@@ -215,7 +215,7 @@ class DataCleanerFMLA:
         # d['length'] = np.where((np.isnan(d['A20']) == False) & (d['A20'] == 2), d['A19_2_CAT_days'], d['A19_1_CAT_days'])
         # d['length'] = [min(x, 261) for x in d['length']]
 
-        ## Use below for getting exact length distribution from restricted FMLA
+        # # Use below for getting exact length distribution from restricted FMLA
         # # length of leave for most recent leave
         # # cap at 365-52*2 = 261 work days a year
         # d['length'] = np.where((np.isnan(d['A20']) == False) & (d['A20'] == 2), d['A19_2_CAT_rev'], d['A19_1_CAT_rev'])
@@ -378,8 +378,8 @@ class DataCleanerFMLA:
 
         # overall taker/needer status, any of 6 types
         types = ['own','matdis','bond','illchild','illspouse','illparent']
-        d['taker'] = d[['take_%s' % t for t in types]].apply(lambda x: max(x), axis=1)
-        d['needer'] = d[['need_%s' % t for t in types]].apply(lambda x: max(x), axis=1)
+        d['taker'] = [max(x) for x in d[['take_%s' % t for t in types]].values]
+        d['needer'] = [max(x) for x in d[['need_%s' % t for t in types]].values]
 
         # most recent take/need leave type in 1 col
 

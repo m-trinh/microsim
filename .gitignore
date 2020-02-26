@@ -1,6 +1,7 @@
 .idea/
 __pycache__
 _for_dol/*
+_from_dol/*
 data/*
 draft/*
 output/*

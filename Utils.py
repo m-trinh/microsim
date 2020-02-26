@@ -28,12 +28,8 @@ DEFAULT_STATE_PARAMS = {
         'state_employees': False,
         'local_employees': False,
         'self_employed': False,
-        # dependent allowance not implemented
-        # take_up_rates = {'Own Health': 0.25, 'Maternity': 0.25, 'New Child': 0.25, 'Ill Child': 0.25,
-        #                           'Ill Spouse': 0.25, 'Ill Parent': 0.25}
-        # waiting period not implemented
-        # extend = True
-        # extend days and proportion not implemented
+        'take_up_rates': {'Own Health': 0.0363, 'Maternity': 0.0127, 'New Child': 0.0152,
+                          'Ill Child': 0.0004, 'Ill Spouse': 0.0007, 'Ill Parent': 0.0007}
     },
     'NJ': {
         'replacement_ratio': 0.66,
@@ -51,9 +47,13 @@ DEFAULT_STATE_PARAMS = {
         'eligible_earnings': 8400,
         'government_employees': False,
         'fed_employees': False,
-        'state_employees': False,
+        'state_employees': True,
         'local_employees': False,
         'self_employed': False,
+        'take_up_rates': {'Own Health': 0.0235, 'Maternity': 0.0083, 'New Child': 0.0086,
+                          'Ill Child': 0.0005, 'Ill Spouse': 0.0006, 'Ill Parent': 0.006}
+        # dependent allowance / rrp increment profile - to be added
+        # wait period, recollect / min cpl for recolllect - to be added
     },
     'RI': {
         'replacement_ratio': 0.6,
@@ -74,6 +74,8 @@ DEFAULT_STATE_PARAMS = {
         'state_employees': False,
         'local_employees': False,
         'self_employed': False,
+        'take_up_rates': {'Own Health': 0.0823, 'Maternity': 0.0274, 'New Child': 0.0104,
+                          'Ill Child': 0.0006, 'Ill Spouse': 0.0016, 'Ill Parent': 0.0009}
     }
 }
 
@@ -123,7 +125,7 @@ class OtherParameters(Parameters):
                  eligible_size=1, max_weeks=None, take_up_rates=None, leave_probability_factors=None, payroll_tax=1.0,
                  benefits_tax=False, average_state_tax=5.0, max_taxable_earnings_per_person=100000,
                  total_taxable_earnings=10000000000, fed_employees=True, state_employees=True, local_employees=True,
-                 counterfactual='', policy_sim=False, existing_program='', dual_receivers_share=0.6):
+                 counterfactual='', policy_sim=False, existing_program='', dual_receivers_share=1):
         """Other program parameters. A distinction needs to be made for program comparison, as each program will not
         share these parameters."""
         self.benefit_effect = benefit_effect
@@ -162,12 +164,13 @@ class OtherParameters(Parameters):
         else:
             self.max_weeks = max_weeks
         if take_up_rates is None:
-            # for demo using RI take up data
-            self.take_up_rates = {'Own Health': 0.0704, 'Maternity': 0.0235, 'New Child': 0.0092,
-                                  'Ill Child': 0.005, 'Ill Spouse': 0.0014, 'Ill Parent': 0.008}
-            # alternatively use average of 3 states (RI/NJ/CA)
-            # self.take_up_rates = {'Own Health': 0.0402, 'Maternity': 0.0132, 'New Child': 0.0093,
-            #                           'Ill Child': 0.0011, 'Ill Spouse': 0.0020, 'Ill Parent': 0.0017}
+            # # for demo using RI take up data
+            # self.take_up_rates = {'Own Health': 0.0839, 'Maternity': 0.0280, 'New Child': 0.0106,
+            #                       'Ill Child': 0.0006, 'Ill Spouse': 0.0016, 'Ill Parent': 0.0010}
+
+            # NJ take up
+            self.take_up_rates = {'Own Health': 0.0219, 'Maternity': 0.0077, 'New Child': 0.0081,
+                                  'Ill Child': 0.0005, 'Ill Spouse': 0.0005, 'Ill Parent': 0.0006}
         else:
             self.take_up_rates = take_up_rates
 
