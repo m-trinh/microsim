@@ -51,17 +51,7 @@ def preprocess_data(fp_acs, cols):
     return d
 
 
-## Read in data
-# Python
-#dp = pd.read_csv('./data/acs/ACS_cleaned_forsimulation_2016_ri.csv')
-#fp_p = './data/acs/ACS_cleaned_forsimulation_2016_ri.csv'
-fp_p = './output/output_20200224_222639_main simulation/acs_sim_20200224_222639.csv'
-# R
-#dr = pd.read_csv('./PR_comparison/check_acs/RI_work.csv')
-fp_r = './PR_comparison/check_acs/acs_R/RI_logitfull_no full takeup_test.csv'
-
-## preprocess
-
+## Read in data and preprocess
 # id
 id = 'SERIALNO'
 # Xs, ys, w
@@ -79,9 +69,12 @@ lens+= ['cfl_%s' % x for x in types]
 lens+= ['cpl_%s' % x for x in types]
 cols_cost = ['takeup_%s' % x for x in types]
 cols_cost += ['wage12', 'wkswork']
-
 cols = [id] + Xs + ys + [w] + lens + cols_cost
-
+# fp Python
+fp_p = './output/output_20200225_094408_main simulation/acs_sim_20200225_094408.csv'
+# fp R
+fp_r = './PR_comparison/check_acs/acs_R/RI_logitfull_test.csv'
+# preprocess
 dp = preprocess_data(fp_p, cols)
 dr = preprocess_data(fp_r, cols)
 
@@ -127,8 +120,8 @@ for c in lens:
 ## Compute total outlay
 # params
 params = {}
-params['wkbene_cap'] = 1216
-params['rrp'] = 0.55
+params['wkbene_cap'] = 795
+params['rrp'] = 0.6
 pow_pop_multiplier = 1.02
 def get_costs(df):
     # apply take up flag and weekly benefit cap, and compute total cost, 6 types
@@ -165,12 +158,13 @@ acsr['sum_plen'] = [sum(x) for x in acsr[['plen_%s' % x for x in types]].values]
 # get total cost as in R code
 def get_cost_R(df):
     # apply take up flag and weekly benefit cap, and compute total cost, 6 types
-    uncapped_total_benefits = (df['wage12']/df['weeks_worked'])*params['rrp']*(df['particip_length']/5)
+    uncapped_total_benefits = (df['wage12']/df['wkswork'])*params['rrp']*(df['particip_length']/5)
     total_caps = params['wkbene_cap']*df['particip_length']/5
     capped_total_benefits = [min(x[0], x[1]) for x in pd.concat([uncapped_total_benefits, total_caps], axis=1).values]
-    total_cost = (capped_total_benefits*df['PWGTP']).sum()
+    total_cost = (capped_total_benefits*df['PWGTP']*pow_pop_multiplier).sum()
     return total_cost
 acsr = pd.read_csv(fp_r)
+acsr = acsr.rename(columns={'weeks_worked': 'wkswork'})
 get_cost_R(acsr)
 
 # get total cost as in Py code
@@ -182,16 +176,18 @@ def get_cost_Py(df):
         v = [min(x, params['wkbene_cap']) for x in
              ((df['wage12'] / df['wkswork'] * params['rrp']))]
         # TODO: use this in simulation code - see underestimation! Consider up cpl to (close-to) cfl as in R
-        # cpl_all = sum of cpl across types
-        cpl_all = (df['cpl_%s' % t] / 5)
+        # cpl_wk = cpl in weeks
+        cpl_wk = (df['cpl_%s' % t] / 5)
         # inflate weight for missing POW
         w = df['PWGTP'] * pow_pop_multiplier
 
         # get program cost for leave type t - sumprod of capped benefit, weight, and takeup flag for each ACS row
-        costs[t] = (v * cpl_all * w * df['takeup_%s' % t]).sum()
+        costs[t] = (v * cpl_wk * w * df['takeup_%s' % t]).sum()
     total_cost = sum(list(costs.values()))
     return total_cost
 get_cost_Py(dp)
+get_cost_Py(dr)
+
 
 # R has much larger costs on type own, check below
 for x in types:
@@ -206,6 +202,15 @@ for t in types:
     print('dp[dp[takeup_%s]==1][PWGTP].sum()\n' % t, dp[dp['takeup_%s' % t]==1]['PWGTP'].sum())
     print('dr[dr[takeup_%s]==1][PWGTP].sum()\n' % t, dr[dr['takeup_%s' % t]==1]['PWGTP'].sum())
     print('--------------------')
+# check cond' CPF of draw program takers
+for t in types:
+    print('Py: conditional weighted mean of cpl_%s among takeup persons' % t,
+          np.average(dp[(dp['cpl_%s' % t] > 0) & (dp['takeup_%s' % t] == 1)]['cpl_%s' % t],
+                     weights=dp[(dp['cpl_%s' % t] > 0) & (dp['takeup_%s' % t] == 1)]['PWGTP']))
+    print('R: conditional weighted mean of cpl_%s among takeup persons' % t,
+          np.average(dr[(dr['cpl_%s' % t] > 0) & (dr['takeup_%s' % t] == 1)]['cpl_%s' % t],
+                     weights=dr[(dr['cpl_%s' % t] > 0) & (dr['takeup_%s' % t] == 1)]['PWGTP']))
+    print('------------------------------------------------')
 # much bigger! seems like R has used wrong base for eligible worker pop
 # should be ~350k but not 415k as in Excel state take up data
 # TODO: LP to use ACS eligworker est pop as base to re-gen emp take up rates, apply in GUI and re-run model

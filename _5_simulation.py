@@ -563,9 +563,9 @@ class SimulationEngine:
         # TODO: add min_takeup_cpl in params
         # TODO: for CA this value needs to be 25~30 for own/matdis to match mean cpl with state data (~75 days)
         # TODO: instead of using min_takeup_cpl to d isqualify rows for draws, consider prob draw = f(cpl)
-        # TODO: add alpha as paramter (=0 for NJ/RI, =3 for CA, further increase alpha minimal effect)
+        # TODO: add alpha as paramter (=0 for NJ/RI, =2 for CA (1 outlay too small, 2.5~3 too much), further increase alpha minimal effect)
         min_takeup_cpl = 5
-        alpha = 1
+        alpha = 0
         for t in self.types:
             # cap user-specified take up for type t by max possible takeup = s_positive_cpl, in pop per sim results
             s_positive_cpl = acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w].sum() / acs[col_w].sum()
@@ -580,8 +580,14 @@ class SimulationEngine:
             # print('p_draw for type -%s- = %s' % (t, p_draw))
             # get take up indicator for type t - weighted random draw from cpl_type>min_takeup_cpl until target is reached
             acs['takeup_%s' % t] = 0
-            draws = get_weighted_draws(acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w], p_draw, self.random_state,
-                                       shuffle_weights=(acs[acs['cpl_%s' % t] >= min_takeup_cpl]['cpl_%s' % t])**alpha)
+            if alpha >0:
+                draws = get_weighted_draws(acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w], p_draw, self.random_state,
+                                           shuffle_weights=(acs[acs['cpl_%s' % t] >= min_takeup_cpl]['cpl_%s' % t])**alpha)
+            elif alpha==0:
+                draws = get_weighted_draws(acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w], p_draw, self.random_state,
+                                           shuffle_weights=None)
+            else:
+                print('ERROR: alpha (exponent) of shuffle_weights should be non-negative. Please check!')
             # print('draws = %s' % draws)
             acs.loc[acs['cpl_%s' % t] >= min_takeup_cpl, 'takeup_%s' % t] \
                 = draws
