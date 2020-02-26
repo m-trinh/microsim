@@ -123,7 +123,9 @@ class OtherParameters(Parameters):
                  eligible_size=1, max_weeks=None, take_up_rates=None, leave_probability_factors=None, payroll_tax=1.0,
                  benefits_tax=False, average_state_tax=5.0, max_taxable_earnings_per_person=100000,
                  total_taxable_earnings=10000000000, fed_employees=True, state_employees=True, local_employees=True,
-                 counterfactual='', policy_sim=False, existing_program='', dual_receivers_share=0.6):
+                 counterfactual='', policy_sim=False, existing_program='', dual_receivers_share=0.6,
+                 dependency_allowance=False, dependency_allowance_profile=None, wait_period=5, recollect=False,
+                 min_cfl_recollect=None, min_takeup_cpl=5, alpha=0):
         """Other program parameters. A distinction needs to be made for program comparison, as each program will not
         share these parameters."""
         self.benefit_effect = benefit_effect
@@ -156,6 +158,14 @@ class OtherParameters(Parameters):
         self.policy_sim = policy_sim
         self.existing_program = existing_program
         self.dual_receivers_share = dual_receivers_share
+        self.dependency_allowance = dependency_allowance
+        self.dependency_allowance_profile = dependency_allowance_profile if dependency_allowance_profile is not None \
+            else []
+        self.wait_period = wait_period
+        self.recollect = recollect
+        self.min_cfl_recollect = min_cfl_recollect
+        self.min_takeup_cpl = min_takeup_cpl
+        self.alpha = alpha
         if max_weeks is None:
             self.max_weeks = {'Own Health': 30, 'Maternity': 30, 'New Child': 4, 'Ill Child': 4, 'Ill Spouse': 4,
                               'Ill Parent': 4}
