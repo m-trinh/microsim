@@ -105,7 +105,9 @@ class SimulationEngine:
 
     def set_simulation_params(self, elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp, wkbene_cap, d_maxwk,
                               d_takeup, incl_empgov_fed, incl_empgov_st, incl_empgov_loc, incl_empself,
-                              needers_fully_participate, clone_factor, dual_receivers_share, sim_num=None):
+                              needers_fully_participate, clone_factor, dual_receivers_share, alpha,
+                              min_takeup_cpl, wait_period, recollect, min_cfl_recollect,
+                              dependency_allowance, dependency_allowance_profile, sim_num=None):
         params = {
             'elig_wage12': elig_wage12,
             'elig_wkswork': elig_wkswork,
@@ -122,6 +124,13 @@ class SimulationEngine:
             'needers_fully_participate': needers_fully_participate,
             'clone_factor': clone_factor,
             'dual_receivers_share': dual_receivers_share,
+            'alpha': alpha,
+            'min_takeup_cpl': min_takeup_cpl,
+            'wait_period': wait_period,
+            'recollect': recollect,
+            'min_cfl_recollect': min_cfl_recollect,
+            'dependency_allowance': dependency_allowance,
+            'dependency_allowance_profile': dependency_allowance_profile,
         }
 
         if type(sim_num) == int and -1 < sim_num < self.sim_count:
@@ -149,8 +158,12 @@ class SimulationEngine:
                        'Minimum Annual Work Hours', 'Minimum Employer Size', 'Proposed Wage Replacement Ratio',
                        'Weekly Benefit Cap', 'Include Goverment Employees, Federal',
                        'Include Goverment Employees, State', 'Include Goverment Employees, Local',
-                       'Include Self-employed', 'Simulation Method', 'Share of Dual Receivers', 'Clone Factor',
-                       'Random Seed']
+                       'Include Self-employed', 'Simulation Method', 'Share of Dual Receivers',
+                       'Alpha', 'Minimum Leave Length Applied',
+                       'Waiting Period', 'Recollect Benefits of Waiting Period', 'Minimum Leave Length for Recollection',
+                       'Dependent Allowance',
+                       'Dependent Allowance Profile: Increments of Replacement Ratio by Number of Dependants',
+                       'Clone Factor','Random Seed']
         para_labels_m = ['Maximum Week of Benefit Receiving',
                          'Take Up Rates']  # type-specific parameters
 
@@ -158,6 +171,9 @@ class SimulationEngine:
                        params['elig_wkswork'], params['elig_yrhours'], params['elig_empsize'], params['rrp'],
                        params['wkbene_cap'], params['incl_empgov_fed'], params['incl_empgov_st'],
                        params['incl_empgov_loc'], params['incl_empself'], self.clf_name, params['dual_receivers_share'],
+                       params['alpha'], params['min_takeup_cpl'],
+                       params['wait_period'], params['recollect'], params['min_cfl_recollect'],
+                       params['dependency_allowance'], params['dependency_allowance_profile'],
                        params['clone_factor'], self.random_seed]
         para_values_m = [params['d_maxwk'], params['d_takeup']]
 
@@ -422,8 +438,8 @@ class SimulationEngine:
         # Simulate counterfactual leave lengths (cf-len) for dual receivers
         # First get col of effective rrp for each person, subject to adding any dependency allowance, up to 1
         # TODO: add dependency_allowance in params
-        dependency_allowance = False
-        dependency_allowance_profile = [0.07, 0.04, 0.04] # rrp increment by ndep, len of this is max ndep allowed
+        dependency_allowance = params['dependency_allowance']
+        dependency_allowance_profile = params['dependency_allowance_profile'] # rrp increment by ndep, len of this is max ndep allowed
         cum_profile = np.cumsum(np.array(dependency_allowance_profile))
         acs['effective_rrp'] = params['rrp']
         if dependency_allowance:
@@ -450,8 +466,8 @@ class SimulationEngine:
             # TODO: add wait_period, recollect, min_cfl_recollect in params
             # wait period benefit recollection indicator, min cfl needed for recollection
             # RI = [False, nan], NJ = [True, 15]
-            wait_period = 5
-            recollect, min_cfl_recollect = [False, np.nan]
+            wait_period = params['wait_period']
+            recollect, min_cfl_recollect = params['recollect'], params['min_cfl_recollect']
 
             acs.loc[acs['dual_receiver']==1, 'cpl_%s'% t] =\
                 [max(x, 0) for x in (acs.loc[acs['dual_receiver']==1, 'cfl_%s' % t] - wait_period).values]
@@ -559,12 +575,11 @@ class SimulationEngine:
 
         # Then perform a weighted random draw using user-specified take up rate until target pop is reached
         # set min cpl (covered-by-program length) for taking up program
-        # TODO: add min_takeup_cpl in params
+        # TODO: validate min_takeup_cpl: min must = 1, cannot be 0
         # TODO: for CA this value needs to be 25~30 for own/matdis to match mean cpl with state data (~75 days)
         # TODO: instead of using min_takeup_cpl to d isqualify rows for draws, consider prob draw = f(cpl)
-        # TODO: add alpha as paramter (=0 for NJ/RI, =2 for CA (1 outlay too small, 2.5~3 too much), further increase alpha minimal effect)
-        min_takeup_cpl = 5
-        alpha = 0
+        min_takeup_cpl = params['min_takeup_cpl']
+        alpha = params['alpha']
         for t in self.types:
             # cap user-specified take up for type t by max possible takeup = s_positive_cpl, in pop per sim results
             s_positive_cpl = acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w].sum() / acs[col_w].sum()
@@ -575,9 +590,9 @@ class SimulationEngine:
                           'by maximum possible take up rate (share of positive covered-by-program length) '
                           'based on simulation results, at %s.' % (t, s_positive_cpl))
             takeup = min(s_positive_cpl, params['d_takeup'][t])
-            p_draw = takeup / s_positive_cpl  # need to draw w/ prob=p_draw from cpl>min_takeup_cpl subpop, to get desired takeup
+            p_draw = takeup / s_positive_cpl  # need to draw w/ prob=p_draw from cpl>=min_takeup_cpl subpop, to get desired takeup
             # print('p_draw for type -%s- = %s' % (t, p_draw))
-            # get take up indicator for type t - weighted random draw from cpl_type>min_takeup_cpl until target is reached
+            # get take up indicator for type t - weighted random draw from cpl_type>=min_takeup_cpl until target is reached
             acs['takeup_%s' % t] = 0
             if alpha >0:
                 draws = get_weighted_draws(acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w], p_draw, self.random_state,

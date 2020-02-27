@@ -483,12 +483,21 @@ class MicrosimGUI(Tk):
         # weight_factor = parameters.weight_factor
         clone_factor = parameters.clone_factor
         dual_receivers_share = parameters.dual_receivers_share
+        alpha = parameters.alpha
+        min_takeup_cpl = parameters.min_takeup_cpl
+        wait_period = parameters.wait_period
+        recollect = parameters.recollect
+        min_cfl_recollect = parameters.min_cfl_recollect
+        dependency_allowance = parameters.dependency_allowance
+        dependency_allowance_profile = parameters.dependency_allowance_profile
 
         # Update simulation engine with the values
         self.sim_engine.set_simulation_params(elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp, wkbene_cap,
                                               d_maxwk, d_takeup, incl_empgov_fed, incl_empgov_st, incl_empgov_loc,
                                               incl_empself, needers_fully_participate, clone_factor,
-                                              dual_receivers_share, sim_num=None)
+                                              dual_receivers_share, alpha, min_takeup_cpl,
+                                              wait_period, recollect, min_cfl_recollect,
+                                              dependency_allowance, dependency_allowance_profile, sim_num=None)
 
     def check_file_entries(self, *_):
         """Enables run button if locations for ACS, FMLA, and output folders are provided. Otherwise, disables run

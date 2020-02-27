@@ -20,7 +20,7 @@ DEFAULT_STATE_PARAMS = {
                       'Ill Child': 6,
                       'Ill Spouse': 6,
                       'Ill Parent': 6},
-        'weekly_ben_cap': 1216,
+        'weekly_ben_cap': 1082,
         'fmla_protection_constraint': True,
         'eligible_earnings': 300,
         'government_employees': False,
@@ -34,9 +34,9 @@ DEFAULT_STATE_PARAMS = {
         'dependency_allowance_profile': [],
         'wait_period': 5,
         'recollect': False,
-        'min_cfl_recollect': None,
+        'min_cfl_recollect': 0,
         'min_takeup_cpl': 5,
-        'alpha': 0
+        'alpha': 2
     },
     'NJ': {
         'replacement_ratio': 0.66,
@@ -57,8 +57,8 @@ DEFAULT_STATE_PARAMS = {
         'state_employees': True,
         'local_employees': False,
         'self_employed': False,
-        'take_up_rates': {'Own Health': 0.0235, 'Maternity': 0.0083, 'New Child': 0.0086,
-                          'Ill Child': 0.0005, 'Ill Spouse': 0.0006, 'Ill Parent': 0.006},
+        'take_up_rates': {'Own Health': 0.0235, 'Maternity': 0.0083, 'New Child': 0.0087,
+                          'Ill Child': 0.0004, 'Ill Spouse': 0.0005, 'Ill Parent': 0.007},
         'dependency_allowance': True,
         'dependency_allowance_profile': [0.07, 0.04, 0.04],
         'wait_period': 5,
@@ -80,7 +80,7 @@ DEFAULT_STATE_PARAMS = {
                       'Ill Child': 4,
                       'Ill Spouse': 4,
                       'Ill Parent': 4},
-        'weekly_ben_cap': 795,
+        'weekly_ben_cap': 759,
         'fmla_protection_constraint': True,
         'eligible_earnings': 3840,
         'government_employees': False,
@@ -88,15 +88,15 @@ DEFAULT_STATE_PARAMS = {
         'state_employees': False,
         'local_employees': False,
         'self_employed': False,
-        'take_up_rates': {'Own Health': 0.0823, 'Maternity': 0.0274, 'New Child': 0.0104,
-                          'Ill Child': 0.0006, 'Ill Spouse': 0.0016, 'Ill Parent': 0.0009},
+        'take_up_rates': {'Own Health': 0.0723, 'Maternity': 0.0241, 'New Child': 0.0104,
+                          'Ill Child': 0.0006, 'Ill Spouse': 0.0015, 'Ill Parent': 0.0009},
         'dependency_allowance': False,
         'dependency_allowance_profile': [],
         'wait_period': 5,
         'recollect': False,
-        'min_cfl_recollect': None,
+        'min_cfl_recollect': 0,
         'min_takeup_cpl': 5,
-        'alpha': 0
+        'alpha': 0.5
     }
 }
 
@@ -142,7 +142,7 @@ class OtherParameters(Parameters):
     def __init__(self, se_analysis=False, benefit_effect=False, calibrate=True, clone_factor=1,
                  extend=False, fmla_protection_constraint=False, replacement_ratio=0.6, government_employees=True,
                  needers_fully_participate=False, self_employed=False,  top_off_rate=0, top_off_min_length=0,
-                 weekly_ben_cap=795, weight_factor=1, eligible_earnings=3840, eligible_weeks=1, eligible_hours=1,
+                 weekly_ben_cap=759, weight_factor=1, eligible_earnings=3840, eligible_weeks=1, eligible_hours=1,
                  eligible_size=1, max_weeks=None, take_up_rates=None, leave_probability_factors=None, payroll_tax=1.0,
                  benefits_tax=False, average_state_tax=5.0, max_taxable_earnings_per_person=100000,
                  total_taxable_earnings=10000000000, fed_employees=True, state_employees=True, local_employees=True,
