@@ -29,7 +29,14 @@ DEFAULT_STATE_PARAMS = {
         'local_employees': False,
         'self_employed': False,
         'take_up_rates': {'Own Health': 0.0363, 'Maternity': 0.0127, 'New Child': 0.0152,
-                          'Ill Child': 0.0004, 'Ill Spouse': 0.0007, 'Ill Parent': 0.0007}
+                          'Ill Child': 0.0004, 'Ill Spouse': 0.0007, 'Ill Parent': 0.0007},
+        'dependency_allowance': False,
+        'dependency_allowance_profile': [],
+        'wait_period': 5,
+        'recollect': False,
+        'min_cfl_recollect': None,
+        'min_takeup_cpl': 5,
+        'alpha': 0
     },
     'NJ': {
         'replacement_ratio': 0.66,
@@ -51,7 +58,14 @@ DEFAULT_STATE_PARAMS = {
         'local_employees': False,
         'self_employed': False,
         'take_up_rates': {'Own Health': 0.0235, 'Maternity': 0.0083, 'New Child': 0.0087,
-                          'Ill Child': 0.0004, 'Ill Spouse': 0.0005, 'Ill Parent': 0.007}
+                          'Ill Child': 0.0004, 'Ill Spouse': 0.0005, 'Ill Parent': 0.007},
+        'dependency_allowance': True,
+        'dependency_allowance_profile': [0.07, 0.04, 0.04],
+        'wait_period': 5,
+        'recollect': True,
+        'min_cfl_recollect': 15,
+        'min_takeup_cpl': 5,
+        'alpha': 0
         # dependent allowance / rrp increment profile - to be added
         # wait period, recollect / min cpl for recolllect - to be added
     },
@@ -75,7 +89,14 @@ DEFAULT_STATE_PARAMS = {
         'local_employees': False,
         'self_employed': False,
         'take_up_rates': {'Own Health': 0.0723, 'Maternity': 0.0241, 'New Child': 0.0104,
-                          'Ill Child': 0.0006, 'Ill Spouse': 0.0015, 'Ill Parent': 0.0009}
+                          'Ill Child': 0.0006, 'Ill Spouse': 0.0015, 'Ill Parent': 0.0009},
+        'dependency_allowance': False,
+        'dependency_allowance_profile': [],
+        'wait_period': 5,
+        'recollect': False,
+        'min_cfl_recollect': None,
+        'min_takeup_cpl': 5,
+        'alpha': 0
     }
 }
 
@@ -125,7 +146,9 @@ class OtherParameters(Parameters):
                  eligible_size=1, max_weeks=None, take_up_rates=None, leave_probability_factors=None, payroll_tax=1.0,
                  benefits_tax=False, average_state_tax=5.0, max_taxable_earnings_per_person=100000,
                  total_taxable_earnings=10000000000, fed_employees=True, state_employees=True, local_employees=True,
-                 counterfactual='', policy_sim=False, existing_program='', dual_receivers_share=1):
+                 counterfactual='', policy_sim=False, existing_program='', dual_receivers_share=1,
+                 dependency_allowance=False, dependency_allowance_profile=None, wait_period=5, recollect=False,
+                 min_cfl_recollect=None, min_takeup_cpl=5, alpha=0):
         """Other program parameters. A distinction needs to be made for program comparison, as each program will not
         share these parameters."""
         self.benefit_effect = benefit_effect
@@ -158,6 +181,14 @@ class OtherParameters(Parameters):
         self.policy_sim = policy_sim
         self.existing_program = existing_program
         self.dual_receivers_share = dual_receivers_share
+        self.dependency_allowance = dependency_allowance
+        self.dependency_allowance_profile = dependency_allowance_profile if dependency_allowance_profile is not None \
+            else []
+        self.wait_period = wait_period
+        self.recollect = recollect
+        self.min_cfl_recollect = min_cfl_recollect
+        self.min_takeup_cpl = min_takeup_cpl
+        self.alpha = alpha
         if max_weeks is None:
             self.max_weeks = {'Own Health': 30, 'Maternity': 30, 'New Child': 4, 'Ill Child': 4, 'Ill Spouse': 4,
                               'Ill Parent': 4}
