@@ -71,7 +71,7 @@ cols_cost = ['takeup_%s' % x for x in types]
 cols_cost += ['wage12', 'wkswork']
 cols = [id] + Xs + ys + [w] + lens + cols_cost
 # fp Python
-fp_p = './output/output_20200225_094408_main simulation/acs_sim_20200225_094408.csv'
+fp_p = './output/output_20200226_131121_main simulation/acs_sim_20200226_131121.csv'
 # fp R
 fp_r = './PR_comparison/check_acs/acs_R/RI_logitfull_test.csv'
 # preprocess
@@ -120,7 +120,7 @@ for c in lens:
 ## Compute total outlay
 # params
 params = {}
-params['wkbene_cap'] = 795
+params['wkbene_cap'] = 759
 params['rrp'] = 0.6
 pow_pop_multiplier = 1.02
 def get_costs(df):
@@ -185,8 +185,8 @@ def get_cost_Py(df):
         costs[t] = (v * cpl_wk * w * df['takeup_%s' % t]).sum()
     total_cost = sum(list(costs.values()))
     return total_cost
-get_cost_Py(dp)
-get_cost_Py(dr)
+print('Total cost estimate from Py: ', get_cost_Py(dp))
+print('Total cost estimate from R: ', get_cost_Py(dr))
 
 
 # R has much larger costs on type own, check below

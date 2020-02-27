@@ -562,7 +562,7 @@ class SimulationEngine:
         # TODO: add min_takeup_cpl in params
         # TODO: for CA this value needs to be 25~30 for own/matdis to match mean cpl with state data (~75 days)
         # TODO: instead of using min_takeup_cpl to d isqualify rows for draws, consider prob draw = f(cpl)
-        # TODO: add alpha as paramter (=0 for NJ/RI, =2 for CA (1 outlay too small, 2.5~3 too much), further increase alpha minimal effect)
+        # TODO: add alpha as paramter (=0 for NJ, =0.5 for RI, =2 for CA (1 outlay too small, 2.5~3 too much), further increase alpha minimal effect)
         min_takeup_cpl = 5
         alpha = 0
         for t in self.types:

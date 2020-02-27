@@ -20,7 +20,7 @@ DEFAULT_STATE_PARAMS = {
                       'Ill Child': 6,
                       'Ill Spouse': 6,
                       'Ill Parent': 6},
-        'weekly_ben_cap': 1216,
+        'weekly_ben_cap': 1082,
         'fmla_protection_constraint': True,
         'eligible_earnings': 300,
         'government_employees': False,
@@ -50,8 +50,8 @@ DEFAULT_STATE_PARAMS = {
         'state_employees': True,
         'local_employees': False,
         'self_employed': False,
-        'take_up_rates': {'Own Health': 0.0235, 'Maternity': 0.0083, 'New Child': 0.0086,
-                          'Ill Child': 0.0005, 'Ill Spouse': 0.0006, 'Ill Parent': 0.006}
+        'take_up_rates': {'Own Health': 0.0235, 'Maternity': 0.0083, 'New Child': 0.0087,
+                          'Ill Child': 0.0004, 'Ill Spouse': 0.0005, 'Ill Parent': 0.007}
         # dependent allowance / rrp increment profile - to be added
         # wait period, recollect / min cpl for recolllect - to be added
     },
@@ -66,7 +66,7 @@ DEFAULT_STATE_PARAMS = {
                       'Ill Child': 4,
                       'Ill Spouse': 4,
                       'Ill Parent': 4},
-        'weekly_ben_cap': 795,
+        'weekly_ben_cap': 759,
         'fmla_protection_constraint': True,
         'eligible_earnings': 3840,
         'government_employees': False,
@@ -74,8 +74,8 @@ DEFAULT_STATE_PARAMS = {
         'state_employees': False,
         'local_employees': False,
         'self_employed': False,
-        'take_up_rates': {'Own Health': 0.0823, 'Maternity': 0.0274, 'New Child': 0.0104,
-                          'Ill Child': 0.0006, 'Ill Spouse': 0.0016, 'Ill Parent': 0.0009}
+        'take_up_rates': {'Own Health': 0.0723, 'Maternity': 0.0241, 'New Child': 0.0104,
+                          'Ill Child': 0.0006, 'Ill Spouse': 0.0015, 'Ill Parent': 0.0009}
     }
 }
 

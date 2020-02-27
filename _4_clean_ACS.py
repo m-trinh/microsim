@@ -331,7 +331,7 @@ class DataCleanerACS:
             # -------------------------- #
             # Save the resulting dataset
             # -------------------------- #
-            cols = ['SERIALNO', 'PWGTP', 'ST', 'POWSP', 'NPF',
+            cols = ['SERIALNO', 'SPORDER','PWGTP', 'ST', 'POWSP', 'NPF',
                     'employed', 'empgov_fed', 'empgov_st', 'empgov_loc',
                     'wkhours', 'weeks_worked_cat', 'wage12', 'lnearn', 'hiemp',
                     'a_age', 'age', 'agesq',
