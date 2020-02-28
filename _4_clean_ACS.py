@@ -16,6 +16,7 @@ from _5a_aux_functions import fillna_df
 import sklearn.linear_model
 import mord
 from time import time
+from Utils import STATE_CODES
 
 
 class DataCleanerACS:
@@ -51,18 +52,16 @@ class DataCleanerACS:
              "41", "42", "44", "45", "46", "47", "48", "49", "50", "51", "53", "54", "55", "56"]
                                ))
 
-    def load_data(self):
+    def load_data(self, st):
         '''
         load and prepare other data needed for cleaning up large ACS 5-year person file
         :return: prepared ACS household data, and ready-for-sim CPS file
         '''
-        # Load CPS data from impute_FMLA_CPS
-        cps = pd.read_csv('./data/cps/cps_for_acs_sim.csv')
 
         # Load ACS household data and create some variables
-        fp_d_hh = self.fp_h + '/ss%sh%s.csv' % (self.yr, self.st)
+        fp_d_hh = self.fp_h + '/ss%sh%s.csv' % (str(self.yr)[2:], st)
         if self.state_of_work:
-            fp_d_hh = self.fp_h + '/h%s_%s_pow.csv' % (self.dct_st[self.st], self.st)
+            fp_d_hh = self.fp_h + '/h%s_%s_pow.csv' % (self.dct_st[st], st)
         d_hh = pd.read_csv(fp_d_hh)
         d_hh["nochildren"] = pd.get_dummies(d_hh["FPARC"])[4]
         d_hh['faminc'] = d_hh['FINCP'] * d_hh['ADJINC'] / self.adjinc / 1000  # adjust to 2012 thousand dollars to conform with FMLA 2012 data
@@ -73,30 +72,24 @@ class DataCleanerACS:
         d_hh['ndep_old'] = d_hh['R65']
         d_hh['ndep_spouse'] = np.where(d_hh['FES'].isin([2,3]), 1, 0)
         d_hh['ndep_spouse_kid'] = d_hh['ndep_kid'] + d_hh['ndep_spouse']
-        return (d_hh, cps)
+        return d_hh[['SERIALNO', 'NPF', 'nochildren', 'faminc', 'lnfaminc', 'PARTNER', 'ndep_kid', 'ndep_old',
+                     'ndep_spouse', 'ndep_spouse_kid']]
 
-    def clean_person_data(self, chunk_size=100000):
-        '''
-        clean large ACS 5-year person file
-        :return:
-        '''
-        t0 = time()
-        d_hh, cps = self.load_data()
+    def clean_person_state_data(self, st, cps, chunk_size=100000):
+        d_hh = self.load_data(st)
         dout = pd.DataFrame([])
         ichunk = 1
-        print('Cleaning ACS data. State chosen = %s. Chunk size = %s ACS rows' % (self.st.upper(), chunk_size))
+        print('Cleaning ACS data. State chosen = %s. Chunk size = %s ACS rows' % (st.upper(), chunk_size))
 
         # set file path to person file, per state_of_work value
-        fp_d_p = self.fp_p + "/20%s/ss%sp%s.csv" % (self.yr, self.yr, self.st)
+        fp_d_p = self.fp_p + "/%s/ss%sp%s.csv" % (self.yr, str(self.yr)[:2], st)
         if self.state_of_work:
-            fp_d_p = self.fp_p + '/20%s/p%s_%s_pow.csv' % (self.yr, self.dct_st[self.st], self.st)
+            fp_d_p = self.fp_p + '/%s/p%s_%s_pow.csv' % (self.yr, self.dct_st[st], st)
+
         # process person data by chunk
         for d in pd.read_csv(fp_d_p, chunksize=chunk_size):
-
             # Merge with the household level variables
-            d = pd.merge(d, d_hh[['SERIALNO', 'NPF', 'nochildren', 'faminc', 'lnfaminc', 'PARTNER',
-                                  'ndep_kid', 'ndep_old', 'ndep_spouse', 'ndep_spouse_kid']],
-                         on='SERIALNO')
+            d = pd.merge(d, d_hh, on='SERIALNO')
 
             # -------------------------- #
             # Remove ineligible workers, include only
@@ -115,11 +108,12 @@ class DataCleanerACS:
             d['a_age'] = d['age']
 
             # Create new ACS Variables
-            d['married'] = pd.get_dummies(d["MAR"])[1]
-            d["widowed"] = pd.get_dummies(d["MAR"])[2]
-            d["divorced"] = pd.get_dummies(d["MAR"])[3]
-            d["separated"] = pd.get_dummies(d["MAR"])[4]
-            d["nevermarried"] = pd.get_dummies(d["MAR"])[5]
+            mar_dummies = pd.get_dummies(d["MAR"])
+            d['married'] = mar_dummies[1]
+            d["widowed"] = mar_dummies[2]
+            d["divorced"] = mar_dummies[3]
+            d["separated"] = mar_dummies[4]
+            d["nevermarried"] = mar_dummies[5]
             # use PARTNER in household data to tease out unmarried partners
             d['partner'] = np.where(
                 (d['PARTNER'] == 1) | (d['PARTNER'] == 2) | (d['PARTNER'] == 3) | (d['PARTNER'] == 4), 1, 0)
@@ -186,15 +180,15 @@ class DataCleanerACS:
                 5: (14, 26),
                 6: (1, 13)
             }
-            #d['wkw_min'] = d['WKW'].apply(lambda x: dict_wkwBounds[x][0] if not np.isnan(x) else np.nan)
-            #d['wkw_max'] = d['WKW'].apply(lambda x: dict_wkwBounds[x][1] if not np.isnan(x) else np.nan)
+            # d['wkw_min'] = d['WKW'].apply(lambda x: dict_wkwBounds[x][0] if not np.isnan(x) else np.nan)
+            # d['wkw_max'] = d['WKW'].apply(lambda x: dict_wkwBounds[x][1] if not np.isnan(x) else np.nan)
             d['wkw_min'] = [dict_wkwBounds[x][0] if not np.isnan(x) else np.nan for x in d['WKW']]
             d['wkw_max'] = [dict_wkwBounds[x][1] if not np.isnan(x) else np.nan for x in d['WKW']]
 
             # Total wage past 12m, adjusted to 2012, and its log
             d['wage12'] = d['WAGP'] * d['ADJINC'] / self.adjinc
             d['lnearn'] = np.nan
-            #d.loc[d['wage12'] > 0, 'lnearn'] = d.loc[d['wage12'] > 0, 'wage12'].apply(lambda x: np.log(x))
+            # d.loc[d['wage12'] > 0, 'lnearn'] = d.loc[d['wage12'] > 0, 'wage12'].apply(lambda x: np.log(x))
             d.loc[d['wage12'] > 0, 'lnearn'] = [np.log(x) for x in d.loc[d['wage12'] > 0, 'wage12']]
 
             # health insurance from employer
@@ -221,7 +215,7 @@ class DataCleanerACS:
             # Occupation
 
             # use numeric OCCP = OCCP12 if ACS 2011-2015, or OCCP = OCCP if ACS 2012-2016
-            if self.yr == 15:
+            if self.yr == 2015:
                 if 'N.A.' in d['OCCP12'].value_counts().index:
                     d.loc[d['OCCP12'] == 'N.A.', 'OCCP12'] = np.nan
                 d.loc[d['OCCP12'].notna(), 'OCCP12'] = [int(x) for x in d.loc[d['OCCP12'].notna(), 'OCCP12']]
@@ -234,7 +228,7 @@ class DataCleanerACS:
                 d['OCCP'] = np.where(d['OCCP12'].notna(), d['OCCP12'], d['OCCP'])
                 d['OCCP'] = np.where((d['OCCP'].isna()) & (d['OCCP12'].isna()) & (d['OCCP10'].notna()), d['OCCP10'],
                                      d['OCCP'])
-            elif self.yr == 16:
+            elif self.yr == 2016:
                 if 'N.A.' in d['OCCP'].value_counts().index:
                     d.loc[d['OCCP'] == 'N.A.', 'OCCP'] = np.nan
                 d.loc[d['OCCP'].notna(), 'OCCP'] = [int(x) for x in d.loc[d['OCCP'].notna(), 'OCCP']]
@@ -324,14 +318,14 @@ class DataCleanerACS:
             d['empsize'] = pd.Series(clf.predict(Xd), index=d.index)
 
             # Based on ACS raw and CPS-imputation, get FMLA-coverage indicator coveligd
-            d['coveligd'] = np.where((d['oneemp']==1) &
-                                     (d['wkhours']*d['wkswork']>=1250) &
-                                     (d['empsize']>=3), 1, 0)
+            d['coveligd'] = np.where((d['oneemp'] == 1) &
+                                     (d['wkhours'] * d['wkswork'] >= 1250) &
+                                     (d['empsize'] >= 3), 1, 0)
 
             # -------------------------- #
             # Save the resulting dataset
             # -------------------------- #
-            cols = ['SERIALNO', 'SPORDER','PWGTP', 'ST', 'POWSP', 'NPF',
+            cols = ['SERIALNO', 'SPORDER', 'PWGTP', 'ST', 'POWSP', 'NPF',
                     'employed', 'empgov_fed', 'empgov_st', 'empgov_loc',
                     'wkhours', 'weeks_worked_cat', 'wage12', 'lnearn', 'hiemp',
                     'a_age', 'age', 'agesq',
@@ -356,7 +350,22 @@ class DataCleanerACS:
             print('ACS data cleaned for chunk %s of person data...' % ichunk)
             ichunk += 1
 
-        dout.to_csv(self.fp_out + "ACS_cleaned_forsimulation_20%s_%s.csv" % (self.yr, self.st), index=False, header=True)
+        dout.to_csv(self.fp_out + "ACS_cleaned_forsimulation_%s_%s.csv" % (self.yr, st), index=False, header=True)
+
+    def clean_person_data(self, chunk_size=100000):
+        '''
+        clean large ACS 5-year person file
+        :return:
+        '''
+        t0 = time()
+
+        # Load CPS data from impute_FMLA_CPS
+        cps = pd.read_csv('./data/cps/cps_for_acs_sim.csv')
+        if self.st.lower() == 'all':
+            for st in STATE_CODES:
+                self.clean_person_state_data(st.lower(), cps, chunk_size=chunk_size)
+        else:
+            self.clean_person_state_data(self.st, cps, chunk_size=chunk_size)
 
         t1 = time()
         message = 'ACS data cleaning finished for state %s. Time elapsed = %s seconds' % (self.st.upper(), round((t1 - t0), 0))

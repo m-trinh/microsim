@@ -116,6 +116,7 @@ class MicrosimGUI(Tk):
             'acs_directory': StringVar(value=g.acs_directory),
             'output_directory': StringVar(value=g.output_directory),
             'state': StringVar(value=g.state),
+            'year': IntVar(value=g.year),
             'simulation_method': StringVar(value=g.simulation_method),
             'existing_program': StringVar(),
             'engine_type': StringVar(value=g.engine_type),
@@ -127,6 +128,13 @@ class MicrosimGUI(Tk):
             'extend': BooleanVar(value=d.extend),
             'fmla_protection_constraint': BooleanVar(value=d.fmla_protection_constraint),
             'replacement_ratio': DoubleVar(value=d.replacement_ratio),
+            'own_health': BooleanVar(value=d.own_health),
+            'maternity': BooleanVar(value=d.maternity),
+            'new_child': BooleanVar(value=d.new_child),
+            'ill_child': BooleanVar(value=d.ill_child),
+            'ill_spouse': BooleanVar(value=d.ill_spouse),
+            'ill_parent': BooleanVar(value=d.ill_parent),
+            'private': BooleanVar(value=d.private),
             'government_employees': BooleanVar(value=d.government_employees),
             'fed_employees': BooleanVar(value=d.fed_employees),
             'state_employees': BooleanVar(value=d.state_employees),
@@ -289,7 +297,7 @@ class MicrosimGUI(Tk):
         else:
             costs = pd.read_csv('./output/output_20200220_130425_main simulation/program_cost_ri_20200220_130425.csv')
             main_output_dir = os.path.join('r_engine', 'output')
-            results_files = [os.path.join(main_output_dir, 'output.csv')]
+            results_files = [[os.path.join(main_output_dir, 'output.csv')]]
 
         # Calculate total benefits paid
         total_benefits = list(costs.loc[costs['type'] == 'total', 'cost'])[0]
@@ -428,9 +436,9 @@ class MicrosimGUI(Tk):
 
         # Get values from GeneralParameters object
         st = self.general_params.state.lower()
-        yr = 16
+        yr = self.general_params.year
         fp_fmla_in = self.general_params.fmla_file
-        fp_cps_in = './data/cps/CPS20%sextract.csv' % (yr - 2)
+        fp_cps_in = './data/cps/CPS%sextract.csv' % (yr - 2)
         fp_acsh_in = self.general_params.acs_directory + '/household_files'
         fp_acsp_in = self.general_params.acs_directory + '/person_files'
         state_of_work = self.general_params.state_of_work
@@ -786,7 +794,8 @@ class GeneralParamsFrame(Frame):
         self.state_label = TipLabel(self, tip, text='State to Simulate:', bg=DARK_COLOR, fg=LIGHT_COLOR)
         self.state_input = ttk.Combobox(self, textvariable=self.variables['state'], state="readonly", width=5,
                                         values=self.states)
-        self.state_input.current(self.states.index('RI'))
+        # self.state_input.current(self.states.index('RI'))
+        self.state_input.current(0)
 
         # ---------------------------------------------- State of Work ----------------------------------------------
         tip = 'Whether or not the analysis is to be done for persons who work in particular state – ' \
@@ -794,6 +803,11 @@ class GeneralParamsFrame(Frame):
         self.state_of_work_input = TipCheckButton(self, tip, text="State of Work",
                                                   style='DarkCheckbutton.TCheckbutton',
                                                   variable=self.variables['state_of_work'])
+
+        # ------------------------------------------------ ACS Year -------------------------------------------------
+        tip = 'Year of ACS data.'
+        self.year_label = TipLabel(self, tip, text="Year:", bg=DARK_COLOR, fg=LIGHT_COLOR)
+        self.year_input = GeneralEntry(self, textvariable=self.variables['year'], width=6)
 
         # -------------------------------------------- Simulation Method --------------------------------------------
         tip = 'The method used to train model.'
@@ -845,6 +859,8 @@ class GeneralParamsFrame(Frame):
         # self.detail_label.grid_forget()
         # self.detail_input.grid_forget()
         self.state_of_work_input.grid_forget()
+        self.year_label.grid_forget()
+        self.year_input.grid_forget()
         self.simulation_method_label.grid_forget()
         self.simulation_method_input.grid_forget()
         self.random_seed_label.grid_forget()
@@ -860,12 +876,14 @@ class GeneralParamsFrame(Frame):
         # self.detail_label.grid(column=0, row=3, sticky=W, pady=self.row_padding)
         # self.detail_input.grid(column=1, row=3, sticky=W, padx=8, pady=self.row_padding)
         self.state_of_work_input.grid(column=1, row=6, columnspan=2, sticky=W, padx=8, pady=(0, self.row_padding))
-        self.simulation_method_label.grid(column=0, row=7, sticky=W, pady=self.row_padding)
-        self.simulation_method_input.grid(column=1, row=7, sticky=W, padx=8, pady=self.row_padding)
-        self.random_seed_label.grid(column=0, row=8, sticky=W, pady=self.row_padding)
-        self.random_seed_input.grid(column=1, row=8, sticky=W, padx=8, pady=self.row_padding)
-        self.engine_type_label.grid(column=0, row=9, sticky=W, pady=self.row_padding)
-        self.engine_type_input.grid(column=1, row=9, sticky=W, padx=8, pady=self.row_padding)
+        self.year_label.grid(column=0, row=7, sticky=W, pady=self.row_padding)
+        self.year_input.grid(column=1, row=7, sticky=W, padx=8, pady=self.row_padding)
+        self.simulation_method_label.grid(column=0, row=9, sticky=W, pady=self.row_padding)
+        self.simulation_method_input.grid(column=1, row=9, sticky=W, padx=8, pady=self.row_padding)
+        self.random_seed_label.grid(column=0, row=10, sticky=W, pady=self.row_padding)
+        self.random_seed_input.grid(column=1, row=10, sticky=W, padx=8, pady=self.row_padding)
+        self.engine_type_label.grid(column=0, row=11, sticky=W, pady=self.row_padding)
+        self.engine_type_input.grid(column=1, row=11, sticky=W, padx=8, pady=self.row_padding)
         self.toggle_r_path()
 
     def browse_file(self, file_input, filetypes):
@@ -1258,6 +1276,20 @@ class ProgramFrame(NotebookFrame):
         ToolTipCreator(self.max_weeks_frame_label,
                        'The maximum number of weeks for each leave type that the program will pay for.')
 
+        # ----------------------------------------- Employee Types Allowed ------------------------------------------
+        self.employee_types_label = ttk.Label(self.content, text='Eligible Employee Types:', cursor='question_arrow',
+                                              style='MSLabelframe.TLabelframe.Label', font='-size 10')
+        self.employee_types_frame = EmployeeTypesFrame(self.content, v, labelwidget=self.employee_types_label,
+                                                       style='MSLabelframe.TLabelframe')
+        ToolTipCreator(self.employee_types_label, 'The types of employees that will be eligible for program.')
+
+        # ------------------------------------------- Leave Types Allowed -------------------------------------------
+        self.leave_types_label = ttk.Label(self.content, text='Leave Types Allowed:', cursor='question_arrow',
+                                           style='MSLabelframe.TLabelframe.Label', font='-size 10')
+        self.leave_types_frame = LeaveTypesFrame(self.content, v, labelwidget=self.leave_types_label,
+                                                 style='MSLabelframe.TLabelframe')
+        ToolTipCreator(self.leave_types_label, 'The leave types that the program will provide benefits for.')
+
         # ----------------------------------------- Wage Replacement Ratio ------------------------------------------
         tip = 'The percentage of wage that the program will pay.'
         self.replacement_ratio_label = TipLabel(self.content, tip, text="Replacement Ratio:", bg=VERY_LIGHT_COLOR)
@@ -1274,35 +1306,6 @@ class ProgramFrame(NotebookFrame):
         self.benefit_financing_frame = BenefitFinancingFrame(self.content, v, labelwidget=self.benefit_financing_label,
                                                              style='MSLabelframe.TLabelframe')
         ToolTipCreator(self.benefit_financing_label, 'Parameters related to program financing.')
-
-        # ------------------------------------ Government Employees Eligibility -------------------------------------
-        # All Government Employees
-        tip = 'Whether or not government employees are eligible for program.'
-        self.government_employees_input = TipCheckButton(self.content, tip, text="Government Employees",
-                                                         variable=v['government_employees'],
-                                                         command=self.check_all_gov_employees)
-
-        # Federal Employees
-        tip = 'Whether or not federal employees are eligible for program.'
-        self.federal_employees_input = TipCheckButton(self.content, tip, text="Federal Employees",
-                                                      variable=v['fed_employees'], command=self.check_gov_employees,
-                                                      style='MSCheckbuttonSmall.TCheckbutton')
-
-        # State Employees
-        tip = 'Whether or not state employees are eligible for program.'
-        self.state_employees_input = TipCheckButton(self.content, tip, text="State Employees",
-                                                    variable=v['state_employees'], command=self.check_gov_employees,
-                                                    style='MSCheckbuttonSmall.TCheckbutton')
-
-        # Local Government Employees
-        tip = 'Whether or not local employees are eligible for program.'
-        self.local_employees_input = TipCheckButton(self.content, tip, text="Local Employees",
-                                                    variable=v['local_employees'], command=self.check_gov_employees,
-                                                    style='MSCheckbuttonSmall.TCheckbutton')
-
-        # ------------------------------------ Self-Employed Worker Eligibility -------------------------------------
-        tip = 'Whether or not self employed workers are eligible for program.'
-        self.self_employed_input = TipCheckButton(self.content, tip, text="Self Employed", variable=v['self_employed'])
 
         # ------------------------------------------ Dependency Allowance -------------------------------------------
         self.dep_allowance_frame = DependencyAllowanceFrame(self.content, self.variables)
@@ -1338,17 +1341,12 @@ class ProgramFrame(NotebookFrame):
 
         self.max_weeks_frame.grid(column=0, row=1, columnspan=10, sticky=(N, E, W), pady=self.row_padding)
         display_leave_objects(self.max_weeks_labels, self.max_weeks_inputs)
-        self.benefit_financing_frame.grid(column=0, row=2, columnspan=10, sticky=(N, E, W), pady=self.row_padding)
-        self.replacement_ratio_label.grid(column=0, row=3, sticky=W, pady=self.row_padding)
-        self.replacement_ratio_input.grid(column=1, row=3, sticky=W, pady=self.row_padding)
-        self.weekly_ben_cap_label.grid(column=0, row=4, sticky=W, pady=self.row_padding)
-        self.weekly_ben_cap_input.grid(column=1, row=4, sticky=W, pady=self.row_padding)
-        self.government_employees_input.grid(column=0, row=9, columnspan=2, sticky=W, pady=(self.row_padding, 0))
-        self.federal_employees_input.grid(column=0, row=10, columnspan=2, sticky=W, padx=(15, 0))
-        self.state_employees_input.grid(column=0, row=11, columnspan=2, sticky=W, padx=(15, 0))
-        self.local_employees_input.grid(column=0, row=12, columnspan=2, sticky=W, padx=(15, 0),
-                                        pady=(0, self.row_padding))
-        self.self_employed_input.grid(column=0, row=13, columnspan=2, sticky=W, pady=self.row_padding)
+        self.employee_types_frame.grid(column=0, row=3, columnspan=10, sticky=(N, E, W), pady=self.row_padding)
+        self.benefit_financing_frame.grid(column=0, row=4, columnspan=10, sticky=(N, E, W), pady=self.row_padding)
+        self.replacement_ratio_label.grid(column=0, row=5, sticky=W, pady=self.row_padding)
+        self.replacement_ratio_input.grid(column=1, row=5, sticky=W, pady=self.row_padding)
+        self.weekly_ben_cap_label.grid(column=0, row=6, sticky=W, pady=self.row_padding)
+        self.weekly_ben_cap_input.grid(column=1, row=6, sticky=W, pady=self.row_padding)
 
         # Give weight to columns
         self.columnconfigure(1, weight=1)
@@ -1356,6 +1354,7 @@ class ProgramFrame(NotebookFrame):
             self.eligibility_frame.columnconfigure(i, weight=1)
 
     def hide_advanced_parameters(self):
+        self.leave_types_frame.grid_forget()
         self.dep_allowance_frame.grid_forget()
         self.wait_period_label.grid_forget()
         self.wait_period_input.grid_forget()
@@ -1364,36 +1363,22 @@ class ProgramFrame(NotebookFrame):
         self.min_cfl_recollect_input.grid_forget()
 
     def show_advanced_parameters(self):
-        self.wait_period_label.grid(column=0, row=5, sticky=W, pady=self.row_padding)
-        self.wait_period_input.grid(column=1, row=5, sticky=W, pady=self.row_padding)
-        self.dep_allowance_frame.grid(column=0, row=6, columnspan=10, sticky=(N, E, W), pady=self.row_padding)
+        self.leave_types_frame.grid(column=0, row=2, columnspan=10, sticky=(N, E, W), pady=self.row_padding)
+        self.wait_period_label.grid(column=0, row=7, sticky=W, pady=self.row_padding)
+        self.wait_period_input.grid(column=1, row=7, sticky=W, pady=self.row_padding)
+        self.dep_allowance_frame.grid(column=0, row=8, columnspan=10, sticky=(N, E, W), pady=self.row_padding)
         self.toggle_min_cfl_recollect()
-
-    def check_all_gov_employees(self, _=None):
-        """Sets federal, state, and local employee variables to the value to the government employee variable"""
-        checked = self.variables['government_employees'].get()
-        self.variables['fed_employees'].set(checked)
-        self.variables['state_employees'].set(checked)
-        self.variables['local_employees'].set(checked)
-
-    def check_gov_employees(self):
-        """Sets government employee variable to True if federal, state, and local employee variables are all True.
-        Otherwise, sets it to False."""
-        if self.variables['fed_employees'].get() and self.variables['state_employees'].get() and \
-                self.variables['local_employees'].get():
-            self.variables['government_employees'].set(1)
-        else:
-            self.variables['government_employees'].set(0)
 
     def toggle_min_cfl_recollect(self, *_):
         if self.variables['recollect'].get():
-            self.recollect_input.grid(column=0, row=7, sticky=W, pady=(self.row_padding, 0))
-            self.min_cfl_recollect_label.grid(column=0, row=8, sticky=W, pady=(0, self.row_padding), padx=(15, 0))
-            self.min_cfl_recollect_input.grid(column=1, row=8, sticky=W, pady=(0, self.row_padding))
+            self.recollect_input.grid(column=0, row=9, sticky=W, pady=(self.row_padding, 0))
+            self.min_cfl_recollect_label.grid(column=0, row=10, sticky=W, pady=(0, self.row_padding), padx=(15, 0))
+            self.min_cfl_recollect_input.grid(column=1, row=10, sticky=W, pady=(0, self.row_padding))
         else:
-            self.recollect_input.grid(column=0, row=7, sticky=W, pady=self.row_padding)
+            self.recollect_input.grid(column=0, row=9, sticky=W, pady=self.row_padding)
             self.min_cfl_recollect_label.grid_forget()
             self.min_cfl_recollect_input.grid_forget()
+        self.update_scroll_region()
 
 
 class PopulationFrame(NotebookFrame):
@@ -1575,6 +1560,101 @@ class SimulationFrame(NotebookFrame):
         # self.fmla_protection_constraint_input.grid(column=0, row=3, columnspan=2, sticky=W, pady=self.row_padding)
 
 
+class EmployeeTypesFrame(ttk.LabelFrame):
+    def __init__(self, parent, variables, row_padding=4, **kwargs):
+        super().__init__(parent, **kwargs)
+        self.variables = variables
+        # -------------------------------------------- Private Employees --------------------------------------------
+        tip = 'Whether or not private employees are eligible for program.'
+        self.private_input = TipCheckButton(self, tip, text="Private Employees", variable=variables['private'])
+
+        # ------------------------------------ Government Employees Eligibility -------------------------------------
+        # All Government Employees
+        tip = 'Whether or not government employees are eligible for program.'
+        self.government_employees_input = TipCheckButton(self, tip, text="Government Employees",
+                                                         variable=variables['government_employees'],
+                                                         command=self.check_all_gov_employees)
+
+        # Federal Employees
+        tip = 'Whether or not federal employees are eligible for program.'
+        self.federal_employees_input = TipCheckButton(self, tip, text="Federal Employees",
+                                                      variable=variables['fed_employees'],
+                                                      command=self.check_gov_employees,
+                                                      style='MSCheckbuttonSmall.TCheckbutton')
+
+        # State Employees
+        tip = 'Whether or not state employees are eligible for program.'
+        self.state_employees_input = TipCheckButton(self, tip, text="State Employees",
+                                                    variable=variables['state_employees'],
+                                                    command=self.check_gov_employees,
+                                                    style='MSCheckbuttonSmall.TCheckbutton')
+
+        # Local Government Employees
+        tip = 'Whether or not local employees are eligible for program.'
+        self.local_employees_input = TipCheckButton(self, tip, text="Local Employees",
+                                                    variable=variables['local_employees'],
+                                                    command=self.check_gov_employees,
+                                                    style='MSCheckbuttonSmall.TCheckbutton')
+
+        # ------------------------------------ Self-Employed Worker Eligibility -------------------------------------
+        tip = 'Whether or not self employed workers are eligible for program.'
+        self.self_employed_input = TipCheckButton(self, tip, text="Self Employed", variable=variables['self_employed'])
+
+        self.private_input.pack(pady=(row_padding, 0), padx=(12, 0), anchor=W)
+        self.self_employed_input.pack(pady=(row_padding, 0), padx=(12, 0), anchor=W)
+        self.government_employees_input.pack(pady=(row_padding, 0), padx=(12, 0), anchor=W)
+        self.federal_employees_input.pack(padx=(24, 0), anchor=W)
+        self.state_employees_input.pack(padx=(24, 0), anchor=W)
+        self.local_employees_input.pack(padx=(24, 0), pady=(0, row_padding), anchor=W)
+
+
+    def check_all_gov_employees(self, _=None):
+        """Sets federal, state, and local employee variables to the value to the government employee variable"""
+        checked = self.variables['government_employees'].get()
+        self.variables['fed_employees'].set(checked)
+        self.variables['state_employees'].set(checked)
+        self.variables['local_employees'].set(checked)
+
+    def check_gov_employees(self):
+        """Sets government employee variable to True if federal, state, and local employee variables are all True.
+        Otherwise, sets it to False."""
+        if self.variables['fed_employees'].get() and self.variables['state_employees'].get() and \
+                self.variables['local_employees'].get():
+            self.variables['government_employees'].set(1)
+        else:
+            self.variables['government_employees'].set(0)
+
+
+class LeaveTypesFrame(ttk.LabelFrame):
+    def __init__(self, parent, variables, row_padding=4, **kwargs):
+        """Frame to hold inputs related to leave type parameters"""
+        super().__init__(parent, **kwargs)
+
+        tip = ''
+        own_health_input = TipCheckButton(self, tip, text='Own Health', variable=variables['own_health'])
+        own_health_input.grid(row=0, column=0, sticky=W, pady=row_padding, padx=(12, 15))
+
+        tip = ''
+        maternity_input = TipCheckButton(self, tip, text='Maternity', variable=variables['maternity'])
+        maternity_input.grid(row=0, column=1, sticky=W, pady=row_padding, padx=15)
+
+        tip = ''
+        new_child_input = TipCheckButton(self, tip, text='New Child', variable=variables['new_child'])
+        new_child_input.grid(row=0, column=2, sticky=W, pady=row_padding, padx=15)
+
+        tip = ''
+        ill_child_input = TipCheckButton(self, tip, text='Ill Child', variable=variables['ill_child'])
+        ill_child_input.grid(row=1, column=0, sticky=W, pady=row_padding, padx=(12, 15))
+
+        tip = ''
+        ill_spouse_input = TipCheckButton(self, tip, text='Ill Spouse', variable=variables['ill_spouse'])
+        ill_spouse_input.grid(row=1, column=1, sticky=W, pady=row_padding, padx=15)
+
+        tip = ''
+        ill_parent_input = TipCheckButton(self, tip, text='Ill Parent', variable=variables['ill_parent'])
+        ill_parent_input.grid(row=1, column=2, sticky=W, pady=row_padding, padx=15)
+
+
 class BenefitFinancingFrame(ttk.LabelFrame):
     def __init__(self, parent, variables, row_padding=4, wraplength=0, **kwargs):
         """Frame to hold inputs related to Benefit financing parameters"""
@@ -1582,8 +1662,7 @@ class BenefitFinancingFrame(ttk.LabelFrame):
 
         # Tax on Payroll
         tip = 'The payroll tax rate that will be assessed to fund the benefits program.'
-        self.payroll_tax_label = TipLabel(self, tip, text='Payroll Tax Rate (%):',
-                                          bg=VERY_LIGHT_COLOR)
+        self.payroll_tax_label = TipLabel(self, tip, text='Payroll Tax Rate (%):', bg=VERY_LIGHT_COLOR)
         self.payroll_tax_input = NotebookEntry(self, textvariable=variables['payroll_tax'])
 
         # Maximum Taxable Earnings per Person
@@ -1616,10 +1695,11 @@ class BenefitFinancingFrame(ttk.LabelFrame):
 
 
 class DependencyAllowanceFrame(Frame):
-    def __init__(self, parent, variables, row_padding=4, bg=VERY_LIGHT_COLOR, **kwargs):
+    def __init__(self, parent, variables, bg=VERY_LIGHT_COLOR, **kwargs):
         """Frame to hold inputs related to dependency allowance"""
 
         super().__init__(parent, bg=bg, **kwargs)
+        self.parent = parent
         self.variables = variables
         self.max_dependents = 7
 
@@ -1641,11 +1721,11 @@ class DependencyAllowanceFrame(Frame):
             pack(side=TOP, anchor=E, pady=2)
 
         self.buttons_frame = Frame(self.profile_frame, bg=VERY_LIGHT_COLOR)
-        self.add_button = Button(self.buttons_frame, text=u'\uFF0B', font='-size 10 -weight bold', relief='flat',
+        self.add_button = Button(self.buttons_frame, text=u'\uFF0B', font='-size 9 -weight bold', relief='flat',
                                  background='#00e600', width=3, padx=0, pady=0, highlightthickness=0,
                                  foreground='#FFFFFF', command=self.add_dependent)
         self.add_button.pack(side=TOP, pady=2)
-        self.remove_button = Button(self.buttons_frame, text=u'\uFF0D', font='-size 10 -weight bold', relief='flat',
+        self.remove_button = Button(self.buttons_frame, text=u'\uFF0D', font='-size 9 -weight bold', relief='flat',
                                     background='#ff0000', width=3, padx=0, pady=0, highlightthickness=0,
                                     foreground='#FFFFFF', command=self.remove_dependent)
         self.remove_button.pack(side=TOP, pady=2)
@@ -1690,6 +1770,7 @@ class DependencyAllowanceFrame(Frame):
             self.profile_frame.pack(fill=X, padx=(15, 0))
         else:
             self.profile_frame.pack_forget()
+        self.parent.master.update_scroll_region()
 
     def get_profile(self):
         return [x.variable.get() for x in self.profiles]
@@ -1890,7 +1971,7 @@ class PopulationAnalysis(ScrollFrame):
         """Create new histogram charts for each simulation"""
         for sim_num in range(len(self.results_files)):
             # Get data from results files and user inputs
-            simulation_data = self.filter_data(get_population_analysis_results(self.results_files[sim_num]))
+            simulation_data = self.filter_data(get_population_analysis_results(self.results_files[sim_num][0]))
             title = get_sim_name(sim_num)  # Get title from simulation number
 
             # Create histogram from data
@@ -1904,7 +1985,7 @@ class PopulationAnalysis(ScrollFrame):
         """Update histogram charts for each simulation"""
         for sim_num in range(len(self.results_files)):
             # Get data from results files and user inputs
-            simulation_data = self.filter_data(get_population_analysis_results(self.results_files[sim_num]))
+            simulation_data = self.filter_data(get_population_analysis_results(self.results_files[sim_num][0]))
 
             # Find created histogram chart in list
             fig = self.histograms[sim_num]
@@ -2092,7 +2173,7 @@ class ABFResults(ScrollFrame):
         # Get ABF results from module
         self.abf_module = abf_module
         abf_output, pivot_tables = self.abf_module.run()
-        abf_module.save_results()  # Save ABF results
+        # abf_module.save_results()  # Save ABF results
 
         # Create frame to hold summary of ABF results
         self.abf_summary = ABFResultsSummary(self.content, abf_output)
@@ -2210,7 +2291,7 @@ class ABFResults(ScrollFrame):
         parameters = {k: v.get() for k, v in self.abf_variables.items()}
 
         # Rerun ABF module with new parameters
-        abf_output, pivot_tables = self.abf_module.rerun(parameters)
+        abf_output, pivot_tables = self.abf_module.run(variables=parameters, rerun=True)
 
         # Update ABF summary and pivot table charts
         self.update_abf_output(abf_output, pivot_tables)
@@ -2276,7 +2357,6 @@ class ABFResultsSummary(Frame):
             Keys are the type of summary information, and values are floats
         :return: None
         """
-
         # Convert output data to string, including confidence intervals
         income = '{} (\u00B1{:,.1f}) million'.format(as_currency(output['Total Income (Weighted)'] / 10 ** 6),
                                                      0.5 * (output['Total Income Upper Confidence Interval'] -
