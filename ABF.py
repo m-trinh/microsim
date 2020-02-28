@@ -4,10 +4,11 @@ import os
 
 
 class ABF:
-    def __init__(self, acs_file, benefits, eligible_size, max_taxable_earnings_per_person, benefits_tax,
+    def __init__(self, acs_files, benefits, eligible_size, max_taxable_earnings_per_person, benefits_tax,
                  average_state_tax, payroll_tax, output_dir=None):
         self.reps = ['PWGTP' + str(i) for i in range(1, 81)]
-        self.df = pd.read_csv(acs_file, usecols=['COW', 'POWSP', 'ST', 'wage12', 'PWGTP', 'age', 'male'] + self.reps)
+        self.keepcols = ['COW', 'POWSP', 'ST', 'wage12', 'PWGTP', 'age', 'male'] + self.reps
+        self.acs_files = acs_files
         self.eligible_size = eligible_size
         self.max_taxable_earnings_per_person = max_taxable_earnings_per_person
         self.benefits_tax = benefits_tax
@@ -17,7 +18,7 @@ class ABF:
 
         self.output_dir = output_dir
         self.abf_output = None
-        self.clean_data()
+        self.pivot_tables = None
 
     def update_parameters(self, **kwargs):
         for key, value in kwargs.items():
@@ -27,42 +28,50 @@ class ABF:
         self.payroll_tax = self.payroll_tax / 100
 
     # FUNCTION #1: Drop unneeded observations per the Paid Family Leave Policy Parameters
-    def abf_data(self):
+    def abf_data(self, acs_file, rerun=False):
+        if not rerun:
+            df = pd.read_csv(acs_file, usecols=self.keepcols)
+            df = self.clean_data(df)
+        else:
+            df = pd.read_csv('abf_' + acs_file, usecols=self.keepcols)
+
         # Apply Taxable Wage Max
         if self.max_taxable_earnings_per_person is not None:  # TRUE (Constraint is applied)
-            self.df['taxable_income_capped'] = np.where((self.df['wage12'] > self.max_taxable_earnings_per_person),
-                                                         self.max_taxable_earnings_per_person, self.df['wage12'])
-            index_names = self.df[self.df['wage12'] > self.max_taxable_earnings_per_person].index
+            df['taxable_income_capped'] = np.where((df['wage12'] > self.max_taxable_earnings_per_person),
+                                                   self.max_taxable_earnings_per_person, df['wage12'])
+            index_names = df[df['wage12'] > self.max_taxable_earnings_per_person].index
             censor = len(index_names)
             message_censor = "We censored %s observations to the wage max" % censor
             print(message_censor)
         else:
-            self.df['taxable_income_capped'] = self.df['wage12']
+            df['taxable_income_capped'] = df['wage12']
+
+        return df
 
     # FUNCTION #2: Conduct Final Calculations on the slimmer ABF Output dataset
-    def abf_calcs(self):
+    def abf_calcs(self, df):
         # Step 1 - Calculate Point Estimates
         # Income
         # Intermediate output: unweighted income base (full geographic area)
-        total_income = self.df['taxable_income_capped'].sum()
+        total_income = df['taxable_income_capped'].sum()
 
         # Total Weighted Income Base (full geographic area)
-        self.df['income_w'] = self.df['taxable_income_capped'] * self.df['PWGTP']
+        df['income_w'] = df['taxable_income_capped'] * df['PWGTP']
         wage_bins = list(range(0, 210000, 25000))
         wage_ranges = ['[{}k - {}k)'.format(wage_bins[i] // 1000, wage_bins[i] // 1000 + 25)
                        for i in range(len(wage_bins) - 1)]
-        self.df['wage_cat'] = pd.cut(x=self.df['wage12'], bins=wage_bins, labels=wage_ranges,
+        df['wage_cat'] = pd.cut(x=df['wage12'], bins=wage_bins, labels=wage_ranges,
                                      right=False)
-        total_income_w = self.df['income_w'].sum()
+        total_income_w = df['income_w'].sum()
         print('Output: Weighted Income Base for Full Geographic Area:')
         print(total_income_w)
 
         # Tax Revenue
         # Unweighted tax revenue collected (full geographic area)
-        self.df['ptax_rev_final'] = self.df['taxable_income_capped'] * self.payroll_tax
+        df['ptax_rev_final'] = df['taxable_income_capped'] * self.payroll_tax
 
         # Total Weighted Tax Revenue (full geographic area)
-        self.df['ptax_rev_w'] = self.df['income_w'] * self.payroll_tax
+        df['ptax_rev_w'] = df['income_w'] * self.payroll_tax
         total_ptax_rev_w = self.payroll_tax * total_income_w
         print('Output: Weighted Tax Revenue for Full Geographic Area:')
         print(total_ptax_rev_w)
@@ -87,7 +96,7 @@ class ABF:
         # Income
         income_r = []
         for wt in self.reps:
-            income_r.append(((self.df['taxable_income_capped'] * self.df[wt]).sum()))
+            income_r.append(((df['taxable_income_capped'] * df[wt]).sum()))
 
         # print('80 Replicate Income:')
         # print(income_r)
@@ -101,7 +110,7 @@ class ABF:
         # Tax Revenue
         tax_r = []
         for wt in self.reps:
-            tax_r.append(((self.df['ptax_rev_final'] * self.df[wt]).sum()))
+            tax_r.append(((df['ptax_rev_final'] * df[wt]).sum()))
 
         # print('80 Replicate Tax Revenue:')
         # print(tax_r)
@@ -139,57 +148,90 @@ class ABF:
                       'Total Tax Revenue Upper Confidence Interval': total_ptax_w_uci,
                       'Total Tax Revenue Lower Confidence Interval': total_ptax_w_lci,
                       'Tax Revenue Recouped from Benefits': recoup_tax_rev}
-        print(abf_output)
 
         pd.set_option('display.float_format', lambda x: '%.2f' % x)
-        revenue_by_class = pd.pivot_table(self.df, index=["class"], values=["income_w", "ptax_rev_w"], aggfunc=[np.sum])
-        revenue_by_age = pd.pivot_table(self.df, index=["age_cat"], values=["income_w", "ptax_rev_w"], aggfunc=[np.sum])
-        revenue_by_gender = pd.pivot_table(self.df, index=["GENDER_CAT"], values=["income_w", "ptax_rev_w"],
+        revenue_by_class = pd.pivot_table(df, index=["class"], values=["income_w", "ptax_rev_w"], aggfunc=[np.sum])
+        revenue_by_age = pd.pivot_table(df, index=["age_cat"], values=["income_w", "ptax_rev_w"], aggfunc=[np.sum])
+        revenue_by_gender = pd.pivot_table(df, index=["GENDER_CAT"], values=["income_w", "ptax_rev_w"],
                                            aggfunc=[np.sum])
-        revenue_by_wage = pd.pivot_table(self.df, index=["wage_cat"], values=["income_w", "ptax_rev_w"],
+        revenue_by_wage = pd.pivot_table(df, index=["wage_cat"], values=["income_w", "ptax_rev_w"],
                                          aggfunc=[np.sum])
 
         pivot_tables = {'Class of Worker': revenue_by_class, 'Age': revenue_by_age,
                         'Gender': revenue_by_gender, 'Wage': revenue_by_wage}
 
-        self.abf_output = abf_output
-        return abf_output, pivot_tables
+        return df, abf_output, pivot_tables
 
-    def clean_data(self):
-        self.df['class'] = ''
+    def clean_data(self, df):
+        df['class'] = ''
         cleanup = {1: "Private", 2: "Private", 3: "Local Govt.", 4: "State Govt.", 5: "Federal Govt.",
                    6: "Self-Employed", 7: "Self-Employed", 8: "Other", 9: "Other"}
-        for i in self.df.index.values:
-            if not pd.isnull(self.df.at[i, 'COW']):
-                self.df.at[i, 'class'] = cleanup[int(float(self.df.at[i, 'COW']))]
+        for i in df.index.values:
+            if not pd.isnull(df.at[i, 'COW']):
+                df.at[i, 'class'] = cleanup[int(float(df.at[i, 'COW']))]
 
         # Create Age Categories for display purposes (need to find out variable specification on the microsim side)
         age_ranges = ["[{0} - {1})".format(AGEP, AGEP + 10) for AGEP in range(0, 100, 10)]
-        self.df['age_cat'] = pd.cut(x=self.df['age'], bins=list(range(0, 110, 10)), labels=age_ranges, right=False)
+        df['age_cat'] = pd.cut(x=df['age'], bins=list(range(0, 110, 10)), labels=age_ranges, right=False)
 
         # Create Gender Categories for display pruposes
-        self.df['GENDER_CAT'] = np.where(self.df['male'] == 1, 'male', 'female')
+        df['GENDER_CAT'] = np.where(df['male'] == 1, 'male', 'female')
         # Code missing responses as missing
-        self.df['GENDER_CAT'] = np.where(np.isnan(self.df['male']), np.nan, self.df['GENDER_CAT'])
+        df['GENDER_CAT'] = np.where(np.isnan(df['male']), np.nan, df['GENDER_CAT'])
+        return df
 
-    def run(self):
+    def run(self, rerun=False, variables=None):
+        if rerun and variables is not None:
+            self.update_parameters(**variables)
+
         # TODO: Chunk this to prevent memory overflow
         # Create Class variable to aggregate the COW variable for display purposes
-        self.abf_data()
-        return self.abf_calcs()
+        self.reset_abf_output()
+        for acs_file in self.acs_files:
+            df = self.abf_data(acs_file)
+            df, abf_output, pivot_tables = self.abf_calcs(df)
 
-    def rerun(self, variables):
-        self.update_parameters(**variables)
-        self.abf_data()
-        return self.abf_calcs()
+            self.save_results(df, acs_file)
+            self.abf_output += pd.DataFrame({'Value': list(abf_output.values())}, index=list(abf_output.keys()))
 
-    def save_results(self, output_dir=None):
+            if self.pivot_tables is None:
+                self.pivot_tables = pivot_tables
+            else:
+                for category, pivot_table in self.pivot_tables.items():
+                    self.pivot_tables[category] += pivot_table
+
+        self.save_summary()
+        out = {self.abf_output.index.values[i]: self.abf_output['Value'].values[i]
+               for i in range(self.abf_output.shape[0])}
+        print(out)
+        return out, self.pivot_tables
+
+    def reset_abf_output(self):
+        output_categories = {'Total Income (Weighted)',
+                             'Total Income',
+                             'Income Standard Error',
+                             'Total Income Upper Confidence Interval',
+                             'Total Income Lower Confidence Interval',
+                             'Total Tax Revenue (Weighted)',
+                             'Tax Revenue Standard Error',
+                             'Total Tax Revenue Upper Confidence Interval',
+                             'Total Tax Revenue Lower Confidence Interval',
+                             'Tax Revenue Recouped from Benefits'}
+        self.abf_output = pd.DataFrame({'Value': 0}, index=output_categories)
+        self.pivot_tables = None
+
+    def save_results(self, df, acs_file, output_dir=None):
         if output_dir is None:
             output_dir = self.output_dir
         if self.output_dir is None:
             raise FileNotFoundError
 
-        self.df.to_csv(os.path.join(output_dir, 'abf_individual.csv'), index=False)
-        pd.DataFrame(
-            {'Category': list(self.abf_output.keys()), 'Value': list(self.abf_output.values())}
-        ).to_csv(os.path.join(output_dir, 'abf_summary.csv'), index=False)
+        df.to_csv(os.path.join(output_dir, 'abf_' + os.path.split(acs_file)[-1]), index=False)
+
+    def save_summary(self, output_dir=None):
+        if output_dir is None:
+            output_dir = self.output_dir
+        if self.output_dir is None:
+            raise FileNotFoundError
+
+        self.abf_output.to_csv(os.path.join(output_dir, 'abf_summary.csv'), index=False)

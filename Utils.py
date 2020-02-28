@@ -104,6 +104,13 @@ DEFAULT_STATE_PARAMS = {
 # The possible leave type options
 LEAVE_TYPES = ['Own Health', 'Maternity', 'New Child', 'Ill Child', 'Ill Spouse', 'Ill Parent']
 
+STATE_CODES = ['AK', 'AL', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'DC', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS',
+               'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC',
+               'ND', 'OH', 'OK', 'OR', 'PA', 'PR', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'VI', 'WA', 'WV',
+               'WI', 'WY']
+
+# STATE_CODES = ['VT', 'WY']
+
 
 class Parameters:
     def copy(self):
@@ -124,7 +131,7 @@ class Parameters:
 class GeneralParameters(Parameters):
     def __init__(self, fmla_file='', acs_directory='', output_directory='', state='',
                  simulation_method='Logistic Regression', engine_type='Python', r_path='', random_seed=None,
-                 state_of_work=True):
+                 state_of_work=True, year=2016):
         """General program parameters. A distinction needs to be made for program comparison, as each program will share
         these parameters but not others."""
         self.fmla_file = fmla_file
@@ -136,6 +143,7 @@ class GeneralParameters(Parameters):
         self.r_path = r_path
         self.random_seed = random_seed
         self.state_of_work = state_of_work
+        self.year = year
 
 
 class OtherParameters(Parameters):
@@ -148,7 +156,8 @@ class OtherParameters(Parameters):
                  total_taxable_earnings=10000000000, fed_employees=True, state_employees=True, local_employees=True,
                  counterfactual='', policy_sim=False, existing_program='', dual_receivers_share=1,
                  dependency_allowance=False, dependency_allowance_profile=None, wait_period=5, recollect=False,
-                 min_cfl_recollect=None, min_takeup_cpl=5, alpha=0):
+                 min_cfl_recollect=None, min_takeup_cpl=5, alpha=0, private=True, own_health=True, maternity=True,
+                 new_child=True, ill_child=True, ill_spouse=True, ill_parent=True):
         """Other program parameters. A distinction needs to be made for program comparison, as each program will not
         share these parameters."""
         self.benefit_effect = benefit_effect
@@ -158,6 +167,13 @@ class OtherParameters(Parameters):
         self.extend = extend
         self.fmla_protection_constraint = fmla_protection_constraint
         self.replacement_ratio = replacement_ratio
+        self.own_health = own_health
+        self.maternity = maternity
+        self.new_child = new_child
+        self.ill_child = ill_child
+        self.ill_spouse = ill_spouse
+        self.ill_parent = ill_parent
+        self.private = private
         self.government_employees = government_employees
         self.fed_employees = fed_employees
         self.state_employees = state_employees
