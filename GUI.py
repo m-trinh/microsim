@@ -490,6 +490,7 @@ class MicrosimGUI(Tk):
             'illparent': parameters.take_up_rates['Ill Parent']
         }
 
+        incl_private = parameters.private
         incl_empgov_fed = parameters.fed_employees
         incl_empgov_st = parameters.state_employees
         incl_empgov_loc = parameters.local_employees
@@ -506,14 +507,27 @@ class MicrosimGUI(Tk):
         min_cfl_recollect = parameters.min_cfl_recollect
         dependency_allowance = parameters.dependency_allowance
         dependency_allowance_profile = parameters.dependency_allowance_profile
+        leave_types = []
+        if parameters.own_health:
+            leave_types.append('own')
+        if parameters.maternity:
+            leave_types.append('matdis')
+        if parameters.new_child:
+            leave_types.append('bond')
+        if parameters.ill_child:
+            leave_types.append('illchild')
+        if parameters.ill_spouse:
+            leave_types.append('illspouse')
+        if parameters.ill_parent:
+            leave_types.append('illparent')
 
         # Update simulation engine with the values
         self.sim_engine.set_simulation_params(elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp, wkbene_cap,
-                                              d_maxwk, d_takeup, incl_empgov_fed, incl_empgov_st, incl_empgov_loc,
-                                              incl_empself, needers_fully_participate, clone_factor,
-                                              dual_receivers_share, alpha, min_takeup_cpl,
-                                              wait_period, recollect, min_cfl_recollect,
-                                              dependency_allowance, dependency_allowance_profile, sim_num=None)
+                                              d_maxwk, d_takeup, incl_private, incl_empgov_fed, incl_empgov_st,
+                                              incl_empgov_loc, incl_empself, needers_fully_participate, clone_factor,
+                                              dual_receivers_share, alpha, min_takeup_cpl, wait_period,
+                                              recollect, min_cfl_recollect, dependency_allowance,
+                                              dependency_allowance_profile, leave_types=leave_types, sim_num=None)
 
     def check_file_entries(self, *_):
         """Enables run button if locations for ACS, FMLA, and output folders are provided. Otherwise, disables run
@@ -1606,7 +1620,6 @@ class EmployeeTypesFrame(ttk.LabelFrame):
         self.federal_employees_input.pack(padx=(24, 0), anchor=W)
         self.state_employees_input.pack(padx=(24, 0), anchor=W)
         self.local_employees_input.pack(padx=(24, 0), pady=(0, row_padding), anchor=W)
-
 
     def check_all_gov_employees(self, _=None):
         """Sets federal, state, and local employee variables to the value to the government employee variable"""

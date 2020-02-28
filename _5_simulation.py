@@ -104,10 +104,10 @@ class SimulationEngine:
         self.pow_pop_multiplier = pow_pop_multiplier  # based on 2012-2016 ACS, see project acs_all
 
     def set_simulation_params(self, elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp, wkbene_cap, d_maxwk,
-                              d_takeup, incl_empgov_fed, incl_empgov_st, incl_empgov_loc, incl_empself,
+                              d_takeup, incl_private, incl_empgov_fed, incl_empgov_st, incl_empgov_loc, incl_empself,
                               needers_fully_participate, clone_factor, dual_receivers_share, alpha,
                               min_takeup_cpl, wait_period, recollect, min_cfl_recollect,
-                              dependency_allowance, dependency_allowance_profile, sim_num=None):
+                              dependency_allowance, dependency_allowance_profile, leave_types=None, sim_num=None):
         params = {
             'elig_wage12': elig_wage12,
             'elig_wkswork': elig_wkswork,
@@ -117,6 +117,7 @@ class SimulationEngine:
             'wkbene_cap': wkbene_cap,
             'd_maxwk': d_maxwk,
             'd_takeup': d_takeup,
+            'incl_private': incl_private,
             'incl_empgov_fed': incl_empgov_fed,
             'incl_empgov_st': incl_empgov_st,
             'incl_empgov_loc': incl_empgov_loc,
@@ -131,6 +132,7 @@ class SimulationEngine:
             'min_cfl_recollect': min_cfl_recollect,
             'dependency_allowance': dependency_allowance,
             'dependency_allowance_profile': dependency_allowance_profile,
+            'leave_types': leave_types if leave_types is not None else self.types
         }
 
         if type(sim_num) == int and -1 < sim_num < self.sim_count:
@@ -230,6 +232,8 @@ class SimulationEngine:
         # Sample restriction - reduce to eligible workers (all elig criteria indep from simulation below)
 
         # drop government workers if desired
+        if not params['incl_private']:
+            acs = acs.drop(acs[(acs['COW'] == 1) | (acs['COW'] == 2)].index)
         if not params['incl_empgov_fed']:
             acs = acs.drop(acs[acs['empgov_fed'] == 1].index)
         if not params['incl_empgov_st']:
@@ -273,7 +277,7 @@ class SimulationEngine:
 
         # Train models using FMLA, and simulate on ACS workers
         t0 = time()
-        col_Xs, col_ys, col_w = get_columns()
+        col_Xs, col_ys, col_w = get_columns(params['leave_types'])
         X = d[col_Xs]
         w = d[col_w]
         Xa = acs[X.columns]
@@ -317,8 +321,8 @@ class SimulationEngine:
         acs.loc[acs['age'] > 50, 'need_bond'] = 0
 
         # Conditional simulation - anypay for taker/needer sample
-        acs['taker'] = [max(z) for z in acs[['take_%s' % t for t in self.types]].values]
-        acs['needer'] = [max(z) for z in acs[['need_%s' % t for t in self.types]].values]
+        acs['taker'] = [max(z) for z in acs[['take_%s' % t for t in params['leave_types']]].values]
+        acs['needer'] = [max(z) for z in acs[['need_%s' % t for t in params['leave_types']]].values]
         X = d[(d['taker'] == 1) | (d['needer'] == 1)][col_Xs]
         w = d.loc[X.index][col_w]
         Xa = acs[(acs['taker'] == 1) | (acs['needer'] == 1)][X.columns]
@@ -363,7 +367,7 @@ class SimulationEngine:
         # note: here, cumsum/bisect is 20% faster than np/choice.
         # But when simulate_wof applied as lambda to df, np/multinomial is 5X faster!
         # t0 = time()
-        for t in self.types:
+        for t in params['leave_types']:
             acs['len_%s' % t] = 0
             n_lensim = len(acs.loc[acs['take_%s' % t] == 1])  # number of acs workers who need length simulation
             # print(n_lensim)
@@ -378,7 +382,7 @@ class SimulationEngine:
 
         # Max needed lengths (mnl) - draw from simulated without-program length distribution
         # conditional on max length >= without-program length
-        for t in self.types:
+        for t in params['leave_types']:
             # t0 = time()
             acs['mnl_%s' % t] = 0
             # resp_len = 0 workers' mnl = status-quo length
@@ -408,17 +412,17 @@ class SimulationEngine:
         acs.loc[acs['age'] > 50, 'mnl_bond'] = 0
 
         # check if sum of mnl hits max = 52*5 = 260. If so, use max=260 to distribute prop to mnl of 6 types
-        acs['mnl_all'] = [x.sum() for x in acs[['mnl_%s' % x for x in self.types]].values]
-        for t in self.types:
+        acs['mnl_all'] = [x.sum() for x in acs[['mnl_%s' % x for x in params['leave_types']]].values]
+        for t in params['leave_types']:
             acs.loc[acs['mnl_all'] > 260, 'mnl_%s' % t] = [int(x) for x in acs.loc[acs['mnl_all'] > 260, 'mnl_%s' % t] /
                                                            acs.loc[acs['mnl_all'] > 260, 'mnl_all'] * 260]
         # the mnl-capped workers would must have sq-len no larger than mn-len
-        for t in self.types:
+        for t in params['leave_types']:
             acs.loc[acs['mnl_all'] > 260, 'len_%s' % t] = acs.loc[acs['mnl_all'] > 260, 'mnl_%s' % t]
 
         # If do following, then ignores link between generosity (rrp) and cf-len, cp-len
         # # set covered-by-program leave lengths (cp-len) as maximum needed leave lengths (mn-len) for each type
-        # for t in self.types:
+        # for t in params['leave_types:
         #     acs['cpl_%s' % t] = acs['mnl_%s' % t]
 
         # Given fraction of dual receiver x among anypay=1, simulate dual/single receiver status among anypay=1
@@ -448,7 +452,7 @@ class SimulationEngine:
 
         # Given cf-len, get cp-len
         # With program, effective rr =min(rre+rrp, 1), assuming responsiveness diminishes if full replacement attainable
-        for t in self.types:
+        for t in params['leave_types']:
             acs['cfl_%s' % t] = np.nan
             # Get cf-len for dual receivers among anypay=1
             # use [(rre, sql), (1, mnl)] to interpolate cfl at rre+rrp, regardless rre+rrp<1 or not
@@ -476,7 +480,7 @@ class SimulationEngine:
 
         # Simulate cf-len for single receivers among anypay=1
         # Given cf-len, get cp-len
-        for t in self.types:
+        for t in params['leave_types']:
             # single receiver, rrp>rre. Assume will use state program benefit to replace employer benefit
             acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < acs['effective_rrp']), 'cfl_%s' % t] = \
                 acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < acs['effective_rrp']), 'len_%s' % t] + \
@@ -507,7 +511,7 @@ class SimulationEngine:
 
         # Simulate cf-len for anypay=0 workers
         # Given cf-len, get cp-len
-        for t in self.types:
+        for t in params['leave_types']:
             # anypay=0 workers extends leave by (mnl-sql)*rrp
             acs.loc[(acs['anypay'] == 0), 'cfl_%s' % t] = \
                 acs.loc[(acs['anypay'] == 0), 'len_%s' % t] + \
@@ -522,11 +526,11 @@ class SimulationEngine:
                     acs.loc[(acs['anypay'] == 0) & (acs['cfl_%s' % t] >= 15), 'cfl_%s' % t]
 
         # Set cp-len = 0 if missing
-        for t in self.types:
+        for t in params['leave_types']:
             acs.loc[acs['cpl_%s' % t].isna(), 'cpl_%s' % t] = 0
 
         # Apply cap of coverage period (in weeks) to cpl_type (in days) for each leave type
-        for t in self.types:
+        for t in params['leave_types']:
             acs.loc[acs['cpl_%s' % t] >= 0, 'cpl_%s' % t] = [min(x, 5 * params['d_maxwk'][t]) for x in
                                                              acs.loc[acs['cpl_%s' % t] >= 0, 'cpl_%s' % t]]
 
@@ -537,7 +541,7 @@ class SimulationEngine:
         acs_taker_needer = acs[(acs['taker'] == 1) | (acs['needer'] == 1)]
         acs_neither_taker_needer = acs.drop(acs_taker_needer.index)
         # apply take up flag and weekly benefit cap, and annual benefit for each worker, 6 types
-        for t in self.types:
+        for t in params['leave_types']:
             # v = capped weekly benefit of leave type
             v = [min(x, params['wkbene_cap']) for x in
                  ((acs_taker_needer['cpl_%s' % t] / 5) *
@@ -574,7 +578,7 @@ class SimulationEngine:
         # for new cols not in acs_neither_taker_needer, will create nan
         acs = acs_taker_needer.append(acs_neither_taker_needer, sort=True)
         # drop takeup flag cols if any
-        for c in ['takeup_%s' % x for x in self.types]:
+        for c in ['takeup_%s' % x for x in params['leave_types']]:
             if c in acs.columns:
                 del acs[c]
 
@@ -583,7 +587,7 @@ class SimulationEngine:
         # TODO: validate min_takeup_cpl: min must = 1, cannot be 0
         min_takeup_cpl = params['min_takeup_cpl']
         alpha = params['alpha']
-        for t in self.types:
+        for t in params['leave_types']:
             # set cpl = 0 if cpl less than min_takeup_cpl
             acs.loc[acs['cpl_%s' % t] < min_takeup_cpl, 'cpl_%s' % t] = 0
             # cap user-specified take up for type t by max possible takeup = s_positive_cpl, in pop per sim results
@@ -632,7 +636,7 @@ class SimulationEngine:
 
         # apply take up flag and weekly benefit cap, and compute total cost, 6 types
         costs = {}
-        for t in self.types:
+        for t in params['leave_types']:
             # v = capped weekly benefit of leave type
             v = [min(x, params['wkbene_cap']) for x in
                  ((acs_taker_needer['wage12'] / acs_taker_needer['wkswork'] * acs_taker_needer['effective_rrp']))]
@@ -652,7 +656,7 @@ class SimulationEngine:
             acs = self.get_acs_with_takeup_flags(acs_taker_needer, acs_neither_taker_needer, wt, params)
             acs_taker_needer = acs[(acs['taker'] == 1) | (acs['needer'] == 1)]
 
-            for t in self.types:
+            for t in params['leave_types']:
                 v = [min(x, params['wkbene_cap']) for x in
                      ((acs_taker_needer['wage12'] / acs_taker_needer['wkswork'] * acs_taker_needer['effective_rrp']))]
                 # inflate weight for missing POW
@@ -784,20 +788,21 @@ class SimulationEngine:
     def get_population_analysis_results(self, sim_num):
         # read in simulated acs, this is just df returned from get_acs_simulated()
         output_directory = self.output_directories[sim_num]
+        params = self.prog_para[sim_num]
         d = pd.read_csv('%s/acs_sim_%s.csv' % (output_directory, self.out_id))
         # restrict to taker/needer only (workers with neither status have cpl_type = nan)
         # d = d[(d['taker']==1) | (d['needer']==1)]
 
         # restrict to workers who take up the program
-        d['takeup_any'] = [int(x.sum() > 0) for x in d[['takeup_%s' % x for x in self.types]].values]
+        d['takeup_any'] = [int(x.sum() > 0) for x in d[['takeup_%s' % x for x in params['leave_types']]].values]
         d = d[d['takeup_any'] == 1]
 
         # make sure cpl_type is non-missing
-        for t in self.types:
+        for t in params['leave_types']:
             d.loc[d['cpl_%s' % t].isna(),  'cpl_%s' % t] = 0
 
         # total covered-by-program length
-        d['cpl'] = [sum(x) for x in d[['cpl_%s' % t for t in self.types]].values]
+        d['cpl'] = [sum(x) for x in d[['cpl_%s' % t for t in params['leave_types']]].values]
         # keep needed vars for population analysis plots
         columns = ['PWGTP', 'cpl', 'female', 'age', 'wage12', 'nochildren', 'asian', 'black', 'white', 'native',
                    'other', 'hisp']

@@ -14,7 +14,7 @@ import statsmodels.genmod
 from bisect import bisect_right, bisect_left
 
 # a function to get columns
-def get_columns():
+def get_columns(leave_types):
     # original CZ's xvars
     # Xs = ['age', 'agesq', 'male', 'noHSdegree',
     #       'BAplus', 'empgov_fed', 'empgov_st', 'empgov_loc',
@@ -29,9 +29,7 @@ def get_columns():
           'black', 'other', 'asian','native','hisp',
           'nochildren','faminc'] # ,'coveligd'
 
-    ys = ['take_own', 'take_matdis', 'take_bond', 'take_illchild', 'take_illspouse', 'take_illparent']
-    ys += ['need_own', 'need_matdis', 'need_bond', 'need_illchild', 'need_illspouse', 'need_illparent']
-    ys += ['resp_len']
+    ys = ['take_' + l for l in leave_types] + ['need_' + l for l in leave_types] + ['resp_len']
     w = 'weight'
 
     return (Xs, ys, w)
