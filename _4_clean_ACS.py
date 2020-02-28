@@ -82,9 +82,9 @@ class DataCleanerACS:
         print('Cleaning ACS data. State chosen = %s. Chunk size = %s ACS rows' % (st.upper(), chunk_size))
 
         # set file path to person file, per state_of_work value
-        fp_d_p = self.fp_p + "/%s/ss%sp%s.csv" % (self.yr, str(self.yr)[:2], st)
+        fp_d_p = self.fp_p + "/ss%sp%s.csv" % (str(self.yr)[:2], st)
         if self.state_of_work:
-            fp_d_p = self.fp_p + '/%s/p%s_%s_pow.csv' % (self.yr, self.dct_st[st], st)
+            fp_d_p = self.fp_p + '/p%s_%s_pow.csv' % (self.dct_st[st], st)
 
         # process person data by chunk
         for d in pd.read_csv(fp_d_p, chunksize=chunk_size):
