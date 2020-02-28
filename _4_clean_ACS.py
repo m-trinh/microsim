@@ -59,9 +59,9 @@ class DataCleanerACS:
         '''
 
         # Load ACS household data and create some variables
-        fp_d_hh = self.fp_h + '/20%s/ss%sh%s.csv' % (self.yr, self.yr, self.st)
+        fp_d_hh = self.fp_h + '/ss%sh%s.csv' % (str(self.yr)[2:], st)
         if self.state_of_work:
-            fp_d_hh = self.fp_h + '/20%s/h%s_%s_pow.csv' % (self.yr, self.dct_st[self.st], self.st)
+            fp_d_hh = self.fp_h + '/h%s_%s_pow.csv' % (self.dct_st[st], st)
         d_hh = pd.read_csv(fp_d_hh)
         d_hh["nochildren"] = pd.get_dummies(d_hh["FPARC"])[4]
         d_hh['faminc'] = d_hh['FINCP'] * d_hh['ADJINC'] / self.adjinc / 1000  # adjust to 2012 thousand dollars to conform with FMLA 2012 data
@@ -82,9 +82,9 @@ class DataCleanerACS:
         print('Cleaning ACS data. State chosen = %s. Chunk size = %s ACS rows' % (st.upper(), chunk_size))
 
         # set file path to person file, per state_of_work value
-        fp_d_p = self.fp_p + "/%s/ss%sp%s.csv" % (self.yr, str(self.yr)[:2], st)
+        fp_d_p = self.fp_p + "/ss%sp%s.csv" % (str(self.yr)[:2], st)
         if self.state_of_work:
-            fp_d_p = self.fp_p + '/%s/p%s_%s_pow.csv' % (self.yr, self.dct_st[st], st)
+            fp_d_p = self.fp_p + '/p%s_%s_pow.csv' % (self.dct_st[st], st)
 
         # process person data by chunk
         for d in pd.read_csv(fp_d_p, chunksize=chunk_size):

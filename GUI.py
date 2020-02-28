@@ -439,12 +439,12 @@ class MicrosimGUI(Tk):
         yr = self.general_params.year
         fp_fmla_in = self.general_params.fmla_file
         fp_cps_in = './data/cps/CPS%sextract.csv' % (yr - 2)
-        fp_acsh_in = self.general_params.acs_directory + '/household_files'
-        fp_acsp_in = self.general_params.acs_directory + '/person_files'
+        fp_acsh_in = self.general_params.acs_directory + '/%s/household_files' % yr
+        fp_acsp_in = self.general_params.acs_directory + '/%s/person_files' % yr
         state_of_work = self.general_params.state_of_work
         if state_of_work:
-            fp_acsh_in = self.general_params.acs_directory + '/pow_household_files'
-            fp_acsp_in = self.general_params.acs_directory + '/pow_person_files'
+            fp_acsh_in = self.general_params.acs_directory + '/%s/pow_household_files' % yr
+            fp_acsp_in = self.general_params.acs_directory + '/%s/pow_person_files' % yr
         fp_fmla_out = './data/fmla_2012/fmla_clean_2012.csv'
         fp_cps_out = './data/cps/cps_for_acs_sim.csv'
         fp_acs_out = './data/acs/'
