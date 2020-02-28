@@ -60,9 +60,9 @@ class DataCleanerACS:
         cps = pd.read_csv('./data/cps/cps_for_acs_sim.csv')
 
         # Load ACS household data and create some variables
-        fp_d_hh = self.fp_h + '/ss%sh%s.csv' % (self.yr, self.st)
+        fp_d_hh = self.fp_h + '/20%s/ss%sh%s.csv' % (self.yr, self.yr, self.st)
         if self.state_of_work:
-            fp_d_hh = self.fp_h + '/h%s_%s_pow.csv' % (self.dct_st[self.st], self.st)
+            fp_d_hh = self.fp_h + '/20%s/h%s_%s_pow.csv' % (self.yr, self.dct_st[self.st], self.st)
         d_hh = pd.read_csv(fp_d_hh)
         d_hh["nochildren"] = pd.get_dummies(d_hh["FPARC"])[4]
         d_hh['faminc'] = d_hh['FINCP'] * d_hh['ADJINC'] / self.adjinc / 1000  # adjust to 2012 thousand dollars to conform with FMLA 2012 data

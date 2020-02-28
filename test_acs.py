@@ -255,12 +255,12 @@ acsr = pd.read_csv(fp_r)
 
 # re-draw take up flags by updating min_takeup_cpl
 from _5a_aux_functions import get_columns, get_sim_col, get_weighted_draws, weighted_shuffle
-acs = dp.copy()
 col_w='PWGTP'
 
-def get_dp_with_updated_takeup_flag(acs, min_takeup_cpl):
+def get_dp_with_updated_takeup_flag(acs, min_takeup_cpl, alpha=0):
+    # alpha: exponent of CPL for mapping CPL to shuffle_weights = f(CPL)
     params = {}
-    params['d_takeup'] = dict(zip(types, [0.0438, 0.0127, 0.0154, 0.0032, 0.0052, 0.0052]))
+    params['d_takeup'] = dict(zip(types, [0.0723, 0.0241, 0.0104, 0.0006, 0.0015, 0.0009]))
     for t in types:
         # cap user-specified take up for type t by max possible takeup = s_positive_cpl, in pop per sim results
         s_positive_cpl = acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w].sum() / acs[col_w].sum()
@@ -276,7 +276,6 @@ def get_dp_with_updated_takeup_flag(acs, min_takeup_cpl):
         # get take up indicator for type t - weighted random draw from cpl_type>min_takeup_cpl until target is reached
         acs['takeup_%s' % t] = 0
         # TODO: set alpha as parameter in GUI?
-        alpha = 3 # exponent of CPL for mapping CPL to shuffle_weights = f(CPL)
         draws = get_weighted_draws(acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w], p_draw,
                                    random_state=np.random.RandomState(12345),
                                    shuffle_weights=(acs[acs['cpl_%s' % t] >= min_takeup_cpl]['cpl_%s' % t])**alpha)
@@ -292,7 +291,9 @@ def get_dp_with_updated_takeup_flag(acs, min_takeup_cpl):
                   'Effective takeup = %s. '
                   'Post-sim weighted share = %s' % (t, params['d_takeup'][t], takeup, s_takeup))
     return acs
-dp = get_dp_with_updated_takeup_flag(acs, 5)
+acs = dr.copy()
+dr = get_dp_with_updated_takeup_flag(acs, 5, alpha=1)
+get_cost_Py(dr)
 
 # update below for different output based on alpha values
 fp_p = './output/output_20200224_202316_main simulation/acs_sim_20200224_202316.csv'
@@ -307,5 +308,82 @@ for t in types:
     print('conditional weighted mean of cpl_%s among takeup persons' % t,
           np.average(dp[(dp['cpl_%s' % t] > 0) & (dp['takeup_%s' % t] == 1)]['cpl_%s' % t],
                      weights=dp[(dp['cpl_%s' % t] > 0) & (dp['takeup_%s' % t] == 1)]['PWGTP']))
+
+## Plot
+import matplotlib.pyplot as plt
+import matplotlib
+from Utils import format_chart
+from collections import OrderedDict as od
+# RI - Program outlay by leave type, Py results vs actual
+
+# actual program data
+actual = {}
+actual['n_cases'] = od(zip(types, [26352, 8784, 3778, 205, 554, 332]))
+for k in ['n_cases']:
+    actual[k]['DI'] = actual[k]['own'] + actual[k]['matdis']
+    actual[k]['PFL'] = actual[k]['bond'] + actual[k]['illchild'] \
+                           + actual[k]['illspouse'] + actual[k]['illparent']
+    actual[k]['TOTAL'] = actual[k]['DI'] + actual[k]['PFL']
+actual['outlay'] = od(zip(['DI', 'PFL', 'TOTAL', ], [160.9, 8.6, 169.5, ]))
+# simulation results
+fp_p = './output/output_20200226_210803_main simulation/acs_sim_20200226_210803.csv'
+fp_p_outlay = './output/output_20200226_210803_main simulation/program_cost_ri_20200226_210803.csv'
+dp = pd.read_csv(fp_p)
+dp_outlay = pd.read_csv(fp_p_outlay)
+sim = {}
+sim['n_cases'] = od({})
+sim['outlay'] = od({})
+for t in types:
+    sim['n_cases'][t] = dp[dp['takeup_%s' % t]==1]['PWGTP'].sum()
+    sim['outlay'][t] = round(dp_outlay.loc[dp_outlay['type']==t, 'cost'].values[0]/10**6, 1)
+for k in ['n_cases', 'outlay']:
+    sim[k]['DI'] = sim[k]['own'] + sim[k]['matdis']
+    sim[k]['PFL'] = sim[k]['bond'] + sim[k]['illchild'] \
+                           + sim[k]['illspouse'] + sim[k]['illparent']
+    sim[k]['TOTAL'] = sim[k]['DI'] + sim[k]['PFL']
+
+# plot for n_cases
+fp_out = './output/'
+title = '' # 'Comparison of Simulation Results vs Program Data, Number of Cases in RI'
+fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
+ys = list(sim['n_cases'].values())[:-3]
+zs = list(actual['n_cases'].values())[:-3]
+ind = np.arange(len(ys))
+width = 0.2
+bar1 = ax.bar(ind-width/2, ys, width, align='center', capsize=5, color='indianred', ecolor='grey')
+bar2 = ax.bar(ind+width/2, zs, width, align='center', capsize=5, color='tan', ecolor='grey')
+ax.set_ylabel('Number of Cases Paid')
+ax.set_xticks(ind)
+ax.set_xticklabels(('Own Illness', 'Maternity', 'New Born Child',
+                    'Ill Child', 'Ill Spouse', 'Ill Parent',))
+ax.yaxis.grid(False)
+ax.legend( (bar1, bar2,), ('Simulated', 'Actual',) )
+ax.ticklabel_format(style='plain', axis='y')
+#ax.get_yaxis().set_major_formatter(matplotlib.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
+format_chart(fig, ax, title, bg_color='white', fg_color='k')
+# save
+plt.savefig(fp_out + 'RI_validation_n_cases.png', facecolor='white', edgecolor='grey') #
+
+# plot for outlay
+fp_out = './output/'
+title = '' # 'Comparison of Simulation Results vs Program Data, Program Outlay in RI'
+fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
+ys = list(sim['outlay'].values())[-3:]
+zs = list(actual['outlay'].values())[-3:]
+ind = np.arange(len(ys))
+width = 0.2
+bar1 = ax.bar(ind-width/2, ys, width, align='center', capsize=5, color='indianred', ecolor='grey')
+bar2 = ax.bar(ind+width/2, zs, width, align='center', capsize=5, color='tan', ecolor='grey')
+ax.set_ylabel('Program Outlay (million 2012 $)')
+ax.set_xticks(ind)
+ax.set_xticklabels(('Own Disability', 'Care for Family Member', 'Total',))
+ax.yaxis.grid(False)
+ax.legend( (bar1, bar2,), ('Simulated', 'Actual',) )
+ax.ticklabel_format(style='plain', axis='y')
+#ax.get_yaxis().set_major_formatter(matplotlib.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
+format_chart(fig, ax, title, bg_color='white', fg_color='k')
+# save
+plt.savefig(fp_out + 'RI_validation_outlay.png', facecolor='white', edgecolor='grey') #
+
 
 

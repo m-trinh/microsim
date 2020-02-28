@@ -437,7 +437,6 @@ class SimulationEngine:
 
         # Simulate counterfactual leave lengths (cf-len) for dual receivers
         # First get col of effective rrp for each person, subject to adding any dependency allowance, up to 1
-        # TODO: add dependency_allowance in params
         dependency_allowance = params['dependency_allowance']
         dependency_allowance_profile = params['dependency_allowance_profile'] # rrp increment by ndep, len of this is max ndep allowed
         cum_profile = np.cumsum(np.array(dependency_allowance_profile))
@@ -463,7 +462,6 @@ class SimulationEngine:
                 acs.loc[(acs['dual_receiver'] == 1) & (acs['prop_pay'] >= 1-acs['effective_rrp']), 'mnl_%s' % t]
             # Get covered-by-program leave lengths (cp-len) for dual receivers among anypay=1
             # subtract wait period, down to 0
-            # TODO: add wait_period, recollect, min_cfl_recollect in params
             # wait period benefit recollection indicator, min cfl needed for recollection
             # RI = [False, nan], NJ = [True, 15]
             wait_period = params['wait_period']
@@ -576,43 +574,46 @@ class SimulationEngine:
         # Then perform a weighted random draw using user-specified take up rate until target pop is reached
         # set min cpl (covered-by-program length) for taking up program
         # TODO: validate min_takeup_cpl: min must = 1, cannot be 0
-        # TODO: for CA this value needs to be 25~30 for own/matdis to match mean cpl with state data (~75 days)
-        # TODO: instead of using min_takeup_cpl to d isqualify rows for draws, consider prob draw = f(cpl)
         min_takeup_cpl = params['min_takeup_cpl']
         alpha = params['alpha']
         for t in self.types:
+            # set cpl = 0 if cpl less than min_takeup_cpl
+            acs.loc[acs['cpl_%s' % t] < min_takeup_cpl, 'cpl_%s' % t] = 0
             # cap user-specified take up for type t by max possible takeup = s_positive_cpl, in pop per sim results
             s_positive_cpl = acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w].sum() / acs[col_w].sum()
-            # display warning for unable to reach target pop from simulated positive cpl_type pop
-            if col_w == 'PWGTP':
-                if params['d_takeup'][t] > s_positive_cpl:
-                    print('Warning: User-specified take up for type -%s- is capped '
-                          'by maximum possible take up rate (share of positive covered-by-program length) '
-                          'based on simulation results, at %s.' % (t, s_positive_cpl))
-            takeup = min(s_positive_cpl, params['d_takeup'][t])
-            p_draw = takeup / s_positive_cpl  # need to draw w/ prob=p_draw from cpl>=min_takeup_cpl subpop, to get desired takeup
-            # print('p_draw for type -%s- = %s' % (t, p_draw))
-            # get take up indicator for type t - weighted random draw from cpl_type>=min_takeup_cpl until target is reached
+            # init takeup_type = 0 for all rows
             acs['takeup_%s' % t] = 0
-            if alpha >0:
-                draws = get_weighted_draws(acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w], p_draw, self.random_state,
-                                           shuffle_weights=(acs[acs['cpl_%s' % t] >= min_takeup_cpl]['cpl_%s' % t])**alpha)
-            elif alpha==0:
-                draws = get_weighted_draws(acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w], p_draw, self.random_state,
-                                           shuffle_weights=None)
-            else:
-                print('ERROR: alpha (exponent) of shuffle_weights should be non-negative. Please check!')
-            # print('draws = %s' % draws)
-            acs.loc[acs['cpl_%s' % t] >= min_takeup_cpl, 'takeup_%s' % t] \
-                = draws
+            # if share of positive cpl (cpl>min_takeup_cpl) is positive, draw program takers
+            if s_positive_cpl > 0:
+                # display warning for unable to reach target pop from simulated positive cpl_type pop
+                if col_w == 'PWGTP':
+                    if params['d_takeup'][t] > s_positive_cpl:
+                        print('Warning: User-specified take up for type -%s- is capped '
+                              'by maximum possible take up rate (share of positive covered-by-program length) '
+                              'based on simulation results, at %s.' % (t, s_positive_cpl))
+                takeup = min(s_positive_cpl, params['d_takeup'][t])
+                p_draw = takeup / s_positive_cpl  # need to draw w/ prob=p_draw from cpl>=min_takeup_cpl subpop, to get desired takeup
+                # print('p_draw for type -%s- = %s' % (t, p_draw))
+                # get take up indicator for type t - weighted random draw from cpl_type>=min_takeup_cpl until target is reached
+                if alpha >0:
+                    draws = get_weighted_draws(acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w], p_draw, self.random_state,
+                                               shuffle_weights=(acs[acs['cpl_%s' % t] >= min_takeup_cpl]['cpl_%s' % t])**alpha)
+                elif alpha==0:
+                    draws = get_weighted_draws(acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w], p_draw, self.random_state,
+                                               shuffle_weights=None)
+                else:
+                    print('ERROR: alpha (exponent) of shuffle_weights should be non-negative. Please check!')
+                # print('draws = %s' % draws)
+                acs.loc[acs['cpl_%s' % t] >= min_takeup_cpl, 'takeup_%s' % t] \
+                    = draws
 
-            # for main weight, check if target pop is achieved among eligible ACS persons
-            if col_w == 'PWGTP':
-                s_takeup = acs[acs['takeup_%s' % t] == 1][col_w].sum() / acs[col_w].sum()
-                s_takeup = round(s_takeup, 4)
-                print('Specified takeup for type %s = %s. '
-                      'Effective takeup = %s. '
-                      'Post-sim weighted share = %s' % (t, params['d_takeup'][t], takeup, s_takeup))
+                # for main weight, check if target pop is achieved among eligible ACS persons
+                if col_w == 'PWGTP':
+                    s_takeup = acs[acs['takeup_%s' % t] == 1][col_w].sum() / acs[col_w].sum()
+                    s_takeup = round(s_takeup, 4)
+                    print('Specified takeup for type %s = %s. '
+                          'Effective takeup = %s. '
+                          'Post-sim weighted share = %s' % (t, params['d_takeup'][t], takeup, s_takeup))
             # return ACS with all eligible workers (regardless of taker/needer status), with takeup_type flags sim'ed
         return acs
 
