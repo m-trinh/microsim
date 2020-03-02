@@ -350,7 +350,7 @@ class DataCleanerACS:
             print('ACS data cleaned for chunk %s of person data...' % ichunk)
             ichunk += 1
 
-        dout.to_csv(self.fp_out + "ACS_cleaned_forsimulation_%s_%s.csv" % (self.yr, st), index=False, header=True)
+        return dout
 
     def clean_person_data(self, chunk_size=100000):
         '''
@@ -362,10 +362,18 @@ class DataCleanerACS:
         # Load CPS data from impute_FMLA_CPS
         cps = pd.read_csv('./data/cps/cps_for_acs_sim.csv')
         if self.st.lower() == 'all':
-            for st in STATE_CODES:
-                self.clean_person_state_data(st.lower(), cps, chunk_size=chunk_size)
+            for i, st in enumerate(STATE_CODES):
+                dout = self.clean_person_state_data(st.lower(), cps, chunk_size=chunk_size)
+                if i == 0:
+                    dout.to_csv(self.fp_out + "ACS_cleaned_forsimulation_%s_%s.csv" % (self.yr, self.st), index=False,
+                                header=True)
+                else:
+                    dout.to_csv(self.fp_out + "ACS_cleaned_forsimulation_%s_%s.csv" % (self.yr, self.st), index=False,
+                                mode='a', header=False)
         else:
-            self.clean_person_state_data(self.st, cps, chunk_size=chunk_size)
+            dout = self.clean_person_state_data(self.st, cps, chunk_size=chunk_size)
+            dout.to_csv(self.fp_out + "ACS_cleaned_forsimulation_%s_%s.csv" % (self.yr, self.st), index=False,
+                        header=True)
 
         t1 = time()
         message = 'ACS data cleaning finished for state %s. Time elapsed = %s seconds' % (self.st.upper(), round((t1 - t0), 0))

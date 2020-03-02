@@ -280,44 +280,6 @@ def generate_default_state_params(parameters=None, state='CA'):
     return state_params
 
 
-def get_population_analysis_results(output_fp, types=None):
-    """
-
-    :param output_fp: str, required
-        Name of simulated individual results
-    :param types: list of str, default None
-        Each element in list is a leave type
-    :return: pd.DataFrame
-    """
-    # Read in simulated acs, this is just df returned from get_acs_simulated()
-    if types is None:
-        types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
-
-    usecols = ['PWGTP', 'female', 'age', 'wage12', 'nochildren', 'asian', 'black', 'white', 'native', 'other',
-               'hisp'] + ['takeup_%s' % t for t in types] + ['cpl_%s' % t for t in types]
-
-    df = pd.read_csv(output_fp, usecols=lambda c: c in set(usecols))
-    # Restrict to taker/needer only (workers with neither status have cpl_type = nan)
-    # d = d[(d['taker']==1) | (d['needer']==1)]
-
-    # Restrict to workers who take up the program
-    types = [t for t in types if 'takeup_%s' % t in df.columns]
-    df['takeup_any'] = df[['takeup_%s' % t for t in types]].sum(axis=1) > 0
-    df = df[df['takeup_any']]
-
-    # Make sure cpl_type is non-missing
-    for t in types:
-        df['cpl_%s' % t] = df['cpl_%s' % t].fillna(0)
-
-    # Total covered-by-program length
-    df['cpl'] = [sum(x) for x in df[['cpl_%s' % t for t in types]].values]
-    # Keep needed vars for population analysis plots
-    keepcols = ['PWGTP', 'cpl', 'female', 'age', 'wage12', 'nochildren', 'asian', 'black', 'white', 'native',
-                'other', 'hisp']
-    df = df[keepcols]
-    return df
-
-
 def create_cost_chart(data, state):
     """Create a matplotlib bar chart with benefits paid for each type
 
