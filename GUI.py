@@ -297,7 +297,7 @@ class MicrosimGUI(Tk):
         else:
             costs = pd.read_csv('./output/output_20200220_130425_main simulation/program_cost_ri_20200220_130425.csv')
             main_output_dir = os.path.join('r_engine', 'output')
-            results_files = [[os.path.join(main_output_dir, 'output.csv')]]
+            results_files = [os.path.join(main_output_dir, 'output.csv')]
 
         # Calculate total benefits paid
         total_benefits = list(costs.loc[costs['type'] == 'total', 'cost'])[0]
@@ -490,6 +490,7 @@ class MicrosimGUI(Tk):
             'illparent': parameters.take_up_rates['Ill Parent']
         }
 
+        incl_private = parameters.private
         incl_empgov_fed = parameters.fed_employees
         incl_empgov_st = parameters.state_employees
         incl_empgov_loc = parameters.local_employees
@@ -506,14 +507,27 @@ class MicrosimGUI(Tk):
         min_cfl_recollect = parameters.min_cfl_recollect
         dependency_allowance = parameters.dependency_allowance
         dependency_allowance_profile = parameters.dependency_allowance_profile
+        leave_types = []
+        if parameters.own_health:
+            leave_types.append('own')
+        if parameters.maternity:
+            leave_types.append('matdis')
+        if parameters.new_child:
+            leave_types.append('bond')
+        if parameters.ill_child:
+            leave_types.append('illchild')
+        if parameters.ill_spouse:
+            leave_types.append('illspouse')
+        if parameters.ill_parent:
+            leave_types.append('illparent')
 
         # Update simulation engine with the values
         self.sim_engine.set_simulation_params(elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp, wkbene_cap,
-                                              d_maxwk, d_takeup, incl_empgov_fed, incl_empgov_st, incl_empgov_loc,
-                                              incl_empself, needers_fully_participate, clone_factor,
-                                              dual_receivers_share, alpha, min_takeup_cpl,
-                                              wait_period, recollect, min_cfl_recollect,
-                                              dependency_allowance, dependency_allowance_profile, sim_num=None)
+                                              d_maxwk, d_takeup, incl_private, incl_empgov_fed, incl_empgov_st,
+                                              incl_empgov_loc, incl_empself, needers_fully_participate, clone_factor,
+                                              dual_receivers_share, alpha, min_takeup_cpl, wait_period,
+                                              recollect, min_cfl_recollect, dependency_allowance,
+                                              dependency_allowance_profile, leave_types=leave_types, sim_num=None)
 
     def check_file_entries(self, *_):
         """Enables run button if locations for ACS, FMLA, and output folders are provided. Otherwise, disables run
@@ -1607,7 +1621,6 @@ class EmployeeTypesFrame(ttk.LabelFrame):
         self.state_employees_input.pack(padx=(24, 0), anchor=W)
         self.local_employees_input.pack(padx=(24, 0), pady=(0, row_padding), anchor=W)
 
-
     def check_all_gov_employees(self, _=None):
         """Sets federal, state, and local employee variables to the value to the government employee variable"""
         checked = self.variables['government_employees'].get()
@@ -1971,12 +1984,11 @@ class PopulationAnalysis(ScrollFrame):
         """Create new histogram charts for each simulation"""
         for sim_num in range(len(self.results_files)):
             # Get data from results files and user inputs
-            simulation_data = self.filter_data(get_population_analysis_results(self.results_files[sim_num][0]))
+            leaves, weights = self.get_population_analysis_results(self.results_files[sim_num])
             title = get_sim_name(sim_num)  # Get title from simulation number
 
             # Create histogram from data
-            histogram = self.create_histogram(simulation_data['cpl'], self.bins, title,
-                                              weights=simulation_data['PWGTP'], xticks=self.xticks)
+            histogram = self.create_histogram(leaves, self.bins, title, weights=weights, xticks=self.xticks)
             self.histograms.append(histogram)  # Add histogram to list of histograms
             chart_container = ChartContainer(self.histogram_frame, histogram, DARK_COLOR)
             chart_container.pack()
@@ -1985,7 +1997,7 @@ class PopulationAnalysis(ScrollFrame):
         """Update histogram charts for each simulation"""
         for sim_num in range(len(self.results_files)):
             # Get data from results files and user inputs
-            simulation_data = self.filter_data(get_population_analysis_results(self.results_files[sim_num][0]))
+            leaves, weights = self.get_population_analysis_results(self.results_files[sim_num])
 
             # Find created histogram chart in list
             fig = self.histograms[sim_num]
@@ -1993,11 +2005,53 @@ class PopulationAnalysis(ScrollFrame):
             ax.cla()
 
             # Change histogram data
-            ax.hist(simulation_data['cpl'], self.bins, weights=simulation_data['PWGTP'], color='#1aff8c', rwidth=0.9)
+            ax.hist(leaves, self.bins, weights=weights, color='#1aff8c', rwidth=0.9)
             # Set the chart's style back to original
             self.set_histogram_properties(fig, ax, get_sim_name(sim_num), xticks=self.xticks)
             fig.canvas.draw()
             fig.canvas.flush_events()
+
+    def get_population_analysis_results(self, output_fp, types=None, chunksize=100000):
+        """
+
+        :param output_fp: str, required
+            Name of simulated individual results
+        :param types: list of str, default None
+            Each element in list is a leave type
+        :return: pd.DataFrame
+        """
+        # Read in simulated acs, this is just df returned from get_acs_simulated()
+        if types is None:
+            types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
+
+        usecols = ['PWGTP', 'female', 'age', 'wage12', 'nochildren', 'asian', 'black', 'white', 'native', 'other',
+                   'hisp'] + ['takeup_%s' % t for t in types] + ['cpl_%s' % t for t in types]
+
+        leaves = []
+        weights = []
+
+        for df in pd.read_csv(output_fp, usecols=lambda c: c in set(usecols), chunksize=chunksize):
+            # Restrict to workers who take up the program
+            types = [t for t in types if 'takeup_%s' % t in df.columns]
+            df['takeup_any'] = df[['takeup_%s' % t for t in types]].sum(axis=1) > 0
+            df = df[df['takeup_any']]
+
+            # Make sure cpl_type is non-missing
+            for t in types:
+                df['cpl_%s' % t] = df['cpl_%s' % t].fillna(0)
+
+            # Total covered-by-program length
+            df['cpl'] = [sum(x) for x in df[['cpl_%s' % t for t in types]].values]
+            # Keep needed vars for population analysis plots
+            keepcols = ['PWGTP', 'cpl', 'female', 'age', 'wage12', 'nochildren', 'asian', 'black', 'white', 'native',
+                        'other', 'hisp']
+            df = df[keepcols]
+            df = self.filter_data(df)
+
+            leaves += df['cpl'].tolist()
+            weights += df['PWGTP'].tolist()
+
+        return leaves, weights
 
     def filter_data(self, data):
         """Filter out data and keep rows based on user population characteristic inputs

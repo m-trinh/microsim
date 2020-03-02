@@ -280,43 +280,6 @@ def generate_default_state_params(parameters=None, state='CA'):
     return state_params
 
 
-def get_population_analysis_results(output_fp, types=None):
-    """
-
-    :param output_fp: str, required
-        Name of simulated individual results
-    :param types: list of str, default None
-        Each element in list is a leave type
-    :return: pd.DataFrame
-    """
-    # Read in simulated acs, this is just df returned from get_acs_simulated()
-    if types is None:
-        types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
-
-    usecols = ['PWGTP', 'female', 'age', 'wage12', 'nochildren', 'asian', 'black', 'white', 'native', 'other',
-               'hisp'] + ['takeup_%s' % t for t in types] + ['cpl_%s' % t for t in types]
-
-    df = pd.read_csv(output_fp, usecols=usecols)
-    # Restrict to taker/needer only (workers with neither status have cpl_type = nan)
-    # d = d[(d['taker']==1) | (d['needer']==1)]
-
-    # Restrict to workers who take up the program
-    df['takeup_any'] = df[['takeup_%s' % t for t in types]].sum(axis=1) > 0
-    df = df[df['takeup_any']]
-
-    # Make sure cpl_type is non-missing
-    for t in types:
-        df['cpl_%s' % t] = df['cpl_%s' % t].fillna(0)
-
-    # Total covered-by-program length
-    df['cpl'] = [sum(x) for x in df[['cpl_%s' % t for t in types]].values]
-    # Keep needed vars for population analysis plots
-    keepcols = ['PWGTP', 'cpl', 'female', 'age', 'wage12', 'nochildren', 'asian', 'black', 'white', 'native',
-                'other', 'hisp']
-    df = df[keepcols]
-    return df
-
-
 def create_cost_chart(data, state):
     """Create a matplotlib bar chart with benefits paid for each type
 
@@ -327,6 +290,16 @@ def create_cost_chart(data, state):
     :return: matplotlib.figure.Figure
     """
 
+    leave_type_translation = {
+        'own': 'Own Health',
+        'matdis': 'Maternity',
+        'bond': 'New Child',
+        'illchild': 'Ill Child',
+        'illspouse': 'Ill Spouse',
+        'illparent': 'Ill Parent'
+    }
+    leave_types = [leave_type_translation[l] for l in data['type'].tolist()[:-1]]
+
     # Get total cost of program, in millions and rounded to 1 decimal point
     total_cost = round(list(data.loc[data['type'] == 'total', 'cost'])[0] / 10 ** 6, 1)
     spread = round((list(data.loc[data['type'] == 'total', 'ci_upper'])[0] -
@@ -335,14 +308,14 @@ def create_cost_chart(data, state):
 
     # Create chart to display benefit cost for each leave type
     fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
-    ind = np.arange(6)
+    ind = np.arange(len(leave_types))
     ys = data[:-1]['cost'] / 10 ** 6
     es = 0.5 * (data[:-1]['ci_upper'] - data[:-1]['ci_lower']) / 10 ** 6  # Used for confidence intervals
     width = 0.5
     ax.bar(ind, ys, width, yerr=es, align='center', capsize=5, color='#1aff8c', ecolor='white')
     ax.set_ylabel('$ millions')
     ax.set_xticks(ind)
-    ax.set_xticklabels(LEAVE_TYPES)
+    ax.set_xticklabels(leave_types)
     ax.yaxis.grid(False)
     format_chart(fig, ax, title)
     return fig
