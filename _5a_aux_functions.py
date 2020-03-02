@@ -351,6 +351,9 @@ def get_sim_col(X, y, w, Xa, clf, random_state):
                 Z[c] = (X[c] - X[c].mean()) / np.std(X[c], axis=0, ddof=1)
             for c in Xa.columns:
                 Za[c] = (Xa[c] - Xa[c].mean()) / np.std(Xa[c], axis=0, ddof=1)
+            # TODO: testing below by shutting down stand'
+            # TODO: stand=True for similarity based methods (kNN, SVM), =False for logit
+            Z, Za = X, Xa
 
         # Fit model
         # glm logit

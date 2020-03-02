@@ -59,13 +59,13 @@ class DataCleanerACS:
         '''
 
         # Load ACS household data and create some variables
-        fp_d_hh = self.fp_h + '/ss%sh%s.csv' % (str(self.yr)[2:], st)
+        fp_d_hh = self.fp_h + '/ss%sh%s.csv' % (str(self.yr)[-2:], st)
         if self.state_of_work:
             fp_d_hh = self.fp_h + '/h%s_%s_pow.csv' % (self.dct_st[st], st)
         d_hh = pd.read_csv(fp_d_hh)
         d_hh["nochildren"] = pd.get_dummies(d_hh["FPARC"])[4]
-        d_hh['faminc'] = d_hh['FINCP'] * d_hh['ADJINC'] / self.adjinc / 1000  # adjust to 2012 thousand dollars to conform with FMLA 2012 data
-        d_hh.loc[(d_hh['faminc'] <= 0), 'faminc'] = 0.01 / 1000  # force non-positive income to be epsilon to get meaningful log-income
+        d_hh['faminc'] = d_hh['FINCP'] * d_hh['ADJINC'] / self.adjinc / 1  # adjust to 2012 dollars to conform with FMLA 2012 data
+        d_hh.loc[(d_hh['faminc'] <= 0), 'faminc'] = 0.01 / 1  # force non-positive income to be epsilon to get meaningful log-income
         d_hh["lnfaminc"] = np.log(d_hh["faminc"])
         # Number of dependents
         d_hh['ndep_kid'] = d_hh['NOC']
@@ -82,7 +82,7 @@ class DataCleanerACS:
         print('Cleaning ACS data. State chosen = %s. Chunk size = %s ACS rows' % (st.upper(), chunk_size))
 
         # set file path to person file, per state_of_work value
-        fp_d_p = self.fp_p + "/ss%sp%s.csv" % (str(self.yr)[:2], st)
+        fp_d_p = self.fp_p + "/ss%sp%s.csv" % (str(self.yr)[-2:], st)
         if self.state_of_work:
             fp_d_p = self.fp_p + '/p%s_%s_pow.csv' % (self.dct_st[st], st)
 

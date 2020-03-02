@@ -109,7 +109,7 @@ LEAVE_TYPES = ['Own Health', 'Maternity', 'New Child', 'Ill Child', 'Ill Spouse'
 #                'ND', 'OH', 'OK', 'OR', 'PA', 'PR', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'VI', 'WA', 'WV',
 #                'WI', 'WY']
 
-STATE_CODES = ['VT', 'WY']
+STATE_CODES = ['ALL']
 
 
 class Parameters:
