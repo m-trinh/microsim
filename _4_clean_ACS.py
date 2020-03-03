@@ -5,7 +5,6 @@ for the simulation and saves a master dataset to be used in the simulations.
 
 chris zhang 2/28/2019
 """
-# TODO: integrate run(self) from Mike's ABF.py (everything b4 abf_output=self.abf_calcs(reps), id=SERIALNO))
 # -------------------------- #
 # Housekeeping
 # -------------------------- #
@@ -43,11 +42,11 @@ class DataCleanerACS:
         # a dict from st to state code (e.g. 'ri' to 44, 'ca' to 6)
         self.dct_st = dict(zip(
             [x.lower() for x in
-             ["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA",
+             ["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "DC", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA",
               "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK",
               "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY", "DC"]
              ],
-            ["01", "02", "04", "05", "06", "08", "09", "10", "12", "13", "15", "16", "17", "18", "19", "20", "21", "22",
+            ["01", "02", "04", "05", "06", "08", "09", "10", "11", "12", "13", "15", "16", "17", "18", "19", "20", "21", "22",
              "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40",
              "41", "42", "44", "45", "46", "47", "48", "49", "50", "51", "53", "54", "55", "56"]
                                ))

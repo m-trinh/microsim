@@ -333,25 +333,29 @@ def get_sim_col(X, y, w, Xa, clf, random_state):
                         df['%s_0' % c] = (df[c] == 0).astype(int)
                         df['%s_1' % c] = (df[c] == 1).astype(int)
                         df['%s_2' % c] = (df[c] >= 2).astype(int)
-                        del df[c]
+                        # will remove ndep_kid, ndep_old from NB's training xvars X (when calling cols_NB)
                 else:
                     wq1, wq2 = get_wquantile(X[c], w, 1/3), get_wquantile(X[c], w, 2/3)
                     for df in [X, Xa]:
                         df['%s_ter1' % c] = (df[c] < wq1).astype(int)
                         df['%s_ter2' % c] = ((df[c] >= wq1) & (df[c] < wq2)).astype(int)
                         df['%s_ter3' % c] = (df[c] >= wq2).astype(int)
-                        del df[c]
+                        # will remove faminc, age, agesq from NB's training xvars X (when calling cols_NB)
+            cols_NB = [x for x in X.columns if x not in num_cols]
         else:
-            # Data preparing - standardization, (x-mu)/sigma
-            # for both train/test data
-            Z, Za = pd.DataFrame([]), pd.DataFrame([])
-            for c in X.columns:
-                Z[c] = (X[c] - X[c].mean()) / np.std(X[c], axis=0, ddof=1)
-            for c in Xa.columns:
-                Za[c] = (Xa[c] - Xa[c].mean()) / np.std(Xa[c], axis=0, ddof=1)
-            # TODO: testing below by shutting down stand'
-            # TODO: stand=True for similarity based methods (kNN, SVM), =False for logit
-            Z, Za = X, Xa
+            # Standardization, (x-mu)/sigma for both train/test data
+            # which classifiers need it?
+            # see https://stats.stackexchange.com/questions/244507/what-algorithms-need-feature-scaling-beside-from-svm
+            # sklearn logit (L2), ridge, KNN, SVM
+            if isinstance(clf, (sklearn.linear_model.LogisticRegression, sklearn.linear_model.RidgeClassifier,
+                                sklearn.neighbors.KNeighborsClassifier, sklearn.svm.SVC)):
+                Z, Za = pd.DataFrame([]), pd.DataFrame([])
+                for c in X.columns:
+                    Z[c] = (X[c] - X[c].mean()) / np.std(X[c], axis=0, ddof=1)
+                for c in Xa.columns:
+                    Za[c] = (Xa[c] - Xa[c].mean()) / np.std(Xa[c], axis=0, ddof=1)
+            else:
+                Z, Za = X, Xa
 
         # Fit model
         # glm logit
@@ -366,17 +370,17 @@ def get_sim_col(X, y, w, Xa, clf, random_state):
             f = lambda x: np.array([w]) # make sure weights[:, i] can be called in package code classification.py
             clf = clf.__class__(weights=f)
             clf = clf.fit(Z, y)
-        # if NB, use original X (category vars) but not standardized version Z
+        # NB, use target = X (Z not defined)
         elif isinstance(clf, sklearn.naive_bayes.MultinomialNB):
-            clf = clf.fit(X, y, sample_weight=w)
-        # all other clfs, use Z as xvars
+            clf = clf.fit(X[cols_NB], y, sample_weight=w)
+        # all other clfs, fit as below (Z could be standardized or non-stand' version, see stand'n steps above)
         else:
             clf = clf.fit(Z, y, sample_weight=w)
 
         # Make prediction
         # get cumulative distribution using phat vector, then draw unif(0,1) to see which segment it falls into
         if isinstance(clf, sklearn.naive_bayes.MultinomialNB):
-            phat = get_pred_probs(clf, Xa)
+            phat = get_pred_probs(clf, Xa[cols_NB])
         else:
             phat = get_pred_probs(clf, Za)
         #print('phat top 30 rows = %s ' % phat[:30])

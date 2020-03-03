@@ -90,8 +90,8 @@ DEFAULT_STATE_PARAMS = {
         'self_employed': False,
         'take_up_rates': {'Own Health': 0.0723, 'Maternity': 0.0241, 'New Child': 0.0104,
                           'Ill Child': 0.0006, 'Ill Spouse': 0.0015, 'Ill Parent': 0.0009},
-        'dependency_allowance': False,
-        'dependency_allowance_profile': [],
+        'dependency_allowance': True,
+        'dependency_allowance_profile': [0.07, 0.07, 0.07, 0.07, 0.07],
         'wait_period': 5,
         'recollect': False,
         'min_cfl_recollect': 0,
@@ -104,12 +104,11 @@ DEFAULT_STATE_PARAMS = {
 # The possible leave type options
 LEAVE_TYPES = ['Own Health', 'Maternity', 'New Child', 'Ill Child', 'Ill Spouse', 'Ill Parent']
 
-# STATE_CODES = ['AK', 'AL', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'DC', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS',
-#                'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC',
-#                'ND', 'OH', 'OK', 'OR', 'PA', 'PR', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'VI', 'WA', 'WV',
-#                'WI', 'WY']
+STATE_CODES = ['AK', 'AL', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'DC', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS',
+               'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC',
+               'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY']
 
-STATE_CODES = ['ALL']
+# STATE_CODES = ['RI', 'WY']
 
 
 class Parameters:

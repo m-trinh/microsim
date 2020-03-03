@@ -17,8 +17,7 @@ chris zhang 2/14/2020
 # logit does not sim enough takers/needers to reach required takeup in RI. Other methods okay
 # Applied logic control - age range of taker/needer of matdis, bond (set max to 50)
 
-# TODO: validate MLs within FMLA, check diff MLs performance on predicting number of weeks (pmts) for RI/NJ/CA data
-# TODO: adopt needers_fully_part - really necessary?? Not a empirical possibility
+
 # TODO: make a note in doc about 1.02 POW factor if user tries to create pop est / needers_full_part override
 
 import pandas as pd
@@ -45,7 +44,7 @@ from Utils import check_dependency, get_sim_name, create_cost_chart, STATE_CODES
 
 class SimulationEngine:
     def __init__(self, st, yr, fps_in, fps_out, clf_name='Logistic Regression', state_of_work=True,
-                 random_state=None, pow_pop_multiplier=1.0217029934467345, q=None):
+                 random_state=None, pow_pop_multiplier=1.02, q=None):
         """
         :param st: state name, 'ca', 'ma', etc.
         :param yr: end year of 5-year ACS
@@ -158,7 +157,8 @@ class SimulationEngine:
         # save meta file of program parameters
         para_labels = ['State', 'Year', 'Place of Work', 'Minimum Annual Wage', 'Minimum Annual Work Weeks',
                        'Minimum Annual Work Hours', 'Minimum Employer Size', 'Proposed Wage Replacement Ratio',
-                       'Weekly Benefit Cap', 'Include Goverment Employees, Federal',
+                       'Weekly Benefit Cap', 'Include Private Employees',
+                       'Include Goverment Employees, Federal',
                        'Include Goverment Employees, State', 'Include Goverment Employees, Local',
                        'Include Self-employed', 'Simulation Method', 'Share of Dual Receivers',
                        'Alpha', 'Minimum Leave Length Applied',
@@ -171,7 +171,8 @@ class SimulationEngine:
 
         para_values = [self.st.upper(), self.yr, self.state_of_work, params['elig_wage12'],
                        params['elig_wkswork'], params['elig_yrhours'], params['elig_empsize'], params['rrp'],
-                       params['wkbene_cap'], params['incl_empgov_fed'], params['incl_empgov_st'],
+                       params['wkbene_cap'], params['incl_private'],
+                       params['incl_empgov_fed'], params['incl_empgov_st'],
                        params['incl_empgov_loc'], params['incl_empself'], self.clf_name, params['dual_receivers_share'],
                        params['alpha'], params['min_takeup_cpl'],
                        params['wait_period'], params['recollect'], params['min_cfl_recollect'],
@@ -798,39 +799,3 @@ class SimulationEngine:
                    'other', 'hisp']
         d = d[columns]
         return d
-
-
-# Other factors
-# Leave prob factors, 6 types - TODO: code in wof in get_sim_col(), bound phat by max = 1
-
-# test
-#
-# st = 'nj'
-# yr = 16
-# fp_fmla_in = './data/fmla_2012/fmla_2012_employee_restrict_puf.csv'
-# fp_fmla_out = './data/fmla_2012/fmla_clean_2012.csv'
-# fp_cps_in = './data/cps/CPS2014extract.csv'
-# fp_cps_out = './data/cps/cps_for_acs_sim.csv'
-# fp_length_distribution_out = './data/fmla_2012/length_distributions.json'
-#
-# fp_acsh_in = 'C:/workfiles/Microsimulation/git/large_data_files/'
-# fp_acsp_in = 'C:/workfiles/Microsimulation/git/large_data_files/'
-# fp_acs_out = './data/acs/'
-#
-# fps_in = [fp_fmla_in, fp_cps_in, fp_acsh_in, fp_acsp_in]
-# fps_out = [fp_fmla_out, fp_cps_out, fp_acs_out, fp_length_distribution_out]
-# clf_name = 'Logistic Regression'
-#
-# prog_para = [3440, 20, 1, 1, 0.67, 650]
-# types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
-# d_maxwk = dict(zip(types, 6*np.ones(6)))
-# d_takeup = dict(zip(types, 1*np.ones(6)))
-# prog_para.append(d_maxwk)
-# prog_para.append(d_takeup)
-# prog_para += [False, False] # empgov, empself
-#
-# se = SimulationEngine(st, yr, fps_in, fps_out, clf_name, prog_para)
-# se.save_program_parameters()
-# se.prepare_data()
-# se.get_acs_simulated()
-# se.get_cost()
