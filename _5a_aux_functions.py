@@ -6,6 +6,9 @@ Chris Zhang 10/30/2018
 
 import numpy as np
 import pandas as pd
+#pd.set_option('max_colwidth', 100)
+pd.set_option('display.max_columns', 999)
+pd.set_option('display.width', 200)
 import sklearn.preprocessing, sklearn.linear_model, sklearn.naive_bayes, sklearn.neighbors, sklearn.tree, sklearn.ensemble, \
     sklearn.gaussian_process, sklearn.svm
 pd.options.mode.chained_assignment = None
@@ -245,7 +248,11 @@ def get_pred_probs(clf, xts):
         elif d.ndim == 2:
             phat = np.exp(d) / np.array([[x] * len(d[0]) for x in np.exp(d).sum(axis=1)])
     elif isinstance(clf, statsmodels.genmod.generalized_linear_model.GLMResultsWrapper):
-        phat = (clf.predict(sm.add_constant(xts))) # statsmodel phat gives pr=1 only
+        xts_with_constant = xts.copy()
+        # add constant manually - sm.add_constant() may fail for small xts with exist const col
+        xts_with_constant['const'] = 1
+        xts_with_constant = xts_with_constant[['const'] + [x for x in xts.columns]]
+        phat = (clf.predict(xts_with_constant)) # statsmodel phat gives pr=1 only
         phat = np.array([[(1-x), x] for x in phat.values])
 
     return phat
@@ -282,113 +289,131 @@ def get_sim_col(X, y, w, Xa, clf, random_state):
     y = y[y.columns[0]]
     Xa = fillna_df(Xa, random_state)
 
+    # Make copies of X, Xa, and y to avoid mutation across multiple calls of this func
+    _X, _y, _Xa = X.copy(), y.copy(), Xa.copy()
+
     # if matdis, reduce to rows that are female only/child bearing/age<=50
     # remove female and nochildren from xvar
     if y.name in ['take_matdis', 'need_matdis']:
-        X = X[(X['female']==1) & (X['nochildren']==0) & (X['age']<=50)]
-        del X['female']
-        del X['nochildren']
-        Xa = Xa[(Xa['female']==1) & (Xa['nochildren']==0) & (Xa['age']<=50)]
-        del Xa['female']
-        del Xa['nochildren']
+        X = X.drop(X[(X['female']!=1) | (X['nochildren']==1) | (X['age']>50)].index)
+        # X = X[(X['female']==1) & (X['nochildren']==0) & (X['age']<=50)]
+        X = X.drop(columns=['female', 'nochildren'])
+        # del X['female']
+        # del X['nochildren']
+        Xa = Xa.drop(Xa[(Xa['female']!=1) | (Xa['nochildren']==1) | (Xa['age']>50)].index)
+        # Xa = Xa[(Xa['female']==1) & (Xa['nochildren']==0) & (Xa['age']<=50)]
+        Xa = Xa.drop(columns=['female', 'nochildren'])
+        # del Xa['female']
+        # del Xa['nochildren']
         y = y[X.index]
         w = w[X.index]
-
+        print('-------- check a ------')
+        print(X.shape, Xa.shape)
     # if bond, reduce to rows that are child bearing/age<=50
     # remove nochildren from xvar
-    if y.name in ['take_bond', 'need_bond']:
+    elif y.name in ['take_bond', 'need_bond']:
         X = X[(X['nochildren']==0) & (X['age']<=50)]
-        del X['nochildren']
+        X = X.drop(columns=['nochildren'])
+        # del X['nochildren']
         Xa = Xa[(Xa['nochildren']==0) & (Xa['age']<=50)]
-        del Xa['nochildren']
+        Xa = Xa.drop(columns=['nochildren'])
+        # del Xa['nochildren']
         y = y[X.index]
         w = w[X.index]
-
     # if illspouse, reduce to rows that are nevermarried=0 and divorced=0
     # remove nevermarried and divorced
-    if y.name in ['take_illspouse', 'need_illspouse']:
+    elif y.name in ['take_illspouse', 'need_illspouse']:
         X = X[(X['nevermarried']==0) & (X['divorced']==0)]
-        del X['nevermarried']
-        del X['divorced']
+        X = X.drop(columns=['nevermarried', 'divorced'])
+        # del X['nevermarried']
+        # del X['divorced']
         Xa = Xa[(Xa['nevermarried']==0) & (Xa['divorced']==0)]
-        del Xa['nevermarried']
-        del Xa['divorced']
+        Xa = Xa.drop(columns=['nevermarried', 'divorced'])
+        # del Xa['nevermarried']
+        # del Xa['divorced']
         y = y[X.index]
         w = w[X.index]
+    else:
+        X, y, Xa = _X, _y, _Xa # get original copies if no logic control filters needed
 
     # if clf = 'random draw'
     if clf == 'random draw':
         # randomly pick len(Xa) values from y, set as pred values for Xa
         simcol = [y.iloc[z] for z in random_state.choice(len(y), len(Xa))]
         return simcol
-    else:
         # Data preparing - categorization for Naive Bayes
-        if isinstance(clf, sklearn.naive_bayes.MultinomialNB):
-            # Cateogrize integer variables (ndep_kid, ndep_old) into 0, 1, 2+ groups
-            # Categorize decimal variables into binary columns of tercile groups
-            num_cols = get_bool_num_cols(X)[1]
-            for c in num_cols:
-                if c in ['ndep_kid', 'ndep_old']:
-                    for df in [X, Xa]:
-                        df['%s_0' % c] = (df[c] == 0).astype(int)
-                        df['%s_1' % c] = (df[c] == 1).astype(int)
-                        df['%s_2' % c] = (df[c] >= 2).astype(int)
-                        # will remove ndep_kid, ndep_old from NB's training xvars X (when calling cols_NB)
-                else:
-                    wq1, wq2 = get_wquantile(X[c], w, 1/3), get_wquantile(X[c], w, 2/3)
-                    for df in [X, Xa]:
-                        df['%s_ter1' % c] = (df[c] < wq1).astype(int)
-                        df['%s_ter2' % c] = ((df[c] >= wq1) & (df[c] < wq2)).astype(int)
-                        df['%s_ter3' % c] = (df[c] >= wq2).astype(int)
-                        # will remove faminc, age, agesq from NB's training xvars X (when calling cols_NB)
-            cols_NB = [x for x in X.columns if x not in num_cols]
-        else:
-            # Standardization, (x-mu)/sigma for both train/test data
-            # which classifiers need it?
-            # see https://stats.stackexchange.com/questions/244507/what-algorithms-need-feature-scaling-beside-from-svm
-            # sklearn logit (L2), ridge, KNN, SVM
-            if isinstance(clf, (sklearn.linear_model.LogisticRegression, sklearn.linear_model.RidgeClassifier,
-                                sklearn.neighbors.KNeighborsClassifier, sklearn.svm.SVC)):
-                Z, Za = pd.DataFrame([]), pd.DataFrame([])
-                for c in X.columns:
-                    Z[c] = (X[c] - X[c].mean()) / np.std(X[c], axis=0, ddof=1)
-                for c in Xa.columns:
-                    Za[c] = (Xa[c] - Xa[c].mean()) / np.std(Xa[c], axis=0, ddof=1)
+    elif isinstance(clf, sklearn.naive_bayes.MultinomialNB):
+        # Cateogrize integer variables (ndep_kid, ndep_old) into 0, 1, 2+ groups
+        # Categorize decimal variables into binary columns of tercile groups
+        num_cols = get_bool_num_cols(X)[1]
+        for c in num_cols:
+            if c in ['ndep_kid', 'ndep_old']:
+                for df in [X, Xa]:
+                    df['%s_0' % c] = (df[c] == 0).astype(int)
+                    df['%s_1' % c] = (df[c] == 1).astype(int)
+                    df['%s_2' % c] = (df[c] >= 2).astype(int)
+                    # will remove ndep_kid, ndep_old from NB's training xvars X (when calling cols_NB)
             else:
-                Z, Za = X, Xa
+                wq1, wq2 = get_wquantile(X[c], w, 1/3), get_wquantile(X[c], w, 2/3)
+                for df in [X, Xa]:
+                    df['%s_ter1' % c] = (df[c] < wq1).astype(int)
+                    df['%s_ter2' % c] = ((df[c] >= wq1) & (df[c] < wq2)).astype(int)
+                    df['%s_ter3' % c] = (df[c] >= wq2).astype(int)
+                    # will remove faminc, age, agesq from NB's training xvars X (when calling cols_NB)
+        cols_NB = [x for x in X.columns if x not in num_cols]
+    # Standardization, (x-mu)/sigma for both train/test data
+    # which classifiers need it?
+    # see https://stats.stackexchange.com/questions/244507/what-algorithms-need-feature-scaling-beside-from-svm
+    # sklearn logit (L2), ridge, KNN, SVM
+    elif isinstance(clf, (sklearn.linear_model.LogisticRegression, sklearn.linear_model.RidgeClassifier,
+                        sklearn.neighbors.KNeighborsClassifier, sklearn.svm.SVC)):
+        Z, Za = pd.DataFrame([]), pd.DataFrame([])
+        for c in X.columns:
+            mu = X[c].mean()
+            sig = np.std(X[c], axis=0, ddof=1)
+            # use common train-based mu, sig to standardize Z, Za
+            # if sig = 0 then don't construct the col in Z, Za (no variation, not useful for training)
+            # https://www.researchgate.net/post/
+            # If_I_used_data_normalization_x-meanx_stdx_for_training_data
+            # _would_I_use_train_Mean_and_Standard_Deviation_to_normalize_test_data
+            if sig>0:
+                Z[c] = (X[c] - mu) / sig
+                Za[c] = (Xa[c] - mu) / sig
 
-        # Fit model
-        # glm logit
-        if isinstance(clf, list): # logit GLM = ['logit glm', sklearn logit classifier]
-            if len(y.value_counts())==2: # for (almost all) binary yvars, use statsmodel if user chose logit GLM
-                clf = sm.GLM(y, sm.add_constant(Z), family=sm.families.Binomial(), freq_weights=w).fit()
-            else: # only when yvar is multinomial (e.g. prop_pay), use sklearn logit=clf[1]
-                # if user chose logit GLM, to avoid overfitting
-                clf = clf[1].fit(Z, y, sample_weight=w)
-        # Weight config for kNN is specified in clf input before fit. For all other clf weight is specified during fit
-        elif isinstance(clf, sklearn.neighbors.KNeighborsClassifier):
-            f = lambda x: np.array([w]) # make sure weights[:, i] can be called in package code classification.py
-            clf = clf.__class__(weights=f)
-            clf = clf.fit(Z, y)
-        # NB, use target = X (Z not defined)
-        elif isinstance(clf, sklearn.naive_bayes.MultinomialNB):
-            clf = clf.fit(X[cols_NB], y, sample_weight=w)
-        # all other clfs, fit as below (Z could be standardized or non-stand' version, see stand'n steps above)
-        else:
-            clf = clf.fit(Z, y, sample_weight=w)
+    else:
+        Z, Za = X, Xa
+    # Fit model
+    # glm logit
+    if isinstance(clf, list): # logit GLM = ['logit glm', sklearn logit classifier]
+        if len(y.value_counts())==2: # for (almost all) binary yvars, use statsmodel if user chose logit GLM
+            clf = sm.GLM(y, sm.add_constant(Z), family=sm.families.Binomial(), freq_weights=w).fit()
+        else: # only when yvar is multinomial (e.g. prop_pay), use sklearn logit=clf[1]
+            # if user chose logit GLM, to avoid overfitting
+            clf = clf[1].fit(Z, y, sample_weight=w)
+    # Weight config for kNN is specified in clf input before fit. For all other clf weight is specified during fit
+    elif isinstance(clf, sklearn.neighbors.KNeighborsClassifier):
+        f = lambda x: np.array([w]) # make sure weights[:, i] can be called in package code classification.py
+        clf = clf.__class__(weights=f)
+        clf = clf.fit(Z, y)
+    # NB, use target = X (Z not defined)
+    elif isinstance(clf, sklearn.naive_bayes.MultinomialNB):
+        clf = clf.fit(X[cols_NB], y, sample_weight=w)
+    # all other clfs, fit as below (Z could be standardized or non-stand' version, see stand'n steps above)
+    else:
+        clf = clf.fit(Z, y, sample_weight=w)
 
-        # Make prediction
-        # get cumulative distribution using phat vector, then draw unif(0,1) to see which segment it falls into
-        if isinstance(clf, sklearn.naive_bayes.MultinomialNB):
-            phat = get_pred_probs(clf, Xa[cols_NB])
-        else:
-            phat = get_pred_probs(clf, Za)
-        #print('phat top 30 rows = %s ' % phat[:30])
-        s = phat.cumsum(axis=1)
-        r = random_state.rand(phat.shape[0])
-        simcol = pd.Series((r > s.transpose()).transpose().sum(axis=1))
-        simcol = list(simcol)
-        return simcol
+    # Make prediction
+    # get cumulative distribution using phat vector, then draw unif(0,1) to see which segment it falls into
+    if isinstance(clf, sklearn.naive_bayes.MultinomialNB):
+        phat = get_pred_probs(clf, Xa[cols_NB])
+    else:
+        phat = get_pred_probs(clf, Za)
+    #print('phat top 30 rows = %s ' % phat[:30])
+    s = phat.cumsum(axis=1)
+    r = random_state.rand(phat.shape[0])
+    simcol = pd.Series((r > s.transpose()).transpose().sum(axis=1))
+    simcol = list(simcol)
+    return simcol
 
 # a function to get marginal probability vector, i.e. change values of probability list to 0 for given indices, and normalize
 def get_marginal_probs(ps, ixs):

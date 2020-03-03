@@ -807,7 +807,7 @@ class GeneralParamsFrame(Frame):
               'this state will be chosen from the input and  output files.'
         self.state_label = TipLabel(self, tip, text='State to Simulate:', bg=DARK_COLOR, fg=LIGHT_COLOR)
         self.state_input = ttk.Combobox(self, textvariable=self.variables['state'], state="readonly", width=5,
-                                        values=self.states)
+                                        values='RI') # value=self.states
         # self.state_input.current(self.states.index('RI'))
         self.state_input.current(0)
 
