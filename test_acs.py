@@ -71,7 +71,7 @@ cols_cost = ['takeup_%s' % x for x in types]
 cols_cost += ['wage12', 'wkswork']
 cols = [id] + Xs + ys + [w] + lens + cols_cost
 # fp Python
-fp_p = './output/output_20200226_131121_main simulation/acs_sim_20200226_131121.csv'
+fp_p = './output/output_20200228_123040_main simulation/acs_sim_ri_20200228_123040.csv'
 # fp R
 fp_r = './PR_comparison/check_acs/acs_R/RI_logitfull_test.csv'
 # preprocess
@@ -196,6 +196,12 @@ for x in types:
         print('dp[dp[%s]>0][%s].mean()\n' % (c, c), dp[dp[c]>0][c].mean())
         #print('dr[dr[%s]>0][%s].mean()\n' % (c, c), dr[dr[c]>0][c].mean())
     print('-----------------')
+
+# check total candidate population of take_type
+for t in types:
+    print('dp[dp.take_%s==1].PWGTP.sum()\n' % t, dp[dp['take_%s' % t]==1].PWGTP.sum())
+    print('dr[dr.take_%s==1].PWGTP.sum()\n' % t, dr[dr['take_%s' % t] == 1].PWGTP.sum())
+    print('--------------------')
 
 # check take up flags for types
 for t in types:

@@ -335,7 +335,7 @@ class MicrosimGUI(Tk):
                     variable_values[var_name] = None
             else:
                 variable_values[var_name] = var_obj.get()
-                
+
         return OtherParameters(**variable_values)
 
     def start_comparing(self):
@@ -760,8 +760,8 @@ class GeneralParamsFrame(Frame):
         # State codes
         self.states = ('All', 'AK', 'AL', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'DC', 'FL', 'GA', 'HI', 'ID', 'IL',
                        'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV',
-                       'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'PR', 'RI', 'SC', 'SD', 'TN',
-                       'TX', 'UT', 'VT', 'VA', 'VI', 'WA', 'WV', 'WI', 'WY')
+                       'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN',
+                       'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY')
 
         # Currently implemented simulation methods
         self.simulation_methods = ('Logistic Regression GLM', 'Logistic Regression', 'Ridge Classifier',
@@ -1530,9 +1530,9 @@ class SimulationFrame(NotebookFrame):
                                                                variable=v['fmla_protection_constraint'])
 
         # ------------------------------------------------ Calibrate ------------------------------------------------
-        tip = '''Indicates whether or not the calibration add-factors are used in the equations giving the probability 
-        of taking or needing leaves. These calibration factors adjust the simulated probabilities of taking or needing 
-        the most recent leave to equal those in the Family and Medical Leave in 2012: Revised Public Use File 
+        tip = '''Indicates whether or not the calibration add-factors are used in the equations giving the probability
+        of taking or needing leaves. These calibration factors adjust the simulated probabilities of taking or needing
+        the most recent leave to equal those in the Family and Medical Leave in 2012: Revised Public Use File
         Documentation (McGarry et al, Abt Associates, 2013).'''
         self.calibrate_input = TipCheckButton(self.content, tip, text="Calibrate", variable=v['calibrate'])
 

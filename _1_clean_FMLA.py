@@ -149,7 +149,7 @@ class DataCleanerFMLA:
                       (d['D4_CAT'] == 7), (d['D4_CAT'] == 8),
                       (d['D4_CAT'] == 9), (d['D4_CAT'] == 10)]
         choices = [15, 25, 32.5, 37.5, 45, 62.5, 87.5, 130]
-        d['faminc'] = np.select(conditions, choices, default=np.nan)
+        d['faminc'] = 1000*np.select(conditions, choices, default=np.nan)
         d['lnfaminc'] = np.log(d['faminc'])
 
         # Marital status
@@ -215,9 +215,9 @@ class DataCleanerFMLA:
         # d['length'] = np.where((np.isnan(d['A20']) == False) & (d['A20'] == 2), d['A19_2_CAT_days'], d['A19_1_CAT_days'])
         # d['length'] = [min(x, 261) for x in d['length']]
 
-        # # Use below for getting exact length distribution from restricted FMLA
-        # # length of leave for most recent leave
-        # # cap at 365-52*2 = 261 work days a year
+        # Use below for getting exact length distribution from restricted FMLA
+        # length of leave for most recent leave
+        # cap at 365-52*2 = 261 work days a year
         # d['length'] = np.where((np.isnan(d['A20']) == False) & (d['A20'] == 2), d['A19_2_CAT_rev'], d['A19_1_CAT_rev'])
         # d['length'] = [min(x, 261) for x in d['length']]
 
