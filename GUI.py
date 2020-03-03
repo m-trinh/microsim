@@ -29,7 +29,6 @@ class MicrosimGUI(Tk):
         """Create main window"""
 
         super().__init__(*args, **kwargs)
-        # TODO: Remove R file location
         # Create general parameters object which will be shared across comparison simulations
         self.general_params = GeneralParameters()
         # These are the default parameters object that will be used to fill inputs upon initial load
@@ -309,7 +308,7 @@ class MicrosimGUI(Tk):
     def show_results(self, engine='Python'):
         """Display the results of the simulation"""
         self.engine_process.terminate()  # End the process that ran engine
-        self.self.currently_running = False
+        self.currently_running = False
 
         # Compute program costs
         print('Showing results')

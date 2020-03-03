@@ -200,7 +200,6 @@ class ABF:
         if rerun and variables is not None:
             self.update_parameters(**variables)
 
-        # TODO: Chunk this to prevent memory overflow
         # Create Class variable to aggregate the COW variable for display purposes
         if not rerun:
             self.clean_data(chunksize=chunksize)
