@@ -238,7 +238,7 @@ class ABF:
         if self.output_dir is None:
             raise FileNotFoundError
 
-        self.abf_output.to_csv(os.path.join(output_dir, 'abf_summary.csv'), index=False)
+        self.abf_output.to_csv(os.path.join(output_dir, 'abf_summary.csv'))
 
     def get_abf_fp(self, output_dir=None):
         if output_dir is None:

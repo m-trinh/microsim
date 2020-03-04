@@ -113,6 +113,7 @@ class MicrosimGUI(Tk):
         style.configure('MSCombobox.TCombobox', relief='flat')
         style.configure('MSCheckbutton.TCheckbutton', background=VERY_LIGHT_COLOR, font='-size 12')
         style.configure('MSCheckbuttonSmall.TCheckbutton', background=VERY_LIGHT_COLOR, font='-size 10 -weight bold')
+        style.configure('MSCheckbuttonRed.TCheckbutton', background='red', foreground='white', font='-size 12')
         style.configure('DarkCheckbutton.TCheckbutton', background=DARK_COLOR, foreground=LIGHT_COLOR, font='-size 12')
         style.configure('MSNotebook.TNotebook', background=VERY_LIGHT_COLOR)
         style.configure('MSNotebook.TNotebook.Tab', font='-size 12', padding=(4, 0))
@@ -620,7 +621,8 @@ class MicrosimGUI(Tk):
                          self.parameter_notebook.program_frame.benefit_financing_frame.average_state_tax_input]
 
         # These are the inputs expecting decimal values between 0 and 1
-        rate_entries = [self.parameter_notebook.program_frame.replacement_ratio_input]
+        rate_entries = [self.parameter_notebook.program_frame.replacement_ratio_input,
+                        self.parameter_notebook.population_frame.dual_receivers_share_input]
         rate_entries += [entry for entry in self.parameter_notebook.population_frame.take_up_rates_inputs]
         rate_entries += [p.input for p in self.parameter_notebook.program_frame.dep_allowance_frame.profiles]
         # rate_entries += [entry for entry in self.parameter_notebook.population_frame.leave_probability_factors_inputs]
@@ -646,6 +648,24 @@ class MicrosimGUI(Tk):
         if not self.validate_float(self.parameter_notebook.population_frame.alpha_input.get()):
             errors.append((self.parameter_notebook.population_frame.alpha_input,
                            'This field should contain a real number'))
+
+        errors = self.validate_leave_types(errors)
+        return errors
+
+    def validate_leave_types(self, errors):
+        if not (self.variables['own_health'].get() or self.variables['maternity'].get() or
+                self.variables['new_child'].get() or self.variables['ill_child'].get() or
+                self.variables['ill_spouse'].get() or self.variables['ill_parent'].get()):
+            leave_types_frame = self.parameter_notebook.program_frame.leave_types_frame
+            leave_type_inputs = [leave_types_frame.own_health_input,
+                                 leave_types_frame.maternity_input,
+                                 leave_types_frame.new_child_input,
+                                 leave_types_frame.ill_child_input,
+                                 leave_types_frame.ill_spouse_input,
+                                 leave_types_frame.ill_parent_input]
+
+            for entry in leave_type_inputs:
+                errors.append((entry, 'At least one leave type needs to be selected.'))
 
         return errors
 
@@ -717,7 +737,10 @@ class MicrosimGUI(Tk):
         :return: None
         """
         for widget, error in errors:
-            widget.config(bg='red', fg='white')  # Change color of input with invalid value to red
+            try:
+                widget.config(bg='red', fg='white')  # Change color of input with invalid value to red
+            except TclError:
+                widget.config(style='MSCheckbuttonRed.TCheckbutton')
             # Add a tooltip to input to explain problem
             self.error_tooltips.append((widget, ToolTipCreator(widget, error)))
 
@@ -730,7 +753,10 @@ class MicrosimGUI(Tk):
         :return: None
         """
         for widget, tooltip in self.error_tooltips:
-            widget.config(bg='white', fg='black')  # Turn background of entry widgets white
+            try:
+                widget.config(bg='white', fg='black')  # Turn background of entry widgets white
+            except TclError:
+                widget.config(style='MSCheckbutton.TCheckbutton')
             tooltip.hidetip()  # Remove any error tooltips created
 
         self.error_tooltips = []
@@ -1790,33 +1816,33 @@ class LeaveTypesFrame(ttk.LabelFrame):
 
         # ----------------------------------------------- Own Health ------------------------------------------------
         tip = ''
-        own_health_input = TipCheckButton(self, tip, text='Own Health', variable=variables['own_health'])
-        own_health_input.grid(row=0, column=0, sticky=W, pady=row_padding, padx=(12, 15))
+        self.own_health_input = TipCheckButton(self, tip, text='Own Health', variable=variables['own_health'])
+        self.own_health_input.grid(row=0, column=0, sticky=W, pady=row_padding, padx=(12, 15))
 
         # ------------------------------------------------ Maternity ------------------------------------------------
         tip = ''
-        maternity_input = TipCheckButton(self, tip, text='Maternity', variable=variables['maternity'])
-        maternity_input.grid(row=0, column=1, sticky=W, pady=row_padding, padx=15)
+        self.maternity_input = TipCheckButton(self, tip, text='Maternity', variable=variables['maternity'])
+        self.maternity_input.grid(row=0, column=1, sticky=W, pady=row_padding, padx=15)
 
         # ------------------------------------------------ New Child ------------------------------------------------
         tip = ''
-        new_child_input = TipCheckButton(self, tip, text='New Child', variable=variables['new_child'])
-        new_child_input.grid(row=0, column=2, sticky=W, pady=row_padding, padx=15)
+        self.new_child_input = TipCheckButton(self, tip, text='New Child', variable=variables['new_child'])
+        self.new_child_input.grid(row=0, column=2, sticky=W, pady=row_padding, padx=15)
 
         # ------------------------------------------------ Ill Child ------------------------------------------------
         tip = ''
-        ill_child_input = TipCheckButton(self, tip, text='Ill Child', variable=variables['ill_child'])
-        ill_child_input.grid(row=1, column=0, sticky=W, pady=row_padding, padx=(12, 15))
+        self.ill_child_input = TipCheckButton(self, tip, text='Ill Child', variable=variables['ill_child'])
+        self.ill_child_input.grid(row=1, column=0, sticky=W, pady=row_padding, padx=(12, 15))
 
         # ----------------------------------------------- Ill Spouse ------------------------------------------------
         tip = ''
-        ill_spouse_input = TipCheckButton(self, tip, text='Ill Spouse', variable=variables['ill_spouse'])
-        ill_spouse_input.grid(row=1, column=1, sticky=W, pady=row_padding, padx=15)
+        self.ill_spouse_input = TipCheckButton(self, tip, text='Ill Spouse', variable=variables['ill_spouse'])
+        self.ill_spouse_input.grid(row=1, column=1, sticky=W, pady=row_padding, padx=15)
 
         # ----------------------------------------------- Ill Parent ------------------------------------------------
         tip = ''
-        ill_parent_input = TipCheckButton(self, tip, text='Ill Parent', variable=variables['ill_parent'])
-        ill_parent_input.grid(row=1, column=2, sticky=W, pady=row_padding, padx=15)
+        self.ill_parent_input = TipCheckButton(self, tip, text='Ill Parent', variable=variables['ill_parent'])
+        self.ill_parent_input.grid(row=1, column=2, sticky=W, pady=row_padding, padx=15)
 
 
 class BenefitFinancingFrame(ttk.LabelFrame):
