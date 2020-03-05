@@ -2,7 +2,6 @@ import copy
 from tkinter import E, W
 import importlib
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 
 
@@ -210,10 +209,6 @@ class OtherParameters(Parameters):
         else:
             self.max_weeks = max_weeks
         if take_up_rates is None:
-            # # for demo using RI take up data
-            # self.take_up_rates = {'Own Health': 0.0839, 'Maternity': 0.0280, 'New Child': 0.0106,
-            #                       'Ill Child': 0.0006, 'Ill Spouse': 0.0016, 'Ill Parent': 0.0010}
-
             # NJ take up
             self.take_up_rates = {'Own Health': 0.0219, 'Maternity': 0.0077, 'New Child': 0.0081,
                                   'Ill Child': 0.0005, 'Ill Spouse': 0.0005, 'Ill Parent': 0.0006}

@@ -22,3 +22,4 @@ test_logit.R
 test_r_python.py
 *.swp
 MicrosimTest.py
+config.ini

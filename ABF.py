@@ -200,7 +200,6 @@ class ABF:
         if rerun and variables is not None:
             self.update_parameters(**variables)
 
-        # TODO: Chunk this to prevent memory overflow
         # Create Class variable to aggregate the COW variable for display purposes
         if not rerun:
             self.clean_data(chunksize=chunksize)
@@ -239,7 +238,7 @@ class ABF:
         if self.output_dir is None:
             raise FileNotFoundError
 
-        self.abf_output.to_csv(os.path.join(output_dir, 'abf_summary.csv'), index=False)
+        self.abf_output.to_csv(os.path.join(output_dir, 'abf_summary.csv'))
 
     def get_abf_fp(self, output_dir=None):
         if output_dir is None:

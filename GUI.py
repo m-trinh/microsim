@@ -7,6 +7,8 @@ import multiprocessing
 import ast
 import queue
 import subprocess
+import configparser
+import pandas as pd
 from abc import ABCMeta, abstractmethod
 from _5_simulation import SimulationEngine
 from ABF import ABF
@@ -27,23 +29,27 @@ class MicrosimGUI(Tk):
         """Create main window"""
 
         super().__init__(*args, **kwargs)
-        # TODO: Remove R file location
         # Create general parameters object which will be shared across comparison simulations
-        self.general_params = GeneralParameters(fmla_file='./data/fmla_2012/fmla_2012_employee_revised_puf.csv',
-                                                acs_directory='./data/acs', output_directory='./output',
-                                                r_path='/Users/mtrinh/R-3.6.1/bin/Rscript.exe', state='All')
+        self.general_params = GeneralParameters()
         # These are the default parameters object that will be used to fill inputs upon initial load
         self.default_params = OtherParameters()
+        self.config_fp = 'config.ini'
+        self.config = configparser.ConfigParser()
+
+        self.showing_advanced = False  # Whether or not advanced parameters are being shown
 
         # When comparing multiple simulations, keep track of each simulation's parameters
         self.all_params = [self.default_params]
         self.comparing = False
         self.current_sim_num = 0
 
+        self.currently_running = False  # Whether or not a simulation is currently running
+
         self.error_tooltips = []  # Tooltips that are used to tell users when they enter an invalid value
 
         self.current_tab = 0  # Set the current visible tab to 0, which is the Program tab
         self.variables = self.create_variables()  # Create the variables that will be tied to each input
+        self.load_config()  # Load configurations file
         self.set_up_style()  # Set up styles for ttk widgets
 
         self.title('Paid Leave Micro-Simulator')  # Add title to window
@@ -69,7 +75,6 @@ class MicrosimGUI(Tk):
         self.simulation_comparison = ComparisonFrame(self.content, bg=DARK_COLOR)
         # This notebook will have three tabs for the program, population, and simulation parameters
         self.parameter_notebook = ParameterNotebook(self.content)
-        self.showing_advanced = False
         self.advanced_frame = AdvancedFrame(self.content, self.toggle_advanced_parameters)
         self.run_button = RunButton(self.content, text="Run", height=1, command=self.run_simulation)
 
@@ -85,8 +90,17 @@ class MicrosimGUI(Tk):
         self.advanced_frame.pack(anchor=E, pady=(0, 6))
         self.run_button.pack(anchor=E, fill=Y)
 
-        center_window(self)  # Position window in middle of the screen
+        self.update_idletasks()
         self.original_height = self.winfo_height()  # Need to keep track of original height of window when resizing
+
+        # Display the advanced parameters
+        try:
+            if self.config['PREFERENCES'].getboolean('showing_advanced'):
+                self.toggle_advanced_parameters()
+        except ValueError:
+            self.config['PREFERENCES']['showing_advanced'] = 'False'
+
+        center_window(self)  # Position window in middle of the screen
 
         self.abf_module = self.sim_engine = self.engine_process = self.current_state = None
         self.check_file_entries()  # Check the file entries on start to disable run button if necessary
@@ -99,6 +113,7 @@ class MicrosimGUI(Tk):
         style.configure('MSCombobox.TCombobox', relief='flat')
         style.configure('MSCheckbutton.TCheckbutton', background=VERY_LIGHT_COLOR, font='-size 12')
         style.configure('MSCheckbuttonSmall.TCheckbutton', background=VERY_LIGHT_COLOR, font='-size 10 -weight bold')
+        style.configure('MSCheckbuttonRed.TCheckbutton', background='red', foreground='white', font='-size 12')
         style.configure('DarkCheckbutton.TCheckbutton', background=DARK_COLOR, foreground=LIGHT_COLOR, font='-size 12')
         style.configure('MSNotebook.TNotebook', background=VERY_LIGHT_COLOR)
         style.configure('MSNotebook.TNotebook.Tab', font='-size 12', padding=(4, 0))
@@ -164,6 +179,7 @@ class MicrosimGUI(Tk):
             'leave_probability_factors': {leave_type: DoubleVar(value=d.leave_probability_factors[leave_type])
                                           for leave_type in LEAVE_TYPES},
             'dependency_allowance': BooleanVar(value=d.dependency_allowance),
+            'dependency_allowance_profile': [],
             'wait_period': IntVar(value=d.wait_period),
             'recollect': BooleanVar(value=d.recollect),
             'min_cfl_recollect': StringVar(value=d.min_cfl_recollect),
@@ -181,13 +197,18 @@ class MicrosimGUI(Tk):
             self.variables['fmla_file'].trace("w", self.check_file_entries)
             self.variables['acs_directory'].trace("w", self.check_file_entries)
             self.variables['output_directory'].trace("w", self.check_file_entries)
+            self.variables['r_path'].trace("w", self.check_file_entries)
+
+            # When users change the existing_program variable, change all parameters to match an existing state program
+            self.variables['existing_program'].trace('w', self.set_existing_parameters)
+            self.variables['state'].trace('w', self.save_config)
         else:
             self.variables['fmla_file'].trace_add("write", self.check_file_entries)
             self.variables['acs_directory'].trace_add("write", self.check_file_entries)
             self.variables['output_directory'].trace_add("write", self.check_file_entries)
-
-        # When users change the existing_program variable, change all parameters to match an existing state program
-        self.variables['existing_program'].trace('w', self.set_existing_parameters)
+            self.variables['r_path'].trace_add("write", self.check_file_entries)
+            self.variables['existing_program'].trace_add('write', self.set_existing_parameters)
+            self.variables['state'].trace_add('write', self.save_config)
 
     def on_close(self):
         """When the main window is closed, destroy all progress and result windows. Also destroy main window."""
@@ -209,8 +230,7 @@ class MicrosimGUI(Tk):
             return
         state_params = DEFAULT_STATE_PARAMS[state].copy()
         dependency_profile = state_params.pop('dependency_allowance_profile')
-        self.parameter_notebook.program_frame.dep_allowance_frame.remove_all_dependents()
-        self.parameter_notebook.program_frame.dep_allowance_frame.add_dependents(dependency_profile)
+        self.update_dependency_allowance_profile(dependency_profile)
 
         for param_key, param_val in state_params.items():
             # If value for the parameter is a dictionary, then traverse that dictionary
@@ -235,6 +255,8 @@ class MicrosimGUI(Tk):
         self.save_general_parameters()
         self.save_params()
         self.current_state = self.general_params.state
+
+        self.currently_running = True
 
         # Run either to Python or R engine
         if self.general_params.engine_type == 'Python':
@@ -287,6 +309,7 @@ class MicrosimGUI(Tk):
     def show_results(self, engine='Python'):
         """Display the results of the simulation"""
         self.engine_process.terminate()  # End the process that ran engine
+        self.currently_running = False
 
         # Compute program costs
         print('Showing results')
@@ -316,9 +339,7 @@ class MicrosimGUI(Tk):
         """Create an object to store the non-general parameter values"""
         # The inputs are linked to a tkinter variable. Those values will have to be retrieved from each variable
         # and passed on to the parameter objects.
-        variable_values = {
-            'dependency_allowance_profile': self.parameter_notebook.program_frame.dep_allowance_frame.get_profile()
-        }
+        variable_values = {}
         valid_var_names = vars(self.default_params).keys()  # Only use non-general parameters
         for var_name, var_obj in self.variables.items():
             if var_name not in valid_var_names:
@@ -333,6 +354,8 @@ class MicrosimGUI(Tk):
                     variable_values[var_name] = int(var_obj.get())
                 except ValueError:
                     variable_values[var_name] = None
+            elif var_name == 'dependency_allowance_profile':
+                variable_values[var_name] = self.parameter_notebook.program_frame.dep_allowance_frame.get_profile()
             else:
                 variable_values[var_name] = var_obj.get()
 
@@ -391,6 +414,9 @@ class MicrosimGUI(Tk):
             if type(param_val) == dict:
                 for k, v in param_val.items():
                     self.variables[param_key][k].set(v)
+            elif param_key == 'dependency_allowance_profile':
+                self.variables[param_key] = param_val
+                self.update_dependency_allowance_profile(param_val)
             else:
                 self.variables[param_key].set(param_val)
 
@@ -407,9 +433,24 @@ class MicrosimGUI(Tk):
         self.general_params.update_variables(**variable_values)
 
     def save_params(self):
+        """Save the non=general parameters for the current comparison program
+
+        :return: OtherParameters()
+        """
         params = self.create_params()
         self.all_params[self.current_sim_num] = params
         return params
+
+    def update_dependency_allowance_profile(self, profile):
+        """Update dependency allowance frame to create profile widgets based on profile list
+
+        :param profile: list, required
+            Dependency allowance profile. Can be empty.
+        :return: None
+        """
+
+        self.parameter_notebook.program_frame.dep_allowance_frame.remove_all_dependents()
+        self.parameter_notebook.program_frame.dep_allowance_frame.add_dependents(profile)
 
     @staticmethod
     def check_random_seed(random_seed):
@@ -534,9 +575,21 @@ class MicrosimGUI(Tk):
         button."""
         if self.variables['fmla_file'].get() and self.variables['acs_directory'].get() and \
                 self.variables['output_directory'].get():
-            self.run_button.enable()
+
+            if self.variables['engine_type'].get() == 'R':
+                if self.variables['r_path'].get():
+                    self.run_button.enable()
+                else:
+                    self.run_button.disable()
+            else:
+                self.run_button.enable()
         else:
             self.run_button.disable()
+
+        if self.currently_running:
+            self.run_button.disable()
+
+        self.save_config()
 
     def validate_inputs(self):
         """Checks each entry value for correct data type and range.
@@ -568,7 +621,8 @@ class MicrosimGUI(Tk):
                          self.parameter_notebook.program_frame.benefit_financing_frame.average_state_tax_input]
 
         # These are the inputs expecting decimal values between 0 and 1
-        rate_entries = [self.parameter_notebook.program_frame.replacement_ratio_input]
+        rate_entries = [self.parameter_notebook.program_frame.replacement_ratio_input,
+                        self.parameter_notebook.population_frame.dual_receivers_share_input]
         rate_entries += [entry for entry in self.parameter_notebook.population_frame.take_up_rates_inputs]
         rate_entries += [p.input for p in self.parameter_notebook.program_frame.dep_allowance_frame.profiles]
         # rate_entries += [entry for entry in self.parameter_notebook.population_frame.leave_probability_factors_inputs]
@@ -594,6 +648,24 @@ class MicrosimGUI(Tk):
         if not self.validate_float(self.parameter_notebook.population_frame.alpha_input.get()):
             errors.append((self.parameter_notebook.population_frame.alpha_input,
                            'This field should contain a real number'))
+
+        errors = self.validate_leave_types(errors)
+        return errors
+
+    def validate_leave_types(self, errors):
+        if not (self.variables['own_health'].get() or self.variables['maternity'].get() or
+                self.variables['new_child'].get() or self.variables['ill_child'].get() or
+                self.variables['ill_spouse'].get() or self.variables['ill_parent'].get()):
+            leave_types_frame = self.parameter_notebook.program_frame.leave_types_frame
+            leave_type_inputs = [leave_types_frame.own_health_input,
+                                 leave_types_frame.maternity_input,
+                                 leave_types_frame.new_child_input,
+                                 leave_types_frame.ill_child_input,
+                                 leave_types_frame.ill_spouse_input,
+                                 leave_types_frame.ill_parent_input]
+
+            for entry in leave_type_inputs:
+                errors.append((entry, 'At least one leave type needs to be selected.'))
 
         return errors
 
@@ -665,7 +737,10 @@ class MicrosimGUI(Tk):
         :return: None
         """
         for widget, error in errors:
-            widget.config(bg='red', fg='white')  # Change color of input with invalid value to red
+            try:
+                widget.config(bg='red', fg='white')  # Change color of input with invalid value to red
+            except TclError:
+                widget.config(style='MSCheckbuttonRed.TCheckbutton')
             # Add a tooltip to input to explain problem
             self.error_tooltips.append((widget, ToolTipCreator(widget, error)))
 
@@ -678,7 +753,10 @@ class MicrosimGUI(Tk):
         :return: None
         """
         for widget, tooltip in self.error_tooltips:
-            widget.config(bg='white', fg='black')  # Turn background of entry widgets white
+            try:
+                widget.config(bg='white', fg='black')  # Turn background of entry widgets white
+            except TclError:
+                widget.config(style='MSCheckbutton.TCheckbutton')
             tooltip.hidetip()  # Remove any error tooltips created
 
         self.error_tooltips = []
@@ -720,32 +798,111 @@ class MicrosimGUI(Tk):
         """Hides inputs that are for advanced users"""
         self.general_params_frame.hide_advanced_parameters()
         self.parameter_notebook.hide_advanced_parameters()
+        self.update_idletasks()
+        self.minsize(self.winfo_width(), self.original_height)  # Return minimum height to original value
 
     def show_advanced_parameters(self):
         """Reveals inputs that are for advanced users"""
         self.general_params_frame.show_advanced_parameters()
         self.parameter_notebook.show_advanced_parameters()
+        self.update_idletasks()
+        # Return minimum height to account for new widgets
+        height_change = 200
+        self.minsize(self.winfo_width(), self.original_height + height_change)
 
     def toggle_advanced_parameters(self):
         """Switches between either showing or hiding advanced inputs"""
         # When more inputs are added to the main window, they will take up space. This causes certain widgets to
         # shrink or even disappear. So we need to increase the window size
-        height_change = 150
         if self.showing_advanced:
             self.showing_advanced = False
             self.hide_advanced_parameters()
-            self.update_idletasks()
-            self.minsize(self.winfo_width(), self.original_height)  # Return minimum height to original value
         else:
             self.showing_advanced = True
             self.show_advanced_parameters()
-            self.update_idletasks()
-            # Return minimum height to account for new widgets
-            self.minsize(self.winfo_width(), self.original_height + height_change)
 
         # Change the color for the On and Off buttons in the Advanced Parameters frame
         self.advanced_frame.on_button.toggle()
         self.advanced_frame.off_button.toggle()
+        self.save_config()
+
+    def create_config(self):
+        """Create a configuration file with default values"""
+
+        # Set default values for configurations
+        self.config['PATHS'] = {
+            'fmla_file': '',
+            'acs_directory': '',
+            'output_directory': '',
+            'r_path': ''
+        }
+
+        self.config['PREFERENCES'] = {
+            'showing_advanced': 'False'
+        }
+
+        self.config['PARAMS'] = {
+            'state': '',
+            'engine_type': 'Python'
+        }
+
+        # Save configurations
+        with open(self.config_fp, 'w') as f:
+            self.config.write(f)
+
+    def read_config(self):
+        """Read a configuration file if it exists"""
+
+        if not os.path.exists(self.config_fp):
+            self.create_config()  # Create configuration file if it doesn't exist
+        else:
+            self.config.read(self.config_fp)  # Read configuration file
+
+    def load_config(self):
+        """Edit the parameter values based on values saved in the configurations file"""
+
+        try:
+            self.read_config()  # Read existing configuration file
+
+            # Set path values
+            for param, path in self.config['PATHS'].items():
+                self.variables[param].set(path)
+
+            # Set other parameter values
+            for param, value in self.config['PARAMS'].items():
+                self.variables[param].set(value)
+        except Exception as e:
+            # If there is an error with loading the configuration file, then just create a new one
+            print('Error loading config.ini')
+            print(type(e).__name__ + ':', e)
+            self.create_config()
+
+    def save_config(self, *_):
+        """Save parameter values into a configurations file so that user doesn't have to reenter them next time they
+        start the app"""
+
+        # Create sections if they don't exist. Something had to have gone wrong to trigger this.
+        sections = ['PATHS', 'PREFERENCES', 'PARAMS']
+        for section in sections:
+            if section not in self.config:
+                self.config[section] = {}
+
+        # Save paths
+        paths_to_save = ['fmla_file', 'acs_directory', 'output_directory', 'r_path']
+        for path in paths_to_save:
+            self.config['PATHS'][path] = self.variables[path].get()
+
+        # Save other parameters
+        params_to_save = ['state', 'engine_type']
+        for param in params_to_save:
+            self.config['PARAMS'][param] = str(self.variables[param].get())
+
+        # Save whether or not advanced parameters are showing
+        self.config['PREFERENCES']['showing_advanced'] = str(self.showing_advanced)
+
+        # Save configurations file
+        with open(self.config_fp, 'w') as f:
+            self.config.write(f)
 
 
 class GeneralParamsFrame(Frame):
@@ -807,9 +964,13 @@ class GeneralParamsFrame(Frame):
               'this state will be chosen from the input and  output files.'
         self.state_label = TipLabel(self, tip, text='State to Simulate:', bg=DARK_COLOR, fg=LIGHT_COLOR)
         self.state_input = ttk.Combobox(self, textvariable=self.variables['state'], state="readonly", width=5,
-                                        values=self.states) # value=self.states
-        self.state_input.current(self.states.index('RI'))
-        #self.state_input.current(0)
+                                        values=self.states)
+
+        # Set current value for state combobox
+        try:
+            self.state_input.current(self.states.index(self.variables['state'].get()))
+        except (TclError, ValueError):
+            self.state_input.current(0)
 
         # ---------------------------------------------- State of Work ----------------------------------------------
         tip = 'Whether or not the analysis is to be done for persons who work in particular state – ' \
@@ -842,8 +1003,14 @@ class GeneralParamsFrame(Frame):
         self.engine_type_label = TipLabel(self, tip, text='Engine Type:', bg=DARK_COLOR, fg=LIGHT_COLOR)
         self.engine_type_input = ttk.Combobox(self, textvariable=self.variables['engine_type'], state="readonly",
                                               width=7, values=['Python', 'R'])
-        self.engine_type_input.current(0)
 
+        # Set current value of engine type combobox
+        if self.variables['engine_type'].get() == 'Python':
+            self.engine_type_input.current(0)
+        else:
+            self.engine_type_input.current(1)
+
+        # ------------------------------------------------- R Path --------------------------------------------------
         tip = 'The Rscript path on your system.'
         self.r_path_label = TipLabel(self, tip, text="Rscript Path:", bg=DARK_COLOR, fg=LIGHT_COLOR)
         self.r_path_input = GeneralEntry(self, textvariable=self.variables['r_path'])
@@ -935,13 +1102,15 @@ class GeneralParamsFrame(Frame):
     def toggle_r_path(self, *_):
         """Either reveals or hides the widgets related to specifying path of Rscript.exe"""
         if self.variables['engine_type'].get() == 'R':
-            self.r_path_label.grid(column=0, row=10, sticky=W, pady=self.row_padding)
-            self.r_path_input.grid(column=1, row=10, padx=8, sticky=(E, W), pady=self.row_padding)
-            self.r_path_button.grid(column=4, row=10, pady=self.row_padding)
+            self.r_path_label.grid(column=0, row=13, sticky=W, pady=self.row_padding)
+            self.r_path_input.grid(column=1, row=13, padx=8, sticky=(E, W), pady=self.row_padding)
+            self.r_path_button.grid(column=4, row=13, pady=self.row_padding)
         else:
             self.r_path_label.grid_forget()
             self.r_path_input.grid_forget()
             self.r_path_button.grid_forget()
+
+        self.winfo_toplevel().check_file_entries()
 
 
 class ComparisonFrame(Frame):
@@ -1576,6 +1745,7 @@ class SimulationFrame(NotebookFrame):
 
 class EmployeeTypesFrame(ttk.LabelFrame):
     def __init__(self, parent, variables, row_padding=4, **kwargs):
+        """Frame to hold the type of employees eligible for the leave program"""
         super().__init__(parent, **kwargs)
         self.variables = variables
         # -------------------------------------------- Private Employees --------------------------------------------
@@ -1614,6 +1784,7 @@ class EmployeeTypesFrame(ttk.LabelFrame):
         tip = 'Whether or not self employed workers are eligible for program.'
         self.self_employed_input = TipCheckButton(self, tip, text="Self Employed", variable=variables['self_employed'])
 
+        # Add input widgets to the parent widget
         self.private_input.pack(pady=(row_padding, 0), padx=(12, 0), anchor=W)
         self.self_employed_input.pack(pady=(row_padding, 0), padx=(12, 0), anchor=W)
         self.government_employees_input.pack(pady=(row_padding, 0), padx=(12, 0), anchor=W)
@@ -1643,29 +1814,35 @@ class LeaveTypesFrame(ttk.LabelFrame):
         """Frame to hold inputs related to leave type parameters"""
         super().__init__(parent, **kwargs)
 
+        # ----------------------------------------------- Own Health ------------------------------------------------
         tip = ''
-        own_health_input = TipCheckButton(self, tip, text='Own Health', variable=variables['own_health'])
-        own_health_input.grid(row=0, column=0, sticky=W, pady=row_padding, padx=(12, 15))
+        self.own_health_input = TipCheckButton(self, tip, text='Own Health', variable=variables['own_health'])
+        self.own_health_input.grid(row=0, column=0, sticky=W, pady=row_padding, padx=(12, 15))
 
+        # ------------------------------------------------ Maternity ------------------------------------------------
         tip = ''
-        maternity_input = TipCheckButton(self, tip, text='Maternity', variable=variables['maternity'])
-        maternity_input.grid(row=0, column=1, sticky=W, pady=row_padding, padx=15)
+        self.maternity_input = TipCheckButton(self, tip, text='Maternity', variable=variables['maternity'])
+        self.maternity_input.grid(row=0, column=1, sticky=W, pady=row_padding, padx=15)
 
+        # ------------------------------------------------ New Child ------------------------------------------------
         tip = ''
-        new_child_input = TipCheckButton(self, tip, text='New Child', variable=variables['new_child'])
-        new_child_input.grid(row=0, column=2, sticky=W, pady=row_padding, padx=15)
+        self.new_child_input = TipCheckButton(self, tip, text='New Child', variable=variables['new_child'])
+        self.new_child_input.grid(row=0, column=2, sticky=W, pady=row_padding, padx=15)
 
+        # ------------------------------------------------ Ill Child ------------------------------------------------
         tip = ''
-        ill_child_input = TipCheckButton(self, tip, text='Ill Child', variable=variables['ill_child'])
-        ill_child_input.grid(row=1, column=0, sticky=W, pady=row_padding, padx=(12, 15))
+        self.ill_child_input = TipCheckButton(self, tip, text='Ill Child', variable=variables['ill_child'])
+        self.ill_child_input.grid(row=1, column=0, sticky=W, pady=row_padding, padx=(12, 15))
 
+        # ----------------------------------------------- Ill Spouse ------------------------------------------------
         tip = ''
-        ill_spouse_input = TipCheckButton(self, tip, text='Ill Spouse', variable=variables['ill_spouse'])
-        ill_spouse_input.grid(row=1, column=1, sticky=W, pady=row_padding, padx=15)
+        self.ill_spouse_input = TipCheckButton(self, tip, text='Ill Spouse', variable=variables['ill_spouse'])
+        self.ill_spouse_input.grid(row=1, column=1, sticky=W, pady=row_padding, padx=15)
 
+        # ----------------------------------------------- Ill Parent ------------------------------------------------
         tip = ''
-        ill_parent_input = TipCheckButton(self, tip, text='Ill Parent', variable=variables['ill_parent'])
-        ill_parent_input.grid(row=1, column=2, sticky=W, pady=row_padding, padx=15)
+        self.ill_parent_input = TipCheckButton(self, tip, text='Ill Parent', variable=variables['ill_parent'])
+        self.ill_parent_input.grid(row=1, column=2, sticky=W, pady=row_padding, padx=15)
 
 
 class BenefitFinancingFrame(ttk.LabelFrame):
@@ -1714,18 +1891,22 @@ class DependencyAllowanceFrame(Frame):
         super().__init__(parent, bg=bg, **kwargs)
         self.parent = parent
         self.variables = variables
-        self.max_dependents = 7
+        self.max_dependents = 7  # Max number of dependents that can be added to the profile
 
+        # ------------------------------------------ Dependency Allowance -------------------------------------------
         tip = 'Check this box to enable additional wage replacement for eligible dependents of applicant.'
         self.dependency_allowance_input = TipCheckButton(self, tip, text='Dependency Allowance',
                                                          variable=variables['dependency_allowance'])
         self.dependency_allowance_input.pack(anchor=W)
 
+        # If the dependency allowance box is checked, then the profile input will be shown
         variables['dependency_allowance'].trace('w', self.toggle_dependency_allowance_profile)
 
+        # -------------------------------------- Dependency Allowance Profile ---------------------------------------
         self.profiles = []
         self.profile_frame = Frame(self, bg=VERY_LIGHT_COLOR)
 
+        # Labels that describe the profile inputs
         self.labels_frame = Frame(self.profile_frame, bg=VERY_LIGHT_COLOR)
         self.labels_frame.grid(row=0, column=0, sticky=E, padx=2)
         Label(self.labels_frame, text='Dependents', bg=VERY_LIGHT_COLOR, font='-size 10 -weight bold').\
@@ -1733,6 +1914,7 @@ class DependencyAllowanceFrame(Frame):
         Label(self.labels_frame, text='Replacement Ratio', bg=VERY_LIGHT_COLOR, font='-size 10 -weight bold').\
             pack(side=TOP, anchor=E, pady=2)
 
+        # Frame to hold buttons to add or remove profile inputs
         self.buttons_frame = Frame(self.profile_frame, bg=VERY_LIGHT_COLOR)
         self.add_button = Button(self.buttons_frame, text=u'\uFF0B', font='-size 9 -weight bold', relief='flat',
                                  background='#00e600', width=3, padx=0, pady=0, highlightthickness=0,
@@ -1745,65 +1927,95 @@ class DependencyAllowanceFrame(Frame):
         self.buttons_frame.grid(row=0, column=1, padx=2, sticky=E)
 
     def add_dependent(self):
-        if len(self.profiles) >= self.max_dependents:
+        """Add a dependent level to the dependency allowance profile"""
+        if len(self.profiles) >= self.max_dependents:  # Don't add if maces is reached
             return
 
+        # Remove the '+' from the last profile level before adding new level. So '1+' becomes '1'
         if len(self.profiles) > 0:
             self.profiles[-1].remove_plus()
 
+        # Create new dependency level and add to profile frame
         profile = DependencyAllowanceProfileFrame(self.profile_frame, len(self.profiles) + 1)
         self.profiles.append(profile)
         profile.grid(row=0, column=len(self.profiles), padx=2)
-        self.move_buttons_frame()
+        self.move_buttons_frame()  # Move the add and remove buttons
 
     def remove_dependent(self):
+        """Remove the last dependent level"""
         if len(self.profiles) > 0:
             removed_dependent = self.profiles.pop(-1)
             removed_dependent.destroy()
-            self.move_buttons_frame()
+            self.move_buttons_frame()  # Move the add and remove buttons
 
+        # Add a plus sign to the last dependent level label. So if it is '1', it becomes '1+'.
         if len(self.profiles) > 0:
             self.profiles[-1].add_plus()
 
     def add_dependents(self, profiles):
+        """Add dependency levels based on profile list
+
+        :param profiles: list, required
+            Dependency allowance profile. Can be empty.
+        :return:
+        """
         for i in range(len(profiles)):
             if len(self.profiles) < self.max_dependents:
                 self.add_dependent()
-                self.profiles[-1].variable.set(profiles[i])
+                self.profiles[-1].replacement_ratio.set(profiles[i])
 
     def remove_all_dependents(self):
+        """Remove all dependency levels"""
         for i in range(len(self.profiles)):
             self.remove_dependent()
 
     def move_buttons_frame(self):
+        """Move frame that holds add and remove buttons to the right"""
         self.buttons_frame.grid(row=0, column=len(self.profiles) + 1)
 
     def toggle_dependency_allowance_profile(self, *_):
+        """Display or hide the dependency allowance profile frame depending on whether the dependency allowance input
+        is checked"""
         if self.variables['dependency_allowance'].get():
             self.profile_frame.pack(fill=X, padx=(15, 0))
         else:
             self.profile_frame.pack_forget()
+
+        # Need to update the scroll region whenever adding or removing widgets from a scroll frame
         self.parent.master.update_scroll_region()
 
     def get_profile(self):
-        return [x.variable.get() for x in self.profiles]
+        """Returns values from dependency allowance profile inputs as a list
+
+        :return: list
+        """
+        return [x.replacement_ratio.get() for x in self.profiles]
 
 
 class DependencyAllowanceProfileFrame(Frame):
     def __init__(self, parent, num, **kwargs):
-        """"""
+        """Frame that holds information about a dependency profile level
+
+        :param parent: Tk widget
+        :param num: Number of dependents
+        :param kwargs: Other widget options
+        """
+
         super().__init__(parent, bg=VERY_LIGHT_COLOR, width=10, **kwargs)
         self.num = num
-        self.variable = DoubleVar(value=0.0)
+        self.replacement_ratio = DoubleVar(value=0.0)
         self.label = Label(self, text=str(num) + '+', bg=VERY_LIGHT_COLOR, font='-size 10 -weight bold')
         self.label.pack(side=TOP, pady=2)
-        self.input = NotebookEntry(self, textvariable=self.variable, width=5, font='-size 10', justify='center')
+        self.input = NotebookEntry(self, textvariable=self.replacement_ratio, width=5, font='-size 10',
+                                   justify='center')
         self.input.pack(side=TOP, pady=2)
 
     def add_plus(self):
+        """Add a plus sign to the dependency level label"""
         self.label.config(text=str(self.num) + '+')
 
     def remove_plus(self):
+        """Remove the plus sign from the dependency level label"""
         self.label.config(text=str(self.num))
 
 
@@ -2012,13 +2224,15 @@ class PopulationAnalysis(ScrollFrame):
             fig.canvas.flush_events()
 
     def get_population_analysis_results(self, output_fp, types=None, chunksize=100000):
-        """
+        """Get the number of leave days per person from simulation results
 
         :param output_fp: str, required
             Name of simulated individual results
         :param types: list of str, default None
             Each element in list is a leave type
-        :return: pd.DataFrame
+        :param chunksize: int, default 100000
+            Number of rows to load into memory at once
+        :return: (list of leave days, list of weights)
         """
         # Read in simulated acs, this is just df returned from get_acs_simulated()
         if types is None:
