@@ -480,8 +480,8 @@ class SimulationEngine:
                 acs.loc[acs['dual_receiver'] == 1, 'cpl_%s' % t] = \
                     [max(x, 0) for x in (acs.loc[acs['dual_receiver'] == 1, 'cfl_%s' % t] - wait_period).values]
                 if recollect:
-                    acs.loc[(acs['dual_receiver'] == 1) & (acs['cfl_%s' % t] >= 15), 'cpl_%s' % t] = \
-                        acs.loc[(acs['dual_receiver'] == 1) & (acs['cfl_%s' % t] >= 15), 'cfl_%s' % t]
+                    acs.loc[(acs['dual_receiver'] == 1) & (acs['cfl_%s' % t] >= min_cfl_recollect), 'cpl_%s' % t] = \
+                        acs.loc[(acs['dual_receiver'] == 1) & (acs['cfl_%s' % t] >= min_cfl_recollect), 'cfl_%s' % t]
                 # later will apply cap of coverage period (in weeks)
 
             # Simulate cf-len for single receivers among anypay=1
@@ -510,9 +510,9 @@ class SimulationEngine:
                 # recollect if any
                 if recollect:
                     acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < acs['effective_rrp']) &
-                            (acs['cfl_%s' % t] >= 15), 'cpl_%s' % t] = \
+                            (acs['cfl_%s' % t] >= min_cfl_recollect), 'cpl_%s' % t] = \
                         acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < acs['effective_rrp']) &
-                                (acs['cfl_%s' % t] >= 15), 'cfl_%s' % t]
+                                (acs['cfl_%s' % t] >= min_cfl_recollect), 'cfl_%s' % t]
                 # later will apply cap of coverage period (in weeks)
 
             # Simulate cf-len for anypay=0 workers
@@ -528,8 +528,8 @@ class SimulationEngine:
                     [max(x, 0) for x in (acs.loc[(acs['anypay'] == 0), 'cfl_%s' % t] - wait_period).values]
                 # recollect if any
                 if recollect:
-                    acs.loc[(acs['anypay'] == 0) & (acs['cfl_%s' % t] >= 15), 'cpl_%s' % t] = \
-                        acs.loc[(acs['anypay'] == 0) & (acs['cfl_%s' % t] >= 15), 'cfl_%s' % t]
+                    acs.loc[(acs['anypay'] == 0) & (acs['cfl_%s' % t] >= min_cfl_recollect), 'cpl_%s' % t] = \
+                        acs.loc[(acs['anypay'] == 0) & (acs['cfl_%s' % t] >= min_cfl_recollect), 'cfl_%s' % t]
 
             # Set cp-len = 0 if missing
             for t in params['leave_types']:

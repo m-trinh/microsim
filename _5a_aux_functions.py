@@ -307,8 +307,6 @@ def get_sim_col(X, y, w, Xa, clf, random_state):
         # del Xa['nochildren']
         y = y[X.index]
         w = w[X.index]
-        print('-------- check a ------')
-        print(X.shape, Xa.shape)
     # if bond, reduce to rows that are child bearing/age<=50
     # remove nochildren from xvar
     elif y.name in ['take_bond', 'need_bond']:
