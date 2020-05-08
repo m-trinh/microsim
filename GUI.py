@@ -486,12 +486,13 @@ class MicrosimGUI(Tk):
         if state_of_work:
             fp_acsh_in = self.general_params.acs_directory + '/%s/pow_household_files' % yr
             fp_acsp_in = self.general_params.acs_directory + '/%s/pow_person_files' % yr
+        fp_dir_out = self.general_params.output_directory
         fp_fmla_out = './data/fmla_2012/fmla_clean_2012.csv'
         fp_cps_out = './data/cps/cps_for_acs_sim.csv'
         fp_acs_out = './data/acs/'
         fp_length_distribution_out = './data/fmla_2012/length_distributions_exact_days.json'
         fps_in = [fp_fmla_in, fp_cps_in, fp_acsh_in, fp_acsp_in]
-        fps_out = [fp_fmla_out, fp_cps_out, fp_acs_out, fp_length_distribution_out]
+        fps_out = [fp_dir_out, fp_fmla_out, fp_cps_out, fp_acs_out, fp_length_distribution_out]
 
         clf_name = self.general_params.simulation_method
         random_seed = self.general_params.random_seed
@@ -649,10 +650,35 @@ class MicrosimGUI(Tk):
             errors.append((self.parameter_notebook.population_frame.alpha_input,
                            'This field should contain a real number'))
 
-        errors = self.validate_leave_types(errors)
+        errors += self.validate_file_inputs()
+        errors += self.validate_leave_types()
         return errors
 
-    def validate_leave_types(self, errors):
+    def validate_file_inputs(self):
+        errors = []
+        file_inputs = [
+            self.general_params_frame.fmla_input,
+            self.general_params_frame.acs_input,
+            self.general_params_frame.output_directory_input
+        ]
+
+        if self.variables['engine_type'] == 'R':
+            file_inputs.append(self.general_params_frame.r_path_input)
+
+        for entry in file_inputs:
+            entry_val = entry.get()
+            if not os.path.exists(entry_val):
+                entry_val = os.path.expanduser(entry_val)
+                if os.path.exists(entry_val):
+                    entry.delete(0, END)  # Clear current value in entry widget
+                    entry.insert(0, entry_val)  # Add expanded user filepath to entry widget
+                else:
+                    errors.append((entry, 'The file or directory does not exist'))
+
+        return errors
+
+    def validate_leave_types(self):
+        errors = []
         if not (self.variables['own_health'].get() or self.variables['maternity'].get() or
                 self.variables['new_child'].get() or self.variables['ill_child'].get() or
                 self.variables['ill_spouse'].get() or self.variables['ill_parent'].get()):

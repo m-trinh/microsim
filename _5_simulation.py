@@ -59,11 +59,12 @@ class SimulationEngine:
         self.fp_cps_in = fps_in[1]
         self.fp_acsh_in = fps_in[2]  # directory only for ACS household file
         self.fp_acsp_in = fps_in[3]  # directory only for ACS person file
-        self.fp_fmla_out = fps_out[0]
-        self.fp_cps_out = fps_out[1]
-        self.fp_acs_out = fps_out[2]  # directory only for cleaned ACS file
+        self.fp_dir_out = fps_out[0]
+        self.fp_fmla_out = fps_out[1]
+        self.fp_cps_out = fps_out[2]
+        self.fp_acs_out = fps_out[3]  # directory only for cleaned ACS file
         # fp to length distributions in days estimated from restricted FMLA
-        self.fp_length_distribution_out = fps_out[3]
+        self.fp_length_distribution_out = fps_out[4]
         self.clf_name = clf_name
         self.state_of_work = state_of_work
         self.random_seed = random_state
@@ -139,7 +140,7 @@ class SimulationEngine:
         else:
             self.prog_para.append(params)
             sim_name = get_sim_name(self.sim_count).lower()
-            self.output_directories.append('./output/output_%s_%s' % (self.out_id, sim_name))
+            self.output_directories.append(os.path.join(self.fp_dir_out, 'output_%s_%s' % (self.out_id, sim_name)))
             self.sim_count += 1
 
     def delete_simulation_params(self, sim_num):
