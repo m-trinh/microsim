@@ -41,7 +41,15 @@ def get_kfold_yhat(X, y, clf, fold, random_state):
         # get sim col
         yhat_fold = get_sim_col(Xtr,ytr, wtr, Xts, clf, random_state=random_state)
         if 'matdis' in y.name:
-            yhat_fold = pd.Series(yhat_fold, index=Xts[Xts['female']==1].index, name=yhat.name)
+            yhat_fold = pd.Series(yhat_fold, index=Xts[(Xts['female']==1)
+                                                       & (Xts['nochildren']==0)
+                                                       & (Xts['age']<=50)].index, name=yhat.name)
+        elif 'bond' in y.name:
+            yhat_fold = pd.Series(yhat_fold, index=Xts[(Xts['nochildren']==0)
+                                                       & (Xts['age']<=50)].index, name=yhat.name)
+        elif 'spouse' in y.name:
+            yhat_fold = pd.Series(yhat_fold, index=Xts[(Xts['nevermarried']==0)
+                                                       & (Xts['divorced']==0)].index, name=yhat.name)
         else:
             yhat_fold = pd.Series(yhat_fold, index=yts.index, name=yhat.name)
 
@@ -98,14 +106,18 @@ def get_population_level_results(d, clf_name):
     return (clf_name, out)
 
 ## Individual level results of clf-based pred cols
-def get_individual_level_results(d, clf_name):
+def get_individual_level_results(d, clf_name, weighted_test=True):
     # clf_name: str name of classifier
+    # weigthed_test: if True then weight test sample using FMLA weights, default=False
     out = {}
     out['precision'], out['recall'], out['f1'] = {}, {}, {}
+    sample_weight = np.ones(d.shape[0])
+    if weighted_test:
+        sample_weight = d['weight']
     for v in ['taker', 'needer', 'resp_len']:
-        out['precision'][v] = precision_score(d[v], d['%s_hat' % v], sample_weight=d['weight'])
-        out['recall'][v] = recall_score(d[v], d['%s_hat' % v], sample_weight=d['weight'])
-        out['f1'][v] = f1_score(d[v], d['%s_hat' % v], sample_weight=d['weight'])
+        out['precision'][v] = precision_score(d[v], d['%s_hat' % v], sample_weight=sample_weight)
+        out['recall'][v] = recall_score(d[v], d['%s_hat' % v], sample_weight=sample_weight)
+        out['f1'][v] = f1_score(d[v], d['%s_hat' % v], sample_weight=sample_weight)
     return (clf_name, out)
 
 ## Random state
@@ -113,27 +125,27 @@ random_seed = 12345
 random_state = np.random.RandomState(random_seed)
 
 ## Read in FMLA data, get cols, fillna
-d = pd.read_csv('./data/fmla_2012/fmla_clean_2012.csv')
+d = pd.read_csv('./data/fmla/fmla_2012/fmla_clean_2012.csv')
 d_raw = d.copy()
-col_Xs, col_ys, col_w = get_columns()
+types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
+col_Xs, col_ys, col_w = get_columns(types)
 d = d[col_Xs + col_ys + [col_w]]
 d = fillna_df(d, random_state=random_state)
 X, ys = d[col_Xs], d[col_ys]
 
 ## Set up
-fold = 4
+fold = 8
 part_size = int(round(len(d) / fold, 0))
-types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
 
 # classifiers
-clfs = ['random draw']
+clfs = [sklearn.dummy.DummyClassifier(strategy='stratified')]
 clfs += [sklearn.neighbors.KNeighborsClassifier(n_neighbors=1)]
 clfs += [sklearn.neighbors.KNeighborsClassifier(n_neighbors=5)]
 clfs += [sklearn.linear_model.LogisticRegression(solver='liblinear', multi_class='ovr', random_state=random_state)]
 clfs += [sklearn.naive_bayes.MultinomialNB()]
 clfs += [sklearn.ensemble.RandomForestClassifier(random_state=random_state)]
 clfs += [sklearn.linear_model.RidgeClassifier()]
-clfs += [sklearn.svm.SVC(probability=True, gamma='auto', random_state=random_state)]
+#clfs += [sklearn.svm.SVC(probability=True, gamma='auto', random_state=random_state)]
 
 ## Get output
 out_pop, out_ind = {}, {}
@@ -143,9 +155,11 @@ for clf in clfs:
         clf_name = clf.__class__.__name__
     else:
         clf_name = clf
-    print('Getting results for clf = %s' % clf_name)
     # get results
+    print('Getting results for clf = %s' % clf_name)
+    t0 = time()
     d = update_df_with_kfold_cols(d, col_Xs, col_ys, clf, random_state=random_state)
+    print('Time needed to get results = %s' % round((time()-t0), 0))
     clf_name, out_pop_clf = get_population_level_results(d, clf_name)
     clf_name, out_ind_clf = get_individual_level_results(d, clf_name)
     if isinstance(clf, sklearn.neighbors.KNeighborsClassifier):
@@ -154,9 +168,10 @@ for clf in clfs:
     out_ind[clf_name] = out_ind_clf
 
 # save as json
-with open('./draft/issue_briefs/issue_brief_2/results/pop_level.json', 'w') as f:
+dir_out = 'C:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_2/'
+with open(dir_out + 'results/pop_level_k%s.json' % fold, 'w') as f:
     json.dump(out_pop, f, sort_keys=True, indent=4)
-with open('./draft/issue_briefs/issue_brief_2/results/ind_level.json', 'w') as f:
+with open(dir_out + 'results/ind_level_k%s.json' % fold, 'w') as f:
     json.dump(out_ind, f, sort_keys=True, indent=4)
 
 #------------------------
@@ -171,17 +186,19 @@ from Utils import format_chart
 import json
 
 # fp out
-fp_out = './draft/issue_briefs/issue_brief_2/results/'
+fp_out = 'C:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_2/results/'
+# outfile suffix
+suffix = '_k%s_%s_%s' % (fold, 'KNNImputer', 'XtsUnweighted')
 
 # Pop level results - worker counts
-fp_p = './draft/issue_briefs/issue_brief_2/results/pop_level.json'
+fp_p = fp_out + 'pop_level_k%s.json' % fold
 with open(fp_p, 'r') as j:
     dp = json.load(j)
 dp_raw = dp.copy()
 dp = {k:v['pred'] for k, v in dp_raw.items()}
 dp = pd.DataFrame.from_dict(dp)
-dp = dp[['random draw', 'LogisticRegression', 'KNeighborsClassifier5', 'MultinomialNB', 'RandomForestClassifier',
-         'RidgeClassifier', 'SVC']]
+dp = dp[['DummyClassifier', 'LogisticRegression', 'KNeighborsClassifier5', 'MultinomialNB', 'RandomForestClassifier',
+         'RidgeClassifier']] # , 'SVC'
 for c in dp.columns:
     dp[c] = [x/10**6 for x in dp[c]]
 title = 'Population Level Validation Results - Worker Counts'
@@ -194,31 +211,31 @@ bar1 = ax.bar(ind-width/2, ys, width, align='center', capsize=5, color='indianre
 bar2 = ax.bar(ind+width/2, zs, width, align='center', capsize=5, color='tan', ecolor='grey')
 ax.set_ylabel('Millions of workers')
 ax.set_xticks(ind)
-ax.set_xticklabels(('Random Draw', 'Logit', 'KNN', 'Naive Bayes', 'Random Forest', 'Ridge', 'SVC'))
+ax.set_xticklabels(('Random Draw', 'Logit', 'KNN', 'Naive Bayes', 'Random Forest', 'Ridge')) # , 'SVC'
 ax.yaxis.grid(False)
 ax.legend( (bar1, bar2), ('Leave Takers', 'Leave Needers') )
 ax.ticklabel_format(style='plain', axis='y')
 ax.get_yaxis().set_major_formatter(matplotlib.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
 format_chart(fig, ax, title, bg_color='white', fg_color='k')
 # add horizontal bar for true numbers
-n_takers_true = dp_raw['random draw']['true']['n_takers']/10**6
+n_takers_true = dp_raw['DummyClassifier']['true']['n_takers']/10**6
 plt.axhline(y=n_takers_true, color='indianred', linestyle='--')
 hline_offset = 1.025
 hline_text = 'Actual Number of Takers: %s million' % (round(n_takers_true, 1))
 plt.text(2, n_takers_true * hline_offset, hline_text, horizontalalignment='center', color='k')
-n_needers_true = dp_raw['random draw']['true']['n_needers']/10**6
+n_needers_true = dp_raw['DummyClassifier']['true']['n_needers']/10**6
 plt.axhline(y=n_needers_true, color='tan', linestyle='--')
 hline_offset = 1.025
 hline_text = 'Actual Number of Needers: %s million' % (round(n_needers_true, 1))
 plt.text(2, n_needers_true * hline_offset, hline_text, horizontalalignment='center', color='k')
 # save
-plt.savefig(fp_out + 'pop_level_workers.png', facecolor='white', edgecolor='grey') #
+plt.savefig(fp_out + 'pop_level_workers%s.png' % suffix, facecolor='white', edgecolor='grey') #
 
 # Pop level results - leave counts
 dp = {k:v['pred'] for k, v in dp_raw.items()}
 dp = pd.DataFrame.from_dict(dp)
-dp = dp[['random draw', 'LogisticRegression', 'KNeighborsClassifier5', 'MultinomialNB', 'RandomForestClassifier',
-         'RidgeClassifier', 'SVC']]
+dp = dp[['DummyClassifier', 'LogisticRegression', 'KNeighborsClassifier5', 'MultinomialNB', 'RandomForestClassifier',
+         'RidgeClassifier']] # , 'SVC'
 for c in dp.columns:
     dp[c] = [x/10**6 for x in dp[c]]
 title = 'Population Level Validation Results - Leaves Taken'
@@ -229,27 +246,27 @@ width = 0.2
 bar1 = ax.bar(ind, ys, width, align='center', capsize=5, color='indianred', ecolor='grey')
 ax.set_ylabel('Number of Leaves')
 ax.set_xticks(ind)
-ax.set_xticklabels(('Random Draw', 'Logit', 'KNN', 'Naive Bayes', 'Random Forest', 'Ridge', 'SVC'))
+ax.set_xticklabels(('Random Draw', 'Logit', 'KNN', 'Naive Bayes', 'Random Forest', 'Ridge')) # , 'SVC'
 ax.yaxis.grid(False)
 ax.ticklabel_format(style='plain', axis='y')
 ax.get_yaxis().set_major_formatter(matplotlib.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
 format_chart(fig, ax, title, bg_color='white', fg_color='k')
 # add horizontal bar for true numbers
-n_leaves_true = dp_raw['random draw']['true']['n_reasons_taken']/10**6
+n_leaves_true = dp_raw['DummyClassifier']['true']['n_reasons_taken']/10**6
 plt.axhline(y=n_leaves_true, color='indianred', linestyle='--')
 hline_offset = 1.025
 hline_text = 'Actual Number of Leaves: %s million' % (round(n_leaves_true, 1))
 plt.text(2, n_leaves_true * hline_offset, hline_text, horizontalalignment='center', color='k')
 # save
-plt.savefig(fp_out + 'pop_level_leaves.png', facecolor='white', edgecolor='grey') #
+plt.savefig(fp_out + 'pop_level_leaves%s.png' % suffix, facecolor='white', edgecolor='grey') #
 
 # Individual Level Results - focus on takers
-fp_i = './draft/issue_briefs/issue_brief_2/results/ind_level.json'
+fp_i = fp_out + 'ind_level_k%s.json' % fold
 with open(fp_i, 'r') as j:
     di = json.load(j)
 di = pd.DataFrame.from_dict(di)
-di = di[['random draw', 'LogisticRegression', 'KNeighborsClassifier5', 'MultinomialNB', 'RandomForestClassifier',
-         'RidgeClassifier', 'SVC']]
+di = di[['DummyClassifier', 'LogisticRegression', 'KNeighborsClassifier5', 'MultinomialNB', 'RandomForestClassifier',
+         'RidgeClassifier']] # , 'SVC'
 title = 'Individual Level Validation Results - Performance Measures'
 fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
 ys = [x['taker'] for x in di.loc['precision'].values]
@@ -262,14 +279,14 @@ bar2 = ax.bar(ind, zs, width, align='center', capsize=5, color='tan', ecolor='gr
 bar3 = ax.bar(ind+width, ws, width, align='center', capsize=5, color='slategray', ecolor='grey')
 ax.set_ylabel('Performance Measure')
 ax.set_xticks(ind)
-ax.set_xticklabels(('Random Draw', 'Logit', 'KNN', 'Naive Bayes', 'Random Forest', 'Ridge', 'SVC'))
+ax.set_xticklabels(('Random Draw', 'Logit', 'KNN', 'Naive Bayes', 'Random Forest', 'Ridge')) #, 'SVC'
 ax.yaxis.grid(False)
 ax.legend( (bar1, bar2, bar3), ('Precision', 'Recall', 'F1') )
 ax.ticklabel_format(style='plain', axis='y')
 #ax.get_yaxis().set_major_formatter(matplotlib.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
 format_chart(fig, ax, title, bg_color='white', fg_color='k')
 # save
-plt.savefig(fp_out + 'ind_level.png', facecolor='white', edgecolor='grey') #
+plt.savefig(fp_out + 'ind_level%s.png' % suffix, facecolor='white', edgecolor='grey') #
 
 # Program Outlay Results
 from os import listdir

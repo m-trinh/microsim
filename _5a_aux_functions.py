@@ -10,7 +10,8 @@ import pandas as pd
 pd.set_option('display.max_columns', 999)
 pd.set_option('display.width', 200)
 import sklearn.preprocessing, sklearn.linear_model, sklearn.naive_bayes, sklearn.neighbors, sklearn.tree, sklearn.ensemble, \
-    sklearn.gaussian_process, sklearn.svm
+    sklearn.gaussian_process, sklearn.svm, sklearn.dummy
+from sklearn.impute import KNNImputer
 pd.options.mode.chained_assignment = None
 import statsmodels.api as sm
 import statsmodels.genmod
@@ -63,19 +64,29 @@ def get_bool_num_cols(df):
     num_cols = list(set(df.columns) - set(bool_cols))
     return (bool_cols, num_cols)
 
-def fillna_df(df, random_state):
+def fillna_df(df, random_state, method='simple'):
     '''
     df: df with cols either binary or decimal
+    method: method used to fill in NA, simple - use means, and mean-preserving draws for 0/1. Other methods: KNN
     return: df missing values filled in as mean-preserving 0/1s for binary, and mean for decimal columns
     '''
     bool_cols, num_cols = get_bool_num_cols(df)
-    df[bool_cols] = fillna_binary(df[bool_cols], random_state)
-    df[num_cols] = df[num_cols].fillna(df[num_cols].mean())
-    for c in ['ndep_kid', 'ndep_old']:
-        if c in df.columns:
-            df[c] = df[c].apply(lambda x: round(x, 0))
-        else:
-            pass
+    if method=='simple':
+        df[bool_cols] = fillna_binary(df[bool_cols], random_state)
+        df[num_cols] = df[num_cols].fillna(df[num_cols].mean())
+        for c in ['ndep_kid', 'ndep_old']:
+            if c in df.columns:
+                df[c] = df[c].apply(lambda x: round(x, 0))
+            else:
+                pass
+    if method=='KNN':
+        imputer = KNNImputer(n_neighbors=2)
+        cols = df.columns
+        idx = df.index
+        df = pd.DataFrame(imputer.fit_transform(df), columns=cols, index=idx)
+        # set bool_cols as 0/1 to preserve interpretation
+        for c in bool_cols:
+            df[c] = [int(x>=0.5) for x in df[c]]
     return df
 
 # Adjust unconditional prob vector and conditional prob matrix wrt logical restrictions at worker level
@@ -334,11 +345,15 @@ def get_sim_col(X, y, w, Xa, clf, random_state):
     else:
         X, y, Xa = _X, _y, _Xa # get original copies if no logic control filters needed
 
-    # if clf = 'random draw'
-    if clf == 'random draw':
+    # if random draw
+    if isinstance(clf, sklearn.dummy.DummyClassifier): # strategy='stratified'
         # randomly pick len(Xa) values from y, set as pred values for Xa
-        simcol = [y.iloc[z] for z in random_state.choice(len(y), len(Xa))]
+        clf = clf.fit(X, y)
+        simcol = clf.predict(Xa)
         return simcol
+
+        # simcol = [y.iloc[z] for z in random_state.choice(len(y), len(Xa))]
+
         # Data preparing - categorization for Naive Bayes
     elif isinstance(clf, sklearn.naive_bayes.MultinomialNB):
         # Cateogrize integer variables (ndep_kid, ndep_old) into 0, 1, 2+ groups
