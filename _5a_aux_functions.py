@@ -9,9 +9,10 @@ import pandas as pd
 #pd.set_option('max_colwidth', 100)
 pd.set_option('display.max_columns', 999)
 pd.set_option('display.width', 200)
+from sklearn.impute import KNNImputer
 import sklearn.preprocessing, sklearn.linear_model, sklearn.naive_bayes, sklearn.neighbors, sklearn.tree, sklearn.ensemble, \
     sklearn.gaussian_process, sklearn.svm, sklearn.dummy
-from sklearn.impute import KNNImputer
+import xgboost
 pd.options.mode.chained_assignment = None
 import statsmodels.api as sm
 import statsmodels.genmod
@@ -241,13 +242,16 @@ def get_pred_probs(clf, xts):
     :param xts: testing/prediction dataset
     :return: array of list of probs
     '''
+    # phat in form of [[p0, p1], ...]
+    # this format will be generalizable to 3+ categories when computing simcol
     if isinstance(clf, sklearn.linear_model.LogisticRegression) \
         or isinstance(clf, sklearn.ensemble.RandomForestClassifier) \
         or isinstance(clf, sklearn.linear_model.SGDClassifier) \
         or isinstance(clf, sklearn.svm.SVC) \
         or isinstance(clf, sklearn.naive_bayes.BernoulliNB) \
         or isinstance(clf, sklearn.naive_bayes.MultinomialNB) \
-        or isinstance(clf, sklearn.neighbors.KNeighborsClassifier):
+        or isinstance(clf, sklearn.neighbors.KNeighborsClassifier)\
+        or isinstance(clf, xgboost.sklearn.XGBClassifier):
         phat = clf.predict_proba(xts)
     elif isinstance(clf, sklearn.linear_model.RidgeClassifier):
         d = clf.decision_function(xts)  # distance to hyperplane

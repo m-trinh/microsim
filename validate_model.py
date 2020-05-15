@@ -14,6 +14,7 @@ from time import time
 from _5a_aux_functions import *
 import sklearn.linear_model, sklearn.naive_bayes, sklearn.neighbors, sklearn.tree, sklearn.ensemble, \
     sklearn.gaussian_process, sklearn.svm
+import xgboost
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import precision_score, recall_score, f1_score
 import math
@@ -114,7 +115,7 @@ def get_individual_level_results(d, clf_name, weighted_test=True):
     sample_weight = np.ones(d.shape[0])
     if weighted_test:
         sample_weight = d['weight']
-    for v in ['taker', 'needer', 'resp_len']:
+    for v in ['taker', 'needer', 'resp_len', 'take_own']:
         out['precision'][v] = precision_score(d[v], d['%s_hat' % v], sample_weight=sample_weight)
         out['recall'][v] = recall_score(d[v], d['%s_hat' % v], sample_weight=sample_weight)
         out['f1'][v] = f1_score(d[v], d['%s_hat' % v], sample_weight=sample_weight)
@@ -134,11 +135,12 @@ d = fillna_df(d, random_state=random_state)
 X, ys = d[col_Xs], d[col_ys]
 
 ## Set up
-fold = 8
+fold = 8 # cannot be more than # minor cases in most imbalanced outvar
 part_size = int(round(len(d) / fold, 0))
 
 # classifiers
 clfs = [sklearn.dummy.DummyClassifier(strategy='stratified')]
+clfs += [xgboost.XGBClassifier()]
 clfs += [sklearn.neighbors.KNeighborsClassifier(n_neighbors=1)]
 clfs += [sklearn.neighbors.KNeighborsClassifier(n_neighbors=5)]
 clfs += [sklearn.linear_model.LogisticRegression(solver='liblinear', multi_class='ovr', random_state=random_state)]
@@ -146,6 +148,9 @@ clfs += [sklearn.naive_bayes.MultinomialNB()]
 clfs += [sklearn.ensemble.RandomForestClassifier(random_state=random_state)]
 clfs += [sklearn.linear_model.RidgeClassifier()]
 #clfs += [sklearn.svm.SVC(probability=True, gamma='auto', random_state=random_state)]
+
+# clfs = [sklearn.linear_model.LogisticRegression(solver='liblinear', multi_class='ovr', random_state=random_state)]
+
 
 ## Get output
 out_pop, out_ind = {}, {}
@@ -169,9 +174,12 @@ for clf in clfs:
 
 # save as json
 dir_out = 'C:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_2/'
-with open(dir_out + 'results/pop_level_k%s.json' % fold, 'w') as f:
+fp_out_json_pop = dir_out + 'results/pop_level_k%s.json' % fold
+fp_out_json_ind = dir_out + 'results/ind_level_k%s.json' % fold
+
+with open(fp_out_json_pop, 'w') as f:
     json.dump(out_pop, f, sort_keys=True, indent=4)
-with open(dir_out + 'results/ind_level_k%s.json' % fold, 'w') as f:
+with open(fp_out_json_ind, 'w') as f:
     json.dump(out_ind, f, sort_keys=True, indent=4)
 
 #------------------------
@@ -189,16 +197,19 @@ import json
 fp_out = 'C:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_2/results/'
 # outfile suffix
 suffix = '_k%s_%s_%s' % (fold, 'KNNImputer', 'XtsUnweighted')
+# classifier class names
+clf_class_names = ['DummyClassifier', 'XGBClassifier', 'LogisticRegression', 'KNeighborsClassifier5', 'MultinomialNB', 'RandomForestClassifier',
+         'RidgeClassifier'] # , 'SVC'
+# classifier plot labels
+clf_labels = ('Random Draw', 'XGB', 'Logit', 'KNN', 'Naive Bayes', 'Random Forest', 'Ridge') # , 'SVC'
 
 # Pop level results - worker counts
-fp_p = fp_out + 'pop_level_k%s.json' % fold
-with open(fp_p, 'r') as j:
+with open(fp_out_json_pop, 'r') as j:
     dp = json.load(j)
 dp_raw = dp.copy()
 dp = {k:v['pred'] for k, v in dp_raw.items()}
 dp = pd.DataFrame.from_dict(dp)
-dp = dp[['DummyClassifier', 'LogisticRegression', 'KNeighborsClassifier5', 'MultinomialNB', 'RandomForestClassifier',
-         'RidgeClassifier']] # , 'SVC'
+dp = dp[clf_class_names]
 for c in dp.columns:
     dp[c] = [x/10**6 for x in dp[c]]
 title = 'Population Level Validation Results - Worker Counts'
@@ -211,7 +222,7 @@ bar1 = ax.bar(ind-width/2, ys, width, align='center', capsize=5, color='indianre
 bar2 = ax.bar(ind+width/2, zs, width, align='center', capsize=5, color='tan', ecolor='grey')
 ax.set_ylabel('Millions of workers')
 ax.set_xticks(ind)
-ax.set_xticklabels(('Random Draw', 'Logit', 'KNN', 'Naive Bayes', 'Random Forest', 'Ridge')) # , 'SVC'
+ax.set_xticklabels(clf_labels)
 ax.yaxis.grid(False)
 ax.legend( (bar1, bar2), ('Leave Takers', 'Leave Needers') )
 ax.ticklabel_format(style='plain', axis='y')
@@ -234,8 +245,7 @@ plt.savefig(fp_out + 'pop_level_workers%s.png' % suffix, facecolor='white', edge
 # Pop level results - leave counts
 dp = {k:v['pred'] for k, v in dp_raw.items()}
 dp = pd.DataFrame.from_dict(dp)
-dp = dp[['DummyClassifier', 'LogisticRegression', 'KNeighborsClassifier5', 'MultinomialNB', 'RandomForestClassifier',
-         'RidgeClassifier']] # , 'SVC'
+dp = dp[clf_class_names]
 for c in dp.columns:
     dp[c] = [x/10**6 for x in dp[c]]
 title = 'Population Level Validation Results - Leaves Taken'
@@ -246,7 +256,7 @@ width = 0.2
 bar1 = ax.bar(ind, ys, width, align='center', capsize=5, color='indianred', ecolor='grey')
 ax.set_ylabel('Number of Leaves')
 ax.set_xticks(ind)
-ax.set_xticklabels(('Random Draw', 'Logit', 'KNN', 'Naive Bayes', 'Random Forest', 'Ridge')) # , 'SVC'
+ax.set_xticklabels(clf_labels)
 ax.yaxis.grid(False)
 ax.ticklabel_format(style='plain', axis='y')
 ax.get_yaxis().set_major_formatter(matplotlib.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
@@ -260,18 +270,18 @@ plt.text(2, n_leaves_true * hline_offset, hline_text, horizontalalignment='cente
 # save
 plt.savefig(fp_out + 'pop_level_leaves%s.png' % suffix, facecolor='white', edgecolor='grey') #
 
-# Individual Level Results - focus on takers
-fp_i = fp_out + 'ind_level_k%s.json' % fold
-with open(fp_i, 'r') as j:
+# Individual Level Results - focus on a given yvar
+# yvar = 'taker'
+yvar = 'take_own'
+with open(fp_out_json_ind, 'r') as j:
     di = json.load(j)
 di = pd.DataFrame.from_dict(di)
-di = di[['DummyClassifier', 'LogisticRegression', 'KNeighborsClassifier5', 'MultinomialNB', 'RandomForestClassifier',
-         'RidgeClassifier']] # , 'SVC'
+di = di[clf_class_names]
 title = 'Individual Level Validation Results - Performance Measures'
 fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
-ys = [x['taker'] for x in di.loc['precision'].values]
-zs = [x['taker'] for x in di.loc['recall'].values]
-ws = [x['taker'] for x in di.loc['f1'].values]
+ys = [x[yvar] for x in di.loc['precision'].values]
+zs = [x[yvar] for x in di.loc['recall'].values]
+ws = [x[yvar] for x in di.loc['f1'].values]
 ind = np.arange(len(ys))
 width = 0.2
 bar1 = ax.bar(ind-width, ys, width, align='center', capsize=5, color='indianred', ecolor='grey')
@@ -279,7 +289,7 @@ bar2 = ax.bar(ind, zs, width, align='center', capsize=5, color='tan', ecolor='gr
 bar3 = ax.bar(ind+width, ws, width, align='center', capsize=5, color='slategray', ecolor='grey')
 ax.set_ylabel('Performance Measure')
 ax.set_xticks(ind)
-ax.set_xticklabels(('Random Draw', 'Logit', 'KNN', 'Naive Bayes', 'Random Forest', 'Ridge')) #, 'SVC'
+ax.set_xticklabels(clf_labels)
 ax.yaxis.grid(False)
 ax.legend( (bar1, bar2, bar3), ('Precision', 'Recall', 'F1') )
 ax.ticklabel_format(style='plain', axis='y')
