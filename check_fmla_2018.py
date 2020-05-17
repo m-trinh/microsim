@@ -60,6 +60,9 @@ import numpy as np
 fp_in = './data/fmla/fmla_2018/FMLA 2018 PUF/FMLA_2018_Employee_PUF.dta'
 d = pd.read_stata(fp_in, convert_categoricals=False)
 
+# make all col name lower case
+d.columns = [x.lower() for x in d.columns]
+
 # Make empid to follow 0-order to be consistent with Python standard (e.g. indices output from kNN)
 d['empid'] = d['empid'] - 1
 
@@ -115,4 +118,122 @@ d['age'] = [dct_age[x] if not np.isnan(x) else x for x in d['age_cat']]
 # Sex
 d['female'] = np.where(d['gender_cat']==2, 1, 0)
 d['female'] = np.where(d['gender_cat'].isna(), np.nan, d['female'])
+
+# No children
+d['nochildren'] = np.where(d['d7_cat'] == 0, 1, 0)
+d['nochildren'] = np.where(np.isnan(d['d7_cat']), np.nan, d['nochildren'])
+
+# No spouse
+d['nospouse'] = np.where(d['d10'].isin([3,4,5,6]), 1, 0)
+d['nospouse'] = np.where(np.isnan(d['d10']), np.nan, d['nospouse'])
+
+# No elderly dependent
+d['noelderly'] = np.where(d['d8_CAT'] == 0, 1, 0)
+d['noelderly'] = np.where(np.isnan(d['d8_CAT']), np.nan, d['noelderly'])
+
+# Number of dependents categories
+for x in range(5):
+    d['ndep_kid_%s' % x] = np.where(d['d7_cat']==x, 1, 0)
+    d['ndep_kid_%s' % x] = np.where(np.isnan(d['d7_cat']), np.nan, d['ndep_kid_%s' % x])
+for x in range(4):
+    d['ndep_old_%s' % x] = np.where(d['d7_cat']==x, 1, 0)
+    d['ndep_old_%s' % x] = np.where(np.isnan(d['d7_cat']), np.nan, d['ndep_old_%s' % x])
+
+# Educational level
+d['ltHS'] = np.where(d['educ_cat'] == 1, 1, 0)
+d['ltHS'] = np.where(np.isnan(d['educ_cat']), np.nan, d['ltHS'])
+
+d['someHS'] = np.where(d['educ_cat'] == 2, 1, 0)
+d['someHS'] = np.where(np.isnan(d['educ_cat']), np.nan, d['someHS'])
+
+d['HSgrad'] = np.where(d['educ_cat'] == 3, 1, 0)
+d['HSgrad'] = np.where(np.isnan(d['educ_cat']), np.nan, d['HSgrad'])
+
+d['someCol'] = np.where(d['educ_cat'].isin([5, 6]), 1, 0) # some college/Associate's degree as in wave 2012
+d['someCol'] = np.where(np.isnan(d['educ_cat']), np.nan, d['someCol'])
+
+d['BA'] = np.where(d['educ_cat'] == 7, 1, 0)
+d['BA'] = np.where(np.isnan(d['educ_cat']), np.nan, d['BA'])
+
+d['GradSch'] = np.where(d['educ_cat'] == 8, 1, 0)
+d['GradSch'] = np.where(np.isnan(d['educ_cat']), np.nan, d['GradSch'])
+
+d['noHSdegree'] = np.where(d['educ_cat'].isin([1,2]), 1, 0)
+d['noHSdegree'] = np.where(np.isnan(d['educ_cat']), np.nan, d['noHSdegree'])
+
+d['BAplus'] = np.where(d['educ_cat'].isin([7,8]), 1, 0)
+d['BAplus'] = np.where(np.isnan(d['educ_cat']), np.nan, d['BAplus'])
+
+# Family income using midpoint of category
+dct_inc = dict(zip(range(1, 37),
+                   [2500, 7500, 12500, 17500,
+                    22500, 27500, 32500, 37500,
+                    42500, 47500, 52500, 57500,
+                    62500, 67500, 72500, 77500,
+                    82500, 87500, 92500, 97500,
+                    105000, 115000, 125000, 135000,
+                    145000, 150000, 165000, 175000,
+                    185000, 195000, 225000, 275000,
+                    325000, 375000, 425000, 500000])) # boundary cat is 450k+, appox by 500k
+d['faminc'] = [dct_inc[x] if not np.isnan(x) else x for x in d['nd4_cat']]
+
+# Marital status
+d['married'] = np.where(d['d10'] == 1, 1, 0)
+d['married'] = np.where(np.isnan(d['d10']), np.nan, d['married'])
+
+d['partner'] = np.where(d['d10'] == 2, 1, 0)
+d['partner'] = np.where(np.isnan(d['d10']), np.nan, d['partner'])
+
+d['separated'] = np.where(d['d10'] == 3, 1, 0)
+d['separated'] = np.where(np.isnan(d['d10']), np.nan, d['separated'])
+
+d['divorced'] = np.where(d['d10'] == 4, 1, 0)
+d['divorced'] = np.where(np.isnan(d['d10']), np.nan, d['divorced'])
+
+d['widowed'] = np.where(d['d10'] == 5, 1, 0)
+d['widowed'] = np.where(np.isnan(d['d10']), np.nan, d['widowed'])
+
+d['nevermarried'] = np.where(d['d10'] == 6, 1, 0)
+d['nevermarried'] = np.where(np.isnan(d['d10']), np.nan, d['nevermarried'])
+
+# Race/ethnicity
+d['raceth'] = np.where((~np.isnan(d['d5'])) & (d['d5'] == 1), 7, d['race_cat'])
+
+d['native'] = np.where(d['raceth'] == 4, 1, 0)
+d['native'] = np.where(np.isnan(d['raceth']), np.nan, d['native'])
+
+d['asian'] = np.where(d['raceth'] == 3, 1, 0)
+d['asian'] = np.where(np.isnan(d['raceth']), np.nan, d['asian'])
+
+d['black'] = np.where(d['raceth'] == 2, 1, 0)
+d['black'] = np.where(np.isnan(d['raceth']), np.nan, d['black'])
+
+d['white'] = np.where(d['raceth'] == 1, 1, 0)
+d['white'] = np.where(np.isnan(d['raceth']), np.nan, d['white'])
+
+d['other'] = np.where(d['raceth'] == 5, 1, 0)
+d['other'] = np.where(np.isnan(d['raceth']), np.nan, d['other'])
+
+d['hisp'] = np.where(d['raceth'] == 7, 1, 0)
+d['hisp'] = np.where(np.isnan(d['raceth']), np.nan, d['hisp'])
+
+# leave reason for most recent leave
+# na20=1 (mr/long same leave), =2 (mr!=long), .S (skip)
+# a5_mr_cat: leave reason, most recent
+# a5_long_cat: leave reason, longest
+d['reason_take'] = np.where((~np.isnan(d['na20'])) & (d['na20'] == 2), d['a5_long_cat'], d['a5_mr_cat'])
+
+# leave length for most recent leave (approx by cat mid-point)
+dct_len = dict(zip(range(1, 19),
+                   [1, 2, 3, 4, 5,
+                    8, 13, 18, 23, 28, 33,
+                    40, 48, 55, 65, 80, 105, 150])) # boundary cat is 120+, appox by 150
+d['length'] = [dct_len[x] if not np.isnan(x) else x for x in d['a19_mr_cat']]
+
+# any pay received during leave
+d['anypay'] = np.where((d['a43']==1) | ((d['a43']==2) & (d['a43a']==2)), 1, 0)
+d['anypay'] = np.where(np.isnan(d['a43']), np.nan, d['anypay'])
+
+# residence in paid leave state - use paid_leave_state
+# this replaces recStatePay derived from wave 2012
 

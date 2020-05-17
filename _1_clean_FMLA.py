@@ -111,7 +111,7 @@ class DataCleanerFMLA:
         d['nochildren'] = np.where(np.isnan(d['D7_CAT']), np.nan, d['nochildren'])
 
         # No spouse
-        d['nospouse'] = np.where((d['D10'] == 3) | (d['D10'] == 4) | (d['D10'] == 5) | (d['D10'] == 6), 1, 0)
+        d['nospouse'] = np.where(d['d10'].isin([3, 4, 5, 6]), 1, 0)
         d['nospouse'] = np.where(np.isnan(d['D10']), np.nan, d['nospouse'])
 
         # Number of dependents
@@ -225,7 +225,7 @@ class DataCleanerFMLA:
         d['anypay'] = np.where(d['A45'] == 1, 1, 0)
         d['anypay'] = np.where(np.isnan(d['A45']), np.nan, d['anypay'])
 
-        # state program
+        # receive any pay from state program
         d['recStateFL'] = np.where(d['A48b'] == 1, 1, 0)
         d['recStateFL'] = np.where(np.isnan(d['A48b']), np.nan, d['recStateFL'])
         d['recStateFL'] = np.where(np.isnan(d['recStateFL']) & (d['anypay'] == 0), 0, d['recStateFL'])
