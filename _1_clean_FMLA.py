@@ -192,8 +192,6 @@ class DataCleanerFMLA:
         d['hisp'] = np.where(d['raceth'] == 7, 1, 0)
         d['hisp'] = np.where(np.isnan(d['raceth']), np.nan, d['hisp'])
 
-        # leave reason for most recent leave
-        d['reason_take'] = np.where((np.isnan(d['A20']) == False) & (d['A20'] == 2), d['A5_2_CAT'], d['A5_1_CAT'])
 
         ## Use below for getting mid-point approx length distribution from public FMLA (prone to error, not recom'd)
         # length of leave for most recent leave
@@ -221,21 +219,6 @@ class DataCleanerFMLA:
         # d['length'] = np.where((np.isnan(d['A20']) == False) & (d['A20'] == 2), d['A19_2_CAT_rev'], d['A19_1_CAT_rev'])
         # d['length'] = [min(x, 261) for x in d['length']]
 
-        # any pay received
-        d['anypay'] = np.where(d['A45'] == 1, 1, 0)
-        d['anypay'] = np.where(np.isnan(d['A45']), np.nan, d['anypay'])
-
-        # receive any pay from state program
-        d['recStateFL'] = np.where(d['A48b'] == 1, 1, 0)
-        d['recStateFL'] = np.where(np.isnan(d['A48b']), np.nan, d['recStateFL'])
-        d['recStateFL'] = np.where(np.isnan(d['recStateFL']) & (d['anypay'] == 0), 0, d['recStateFL'])
-
-        d['recStateDL'] = np.where(d['A48c'] == 1, 1, 0)
-        d['recStateDL'] = np.where(np.isnan(d['A48c']), np.nan, d['recStateDL'])
-        d['recStateDL'] = np.where(np.isnan(d['recStateDL']) & (d['anypay'] == 0), 0, d['recStateDL'])
-
-        d['recStatePay'] = np.where((d['recStateFL'] == 1) | (d['recStateDL'] == 1), 1, 0)
-        d['recStatePay'] = np.where(np.isnan(d['recStateFL']) | np.isnan(d['recStateDL']), np.nan, d['recStatePay'])
 
         # --------------------------
         # dummies for leave type
@@ -245,6 +228,9 @@ class DataCleanerFMLA:
         # (1) taking a leave
         # (2) needing a leave
         # (3) taking or needing a leave
+
+        # leave reason for most recent leave
+        d['reason_take'] = np.where((np.isnan(d['A20']) == False) & (d['A20'] == 2), d['A5_2_CAT'], d['A5_1_CAT'])
 
         # maternity disability
         d['take_matdis'] = np.where(
@@ -390,6 +376,11 @@ class DataCleanerFMLA:
         for t in types:
             d.loc[(d['need_type'].isna()) & (d['need_%s' % t] == 1), 'need_type'] = t
 
+        # following variables all refer to most recent leave, as indicated by FMLA 2012 questionnaire
+        # any pay received
+        d['anypay'] = np.where(d['A45'] == 1, 1, 0)
+        d['anypay'] = np.where(np.isnan(d['A45']), np.nan, d['anypay'])
+
         # proportion of pay received from employer (mid point of ranges provided in FMLA)
         d['prop_pay'] = np.where(d['A50'] == 1, 0.125, np.nan)
         d['prop_pay'] = np.where(d['A50'] == 2, 0.375, d['prop_pay'])
@@ -399,6 +390,17 @@ class DataCleanerFMLA:
         d['prop_pay'] = np.where(d['A49'] == 1, 1, d['prop_pay'])
         d['prop_pay'] = np.where(d['A45'] == 2, 0, d['prop_pay'])
 
+        # receive any pay from state program
+        d['recStateFL'] = np.where(d['A48b'] == 1, 1, 0)
+        d['recStateFL'] = np.where(np.isnan(d['A48b']), np.nan, d['recStateFL'])
+        d['recStateFL'] = np.where(np.isnan(d['recStateFL']) & (d['anypay'] == 0), 0, d['recStateFL'])
+
+        d['recStateDL'] = np.where(d['A48c'] == 1, 1, 0)
+        d['recStateDL'] = np.where(np.isnan(d['A48c']), np.nan, d['recStateDL'])
+        d['recStateDL'] = np.where(np.isnan(d['recStateDL']) & (d['anypay'] == 0), 0, d['recStateDL'])
+
+        d['recStatePay'] = np.where((d['recStateFL'] == 1) | (d['recStateDL'] == 1), 1, 0)
+        d['recStatePay'] = np.where(np.isnan(d['recStateFL']) | np.isnan(d['recStateDL']), np.nan, d['recStatePay'])
 
 
         # --------------------------
@@ -409,11 +411,8 @@ class DataCleanerFMLA:
         d['unaffordable'] = np.where(np.isnan(d['B15_1_CAT']), np.nan, d['unaffordable'])
 
         # -------------
-        # The rest of the code in this function creates a variable 'resp_len'
-        # an alternative and more thorough version of the 'unaffordable' var above
-        # 'resp_len' will flag 0/1 for a worker that is likely to a more favourable leave program
-        # by increasing leave length. It is used to help simulate counterfactual leave
-        # for a program that increases wage replacement
+        # resp_len
+        # resp_len will flag 0/1 for a worker that will take longer leave if offered financially more generous leave policy
         # -------------
 
         # Initiate

@@ -36,6 +36,9 @@ a43f_cat: # days partial pay
 a43g_cat: partial pay % groups
 
 --resp_len
+a10_mr: health condition re leave - code 2/3/4
+a10_long_cat: health condition re leave - code 2/3
+a53g: forced to cut leave time short due to wage loss
 a55: would take longer leave if more pay
 na62b: return to work due to leaves running out
 na62f: return to work due to no longer needing leaves (resp_len=0)
@@ -50,19 +53,25 @@ ne15_ocded, ne16_coded
 
 '''
 
+# TODO: resp_len defined exactly in wave18, so get 433 NA/4037 valid. Forced NA=1 in wave12. NT fix code for 12.
+
+
+
+
 import pandas as pd
 pd.set_option('max_colwidth', 100)
 pd.set_option('display.max_columns', 999)
 pd.set_option('display.width', 200)
 import numpy as np
+import math
 
 ## Read in data
 fp_in = './data/fmla/fmla_2018/FMLA 2018 PUF/FMLA_2018_Employee_PUF.dta'
-d = pd.read_stata(fp_in, convert_categoricals=False)
-
+d = pd.read_stata(fp_in, convert_categoricals=False) # , convert_missing=True works for displaying data but still all NA
 # make all col name lower case
 d.columns = [x.lower() for x in d.columns]
 
+## Create variables
 # Make empid to follow 0-order to be consistent with Python standard (e.g. indices output from kNN)
 d['empid'] = d['empid'] - 1
 
@@ -230,10 +239,103 @@ dct_len = dict(zip(range(1, 19),
                     40, 48, 55, 65, 80, 105, 150])) # boundary cat is 120+, appox by 150
 d['length'] = [dct_len[x] if not np.isnan(x) else x for x in d['a19_mr_cat']]
 
+# residence in paid leave state - use paid_leave_state
+# this replaces recStatePay derived from wave 2012
+
+# dummies for take_type, need_type, where type = own/matdis/bond/illchild/illspouse/illparent
+types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
+dct_take = dict(zip(types, [[1], [3, 20], [5, 8, 21], [11], [12, 17], [13]]))
+for k, v in dct_take.items():
+    d['take_%s' % k] = np.where(d['a5_mr_cat'].isin(v), 1, 0)
+    d['take_%s' % k] = np.where(d['a5_mr_cat'].isna(), np.nan, d['take_%s' % k])
+    d['take_%s' % k] = np.where(d['leave_cat'].isin([2, 3]), 0, d['take_%s' % k])
+# for t in types:
+#     print(d['take_%s' % t].isna().value_counts())
+dct_need = dict(zip(types, [[1], [3, 20], [5, 8, 9, 21], [11], [12, 16], [13]]))
+for k, v in dct_need.items():
+    d['need_%s' % k] = np.where(d['b6_cat'].isin(v), 1, 0)
+    d['need_%s' % k] = np.where(d['b6_cat'].isna(), np.nan, d['need_%s' % k])
+    d['need_%s' % k] = np.where(d['leave_cat'].isin([1, 3]), 0, d['need_%s' % k])
+# for t in types:
+#     print(d['need_%s' % t].isna().value_counts())
+
+# most recent take/need leave type in 1 col
+d['take_type'] = np.nan
+for t in types:
+    d.loc[(d['take_type'].isna()) & (d['take_%s' % t] == 1), 'take_type'] = t
+d['need_type'] = np.nan
+for t in types:
+    d.loc[(d['need_type'].isna()) & (d['need_%s' % t] == 1), 'need_type'] = t
+
 # any pay received during leave
 d['anypay'] = np.where((d['a43']==1) | ((d['a43']==2) & (d['a43a']==2)), 1, 0)
 d['anypay'] = np.where(np.isnan(d['a43']), np.nan, d['anypay'])
+d['anypay'] = np.where(d['a43c']==4, 0, d['anypay'])
 
-# residence in paid leave state - use paid_leave_state
-# this replaces recStatePay derived from wave 2012
+# proportion of pay received from employer (mid point of ranges provided in FMLA)
+d['prop_pay_employer'] = np.nan
+# set prop=0 for rows
+d.loc[d['anypay']==0, 'prop_pay_employer']=0
+# set prop=1 for rows
+d['receive_no_state_benefit'] = np.where((d['paid_leave_state']==0) | # in no-program state
+                                         ((d['a43i_d_cat'].isna()) & (d['a43i_e_cat'].isna())) # no st benefit received
+                                         , 1, np.nan)
+d.loc[(d['receive_no_state_benefit']==1) & (d['a43c']==1), 'prop_pay_employer']=1
+# set prop in (0,1) for rows that has valid a43g_cat
+# get recent leave length with full pay (only for rows with valid a43g_cat)
+dct_lfp = dict(zip(range(17), [1, 2, 3, 4, 5, 8, 13, 18, 23, 28, 33, 38, 43, 48, 55, 75, 120])) # boundary cat 90+
+d.loc[d['a43g_cat'].notna(), 'length_full_pay'] \
+    = [dct_lfp[x] if not np.isnan(x) else x for x in d.loc[d['a43g_cat'].notna(), 'a43d_cat']]
+# get recent leave length with partial pay (only for rows with valid a43g_cat)
+dct_lpp = dict(zip(range(14), [1, 2, 3, 5, 8, 13, 18, 23, 28, 35, 43, 53, 75, 120])) # boundary cat 90+
+d.loc[d['a43g_cat'].notna(), 'length_partial_pay'] \
+    = [dct_lpp[x] if not np.isnan(x) else x for x in d.loc[d['a43g_cat'].notna(), 'a43f_cat']]
+# if length < length full + length partial, allocate proportionally between full/partial days
+d['allocate'] = np.where((d['a43g_cat'].notna()) & (d['length']<d['length_full_pay'] + d['length_partial_pay']),
+                         1, np.nan)
+d.loc[d['allocate']==1, 'length_full_pay'] \
+    = [math.floor(x[0]*x[1]/(x[1]+x[2])) for x in d.loc[d['allocate']==1,
+                                            ['length', 'length_full_pay', 'length_partial_pay']].values]
+d.loc[d['allocate']==1, 'length_partial_pay'] \
+    = [x[0]-x[1] for x in d.loc[d['allocate']==1, ['length', 'length_full_pay']].values]
+# estimate prop pay for rows with valid a43g_cat
+dct_rre = dict(zip(range(1, 10), [0.125, 0.375, 0.5, 0.55, 0.635, 0.685, 0.73, 0.78, 0.9])) # boundary cat 0.8+
+d.loc[d['a43g_cat'].notna(), 'prop_pay_employer'] \
+    = [(x[1]+x[2]*dct_rre[x[3]])/x[0] for x in d.loc[d['a43g_cat'].notna(),
+                                 ['length', 'length_full_pay', 'length_partial_pay', 'a43g_cat']].values]
+
+# resp_len
+# resp_len will flag 0/1 for a worker that will take longer leave if offered financially more generous leave policy
+d['resp_len'] = np.nan
+# employed only workers have no need and take no leave, would not respond anyway
+d.loc[d['leave_cat'] == 3, 'resp_len'] = 0
+# a10_mr: health condition re leave - code 2/3/4
+d.loc[d['a10_mr'].isin([2,3,4]), 'resp_len'] = 1
+# a10_long_cat: health condition re leave - code 2/3
+d.loc[d['a10_long_cat'].isin([2,3,4]), 'resp_len'] = 1
+# a53g: forced to cut leave time short due to wage loss
+d.loc[d['a53g']==1, 'resp_len'] = 1
+# a55: would take longer leave if more pay
+d.loc[d['a55']==1, 'resp_len'] = 1
+# na62b: return to work due to leaves running out
+d.loc[d['na62b']==1, 'resp_len'] = 1
+# na62f: return to work due to no longer needing leaves (resp_len=0)
+d.loc[d['na62f']==1, 'resp_len'] = 0
+# b15e: couldn't afford to take unpaid leave
+d.loc[d['b15e']==1, 'resp_len'] = 1
+
+'''
+
+--covelig
+e0c_cat, e1a, e1b, etc. AND ne6 (self perception of eligibility)
+
+--ind, occ
+ne15_ocded, ne16_coded
+
+'''
+
+
+#####
+# check 2012
+d12 = pd.read_csv('./data/fmla/fmla_2012/fmla_clean_2012.csv')
 
