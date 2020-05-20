@@ -3,6 +3,7 @@ model validation for Issue Brief 2 (Summary of Model Testing Memo)
 
 chris zhang 2/6/2020
 '''
+# TODO: for take/leave/resp_len, cross-validate using only rows with valid outvars, don't fillna. See if results change.
 
 import pandas as pd
 pd.set_option('max_colwidth', 100)

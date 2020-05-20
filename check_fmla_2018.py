@@ -45,16 +45,20 @@ na62f: return to work due to no longer needing leaves (resp_len=0)
 b15e: couldn't afford to take unpaid leave
 
 --covelig
-e0c_cat, e1a, e1b, etc. AND ne6 (self perception of eligibility)
+use fmla_eligible from data
+do not use self-perception of eligiblity (ne6) due to possible misunderstanding by worker
 
 --ind, occ
 ne15_ocded, ne16_coded
+
+--tenure
+--hourly
 
 
 '''
 
 # TODO: resp_len defined exactly in wave18, so get 433 NA/4037 valid. Forced NA=1 in wave12. NT fix code for 12.
-
+# TODO: remove occ = military from wage 18 sample when training/validating
 
 
 
@@ -137,8 +141,8 @@ d['nospouse'] = np.where(d['d10'].isin([3,4,5,6]), 1, 0)
 d['nospouse'] = np.where(np.isnan(d['d10']), np.nan, d['nospouse'])
 
 # No elderly dependent
-d['noelderly'] = np.where(d['d8_CAT'] == 0, 1, 0)
-d['noelderly'] = np.where(np.isnan(d['d8_CAT']), np.nan, d['noelderly'])
+d['noelderly'] = np.where(d['d8_cat'] == 0, 1, 0)
+d['noelderly'] = np.where(np.isnan(d['d8_cat']), np.nan, d['noelderly'])
 
 # Number of dependents categories
 for x in range(5):
@@ -324,18 +328,67 @@ d.loc[d['na62f']==1, 'resp_len'] = 0
 # b15e: couldn't afford to take unpaid leave
 d.loc[d['b15e']==1, 'resp_len'] = 1
 
-'''
+# FMLA coverage - use fmla_eligible
+# do not use self-perception of eligiblity (ne6) due to possible misunderstanding by worker
 
---covelig
-e0c_cat, e1a, e1b, etc. AND ne6 (self perception of eligibility)
+# tenure at job - <1yr, [1, 3), [3, 5), [5, 10), 10yr+
+# ten0->e0a_cat (single job), ten1->e0f_cat(main if 1+ job), ten2->e0i_cat(second job if 1+ job)
+dct_tenure = {'ten0':{}, 'ten1':{}, 'ten2':{}}
+dct_tenure['ten0'] = dict(zip(list(range(1, 3)) + # <1yr,
+                              list(range(3, 27)) + # [1, 3),
+                              list(range(27, 51)) + # [3, 5),
+                              list(range(51, 57)) + # [5, 10),
+                              list(range(57, 85)), # 10yr+
+                              ['0_1']*2 + ['1_3']*24 + ['3_5']*24 + ['5_10']*6 + ['10_up']*28))
+dct_tenure['ten1'] = dict(zip(list(range(1, 3)) + # <1yr,
+                              list(range(3, 6)) + # [1, 3),
+                              list(range(6, 8)) + # [3, 5),
+                              list(range(8, 13)) + # [5, 10),
+                              list(range(13, 27)), # 10yr+
+                              ['0_1']*2 + ['1_3']*3 + ['3_5']*2 + ['5_10']*5 + ['10_up']*14))
+dct_tenure['ten2'] = dict(zip(list(range(1, 3)) + # <1yr,
+                              list(range(3, 6)) + # [1, 3),
+                              list(range(6, 8)) + # [3, 5),
+                              list(range(8, 13)) + # [5, 10),
+                              list(range(13, 23)), # 10yr+
+                              ['0_1']*2 + ['1_3']*3 + ['3_5']*2 + ['5_10']*5 + ['10_up']*10))
+d['job_tenure'] = np.nan
+d.loc[d['e0a_cat'].notna(), 'job_tenure'] = [dct_tenure['ten0'][x] for x in d.loc[d['e0a_cat'].notna(), 'e0a_cat']]
+d.loc[(d['job_tenure'].isna()) & (d['e0f_cat'].notna()), 'job_tenure'] \
+    = [dct_tenure['ten1'][x] for x in d.loc[(d['job_tenure'].isna()) & (d['e0f_cat'].notna()), 'e0f_cat']]
+d.loc[(d['job_tenure'].isna()) & (d['e0i_cat'].notna()), 'job_tenure'] \
+    = [dct_tenure['ten2'][x] for x in d.loc[(d['job_tenure'].isna()) & (d['e0i_cat'].notna()), 'e0i_cat']]
+tenure_cats = pd.get_dummies(d['job_tenure'], 'job_tenure', dummy_na=True)
+for c in tenure_cats.columns.drop('job_tenure_nan'):
+    tenure_cats.loc[tenure_cats['job_tenure_nan']==1, c] = np.nan
+del tenure_cats['job_tenure_nan']
+d = d.join(tenure_cats)
 
---ind, occ
-ne15_ocded, ne16_coded
+# paid hourly
+d['hourly'] = np.where(d['e9_cat']==2, 1, 0)
+d['hourly'] = np.where(d['e9_cat'].isna(), np.nan, d['hourly'])
 
-'''
+# occupation - map to CPS code (a_mjocc)
+dct_occ = dict(zip(list(range(1, 12)), [[11, 13],
+                                        [15, 17, 19, 21, 23, 25, 27, 29],
+                                        [31, 33, 35, 37, 39]] +
+                                        [[x] for x in range(41, 57, 2)]))
+for k, v in dct_occ.items():
+    d['occ_%s' % k] = np.where(d['ne16_coded'].isin(dct_occ[k]), 1, 0)
+    d['occ_%s' % k] = np.where(d['ne16_coded'].isna(), np.nan, d['occ_%s' % k])
+
+# industry - map to CPS code (a_mjind). Note: wave 18 data uses string for ind code
+dct_ind = dict(zip(list(range(1, 14)), [['11'], ['21'], ['23'], ['31-33'], ['42', '44-45'], ['22', '48-49'], ['51'],
+                                        ['52'], ['53', '54', '55'], ['56', '61'], ['62', '71'], ['81'], ['92']]))
+for k, v in dct_ind.items():
+    d['ind_%s' % k] = np.where(d['ne15_coded'].isin(dct_ind[k]), 1, 0)
+    d['ind_%s' % k] = np.where(d['ne15_coded'].isin(['DR', 'S', '99999']), np.nan, d['ind_%s' % k])
+
+## Output
+d.to_csv('./data/fmla/fmla_2018/fmla_clean_2018.csv', index=False)
 
 
 #####
 # check 2012
-d12 = pd.read_csv('./data/fmla/fmla_2012/fmla_clean_2012.csv')
+# d12 = pd.read_csv('./data/fmla/fmla_2012/fmla_clean_2012.csv')
 
