@@ -19,23 +19,38 @@ import statsmodels.genmod
 from bisect import bisect_right, bisect_left
 
 # a function to get columns
-def get_columns(leave_types):
-    # original CZ's xvars
-    # Xs = ['age', 'agesq', 'male', 'noHSdegree',
-    #       'BAplus', 'empgov_fed', 'empgov_st', 'empgov_loc',
-    #       'lnfaminc', 'black', 'asian', 'hisp', 'other',
-    #       'ndep_kid', 'ndep_old', 'nevermarried', 'partner',
-    #       'widowed', 'divorced', 'separated']
+def get_columns(fmla_wave, leave_types):
+    '''
+    fmla_wave: 2012 or 2018
+    leave_types: ['own', 'matdis', ...]
+    '''
+    if fmla_wave==2012:
+        # original CZ's xvars
+        # Xs = ['age', 'agesq', 'male', 'noHSdegree',
+        #       'BAplus', 'empgov_fed', 'empgov_st', 'empgov_loc',
+        #       'lnfaminc', 'black', 'asian', 'hisp', 'other',
+        #       'ndep_kid', 'ndep_old', 'nevermarried', 'partner',
+        #       'widowed', 'divorced', 'separated']
 
-    # using LP's xvars
-    Xs = ['widowed', 'divorced', 'separated', 'nevermarried',
-          'female', 'age','agesq',
-          'ltHS', 'someCol', 'BA', 'GradSch',
-          'black', 'other', 'asian','native','hisp',
-          'nochildren','faminc'] # ,'coveligd'
+        # using LP's xvars
+        Xs = ['widowed', 'divorced', 'separated', 'nevermarried',
+              'female', 'age','agesq',
+              'ltHS', 'someCol', 'BA', 'GradSch',
+              'black', 'other', 'asian','native','hisp',
+              'nochildren','faminc'] # ,'coveligd'
+    elif fmla_wave==2018:
+        Xs = ['widowed', 'divorced', 'separated', 'nevermarried',
+              'female', 'age','agesq',
+              'ltHS', 'someCol', 'BA', 'GradSch',
+              'black', 'other', 'asian','native','hisp',
+              'nochildren','faminc'] + \
+             ['fmla_eligible', 'emp_gov', 'emp_nonprofit',
+              'union', 'wkhours', 'noelderly', 'job_tenure_0_1', 'job_tenure_1_3', 'job_tenure_3_5', 'job_tenure_5_10',
+              'hourly'] + ['occ_%s' % x for x in range(1, 10)] + ['ind_%s' % x for x in range(1, 13)]
 
-    ys = ['take_' + l for l in leave_types] + ['need_' + l for l in leave_types] + ['resp_len']
+    # same weight column and yvars for wave 2012 and 2018
     w = 'weight'
+    ys = ['take_' + l for l in leave_types] + ['need_' + l for l in leave_types] + ['resp_len']
 
     return (Xs, ys, w)
 
@@ -69,8 +84,11 @@ def fillna_df(df, random_state, method='simple'):
     '''
     df: df with cols either binary or decimal
     method: method used to fill in NA, simple - use means, and mean-preserving draws for 0/1. Other methods: KNN
-    return: df missing values filled in as mean-preserving 0/1s for binary, and mean for decimal columns
+    return: df missing values filled in as mean-preserving 0/1s for binary, and mean for decim
+    al columns
     '''
+    # TODO: for method='KNN', use KNN on xvars only, for bool yvars, use simple to ensure bool
+    # print('fillna_df: method used to fill in missing values = %s' % method)
     bool_cols, num_cols = get_bool_num_cols(df)
     if method=='simple':
         df[bool_cols] = fillna_binary(df[bool_cols], random_state)

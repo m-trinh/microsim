@@ -58,7 +58,7 @@ ne15_ocded, ne16_coded
 '''
 
 # TODO: resp_len defined exactly in wave18, so get 433 NA/4037 valid. Forced NA=1 in wave12. NT fix code for 12.
-# TODO: remove occ = military from wage 18 sample when training/validating
+# TODO: remove occ = military from wage 18 sample when training/validating. MUST reset index for cleaned FMLA!
 
 
 
@@ -79,6 +79,8 @@ d.columns = [x.lower() for x in d.columns]
 # Make empid to follow 0-order to be consistent with Python standard (e.g. indices output from kNN)
 d['empid'] = d['empid'] - 1
 
+# rename weight column
+d = d.rename(columns={'combo_trimmed_weight': 'weight'})
 # FMLA eligibility - use fmla_eligible, same as coveligd in FMLA 2012
 
 # Union status - in CPS but not ACS, can sim in ACS if FMLA data shows necessary
@@ -112,6 +114,12 @@ d['wkhours'] = np.where((d['wkhours'].isna()) & (d['wkhours_m'].notna()), d['wkh
 del d['wkhours_m']
 
 # Employment at government - use govt_emp=1 (no fed/state/local info in FMLA 2018)
+d['emp_gov'] = np.where(d['govt_emp']==1, 1, 0)
+d['emp_gov'] = np.where(d['govt_emp'].isna(), np.nan, d['emp_gov'])
+
+# Employment at non-profit - use govt_emp=3
+d['emp_nonprofit'] = np.where(d['govt_emp']==3, 1, 0)
+d['emp_nonprofit'] = np.where(d['govt_emp'].isna(), np.nan, d['emp_nonprofit'])
 
 # Age
 dct_age={
@@ -127,6 +135,7 @@ dct_age={
     10:70 # boundary category
 }
 d['age'] = [dct_age[x] if not np.isnan(x) else x for x in d['age_cat']]
+d['agesq'] = [x**2 if not np.isnan(x) else x for x in d['age']]
 
 # Sex
 d['female'] = np.where(d['gender_cat']==2, 1, 0)
@@ -229,12 +238,6 @@ d['other'] = np.where(np.isnan(d['raceth']), np.nan, d['other'])
 
 d['hisp'] = np.where(d['raceth'] == 7, 1, 0)
 d['hisp'] = np.where(np.isnan(d['raceth']), np.nan, d['hisp'])
-
-# leave reason for most recent leave
-# na20=1 (mr/long same leave), =2 (mr!=long), .S (skip)
-# a5_mr_cat: leave reason, most recent
-# a5_long_cat: leave reason, longest
-d['reason_take'] = np.where((~np.isnan(d['na20'])) & (d['na20'] == 2), d['a5_long_cat'], d['a5_mr_cat'])
 
 # leave length for most recent leave (approx by cat mid-point)
 dct_len = dict(zip(range(1, 19),
