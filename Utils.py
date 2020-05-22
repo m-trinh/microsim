@@ -460,7 +460,10 @@ def check_dependency(package_name, min_version):
     package = importlib.import_module(package_name)  # Get package from name
 
     # Convert versions, which are in string form, to a list of ints
-    package_version = list(map(int, package.__version__.split('.')))
+    # TODO: Mike to fix package version check for non-numeric versions
+    # print('package version:\n', package.__version__.split('.'))
+    package_version_chars = package.__version__.split('.')
+    package_version = list(map(int, [''.join(i for i in x if i.isdigit()) for x in package_version_chars]))
     min_version = list(map(int, min_version.split('.')))
 
     # If length of the package version list is shorter than minimum version, assume that the last digit(s) would be 0

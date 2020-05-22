@@ -479,17 +479,17 @@ class MicrosimGUI(Tk):
         st = self.general_params.state.lower()
         yr = self.general_params.year
         fp_fmla_in = self.general_params.fmla_file
-        fp_cps_in = './data/cps/CPS%sextract.csv' % (yr - 2)
+        fp_cps_in = './data/cps/cpsmar%s.dta' % (yr - 2)
         fp_acsh_in = self.general_params.acs_directory + '/%s/household_files' % yr
         fp_acsp_in = self.general_params.acs_directory + '/%s/person_files' % yr
         state_of_work = self.general_params.state_of_work
         if state_of_work:
             fp_acsh_in = self.general_params.acs_directory + '/%s/pow_household_files' % yr
             fp_acsp_in = self.general_params.acs_directory + '/%s/pow_person_files' % yr
-        fp_fmla_out = './data/fmla_2012/fmla_clean_2012.csv'
+        fp_fmla_out = './data/fmla/fmla_2018/fmla_clean_2018.csv'
         fp_cps_out = './data/cps/cps_for_acs_sim.csv'
         fp_acs_out = './data/acs/'
-        fp_length_distribution_out = './data/fmla_2012/length_distributions_exact_days.json'
+        fp_length_distribution_out = './data/fmla/fmla_2018/length_distributions_exact_days.json'
         fps_in = [fp_fmla_in, fp_cps_in, fp_acsh_in, fp_acsp_in]
         fps_out = [fp_fmla_out, fp_cps_out, fp_acs_out, fp_length_distribution_out]
 
@@ -2333,8 +2333,8 @@ class PopulationAnalysis(ScrollFrame):
         """
 
         # Set x and y axis labels
-        ax.set_ylabel('Number of Days', fontsize=9)
-        ax.set_xlabel('Number of Workers', fontsize=9)
+        ax.set_ylabel('Number of Workers', fontsize=9)
+        ax.set_xlabel('Number of Days', fontsize=9)
 
         # Set axis ticks
         if xticks is not None:

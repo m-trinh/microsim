@@ -45,8 +45,10 @@ def get_columns(fmla_wave, leave_types):
               'black', 'other', 'asian','native','hisp',
               'nochildren','faminc'] + \
              ['fmla_eligible', 'emp_gov', 'emp_nonprofit',
-              'union', 'wkhours', 'noelderly', 'job_tenure_0_1', 'job_tenure_1_3', 'job_tenure_3_5', 'job_tenure_5_10',
+              'union', 'wkhours', 'noelderly',
               'hourly'] + ['occ_%s' % x for x in range(1, 10)] + ['ind_%s' % x for x in range(1, 13)]
+        # no job tenure data in CPS or ACS, cannot use as xvars
+        # Xs += ['job_tenure_0_1', 'job_tenure_1_3', 'job_tenure_3_5', 'job_tenure_5_10']
 
     # same weight column and yvars for wave 2012 and 2018
     w = 'weight'

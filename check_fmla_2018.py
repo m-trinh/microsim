@@ -69,9 +69,14 @@ pd.set_option('display.width', 200)
 import numpy as np
 import math
 
+# ## Read in raw data
+# fp_in = './data/fmla/fmla_2018/FMLA 2018 PUF/FMLA_2018_Employee_PUF.dta'
+# d = pd.read_stata(fp_in, convert_categoricals=False) # , convert_missing=True works for displaying data but still all NA
+# # save as csv for future use
+
 ## Read in data
-fp_in = './data/fmla/fmla_2018/FMLA 2018 PUF/FMLA_2018_Employee_PUF.dta'
-d = pd.read_stata(fp_in, convert_categoricals=False) # , convert_missing=True works for displaying data but still all NA
+fp_in = './data/fmla/fmla_2018/FMLA 2018 PUF/FMLA_2018_Employee_PUF.csv'
+d = pd.read_csv(fp_in, low_memory=False)
 # make all col name lower case
 d.columns = [x.lower() for x in d.columns]
 
@@ -394,4 +399,6 @@ d.to_csv('./data/fmla/fmla_2018/fmla_clean_2018.csv', index=False)
 #####
 # check 2012
 # d12 = pd.read_csv('./data/fmla/fmla_2012/fmla_clean_2012.csv')
+d.to_csv('./data/fmla/fmla_2018/FMLA 2018 PUF/FMLA_2018_Employee_PUF.csv', index=False)
+
 

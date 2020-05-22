@@ -3,7 +3,7 @@ main simulation engine
 chris zhang 2/14/2020
 """
 # CHANGES 11/14/2019
-# Made dual receiver as proportionate parameter of those individuals with >0 prop_pay.
+# Made dual receiver as proportionate parameter of those individuals with >0 prop_pay_employer.
 # Removed imputation of doctor/hospital variables
 # Removed multiple leave types imputation
 # Temporary - removed link between cp-len and generosity. Now set cp-len = mn-len for all types,
@@ -37,7 +37,7 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import os
 import csv
-from _1_clean_FMLA import DataCleanerFMLA
+from _1_clean_FMLA_2018 import DataCleanerFMLA
 from _4_clean_ACS import DataCleanerACS
 from Utils import check_dependency, get_sim_name, create_cost_chart, STATE_CODES
 
@@ -205,7 +205,7 @@ class SimulationEngine:
         self.__put_queue({'type': 'progress', 'engine': None, 'value': 20})
         self.__put_queue({'type': 'message', 'engine': None,
                           'value': 'File saved: clean FMLA data file after CPS imputation.'})
-        # dcf.get_length_distribution(self.fp_length_distribution_out)
+        dcf.get_length_distribution(self.fp_length_distribution_out)
         # self.__put_queue({'type': 'progress', 'engine': self.engine_type, 'value': 25})
         # self.__put_queue({'type': 'message', 'engine': self.engine_type,
         #                   'value': 'File saved: leave distribution estimated from FMLA data.'})
@@ -283,7 +283,7 @@ class SimulationEngine:
 
             # Train models using FMLA, and simulate on ACS workers
             t0 = time()
-            col_Xs, col_ys, col_w = get_columns(params['leave_types'])
+            col_Xs, col_ys, col_w = get_columns(2018, params['leave_types'])
             X = d[col_Xs]
             w = d[col_w]
             Xa = acs[X.columns]
@@ -342,13 +342,13 @@ class SimulationEngine:
                     simcol_indexed = pd.Series(simcol_indexed, index=Xa.index, name=c)
                     acs = acs.join(simcol_indexed)
 
-            # Conditional simulation - prop_pay for anypay=1 sample
-            X = d[(d['anypay'] == 1) & (d['prop_pay'].notna())][col_Xs]
+            # Conditional simulation - prop_pay_employer for anypay=1 sample
+            X = d[(d['anypay'] == 1) & (d['prop_pay_employer'].notna())][col_Xs]
             w = d.loc[X.index][col_w]
             Xa = acs[acs['anypay'] == 1][X.columns]
-            # a dict from prop_pay int category to numerical prop_pay value
+            # a dict from prop_pay_employer int category to numerical prop_pay_employer value
             # int category used for phat 'p_0', etc. in get_sim_col
-            v = d.prop_pay.value_counts().sort_index().index
+            v = d.prop_pay_employer.value_counts().sort_index().index
             k = range(len(v))
             d_prop = dict(zip(k, v))
             D_prop = dict(zip(v, k))
@@ -356,13 +356,13 @@ class SimulationEngine:
             if len(Xa) == 0:
                 pass
             else:
-                y = [D_prop[x] for x in d.loc[X.index]['prop_pay']]
+                y = [D_prop[x] for x in d.loc[X.index]['prop_pay_employer']]
                 yhat = get_sim_col(X, y, w, Xa, clf, self.random_state)
-                # prop_pay labels are from 1 to 6, get_sim_col() vectorization sum gives 0~5, increase label by 1
-                yhat = pd.Series(data=[x + 1 for x in yhat], index=Xa.index, name='prop_pay')
+                # prop_pay_employer labels are from 1 to 6, get_sim_col() vectorization sum gives 0~5, increase label by 1
+                yhat = pd.Series(data=[x + 1 for x in yhat], index=Xa.index, name='prop_pay_employer')
                 acs = acs.join(yhat)
-                acs.loc[acs['prop_pay'].notna(), 'prop_pay'] = [d_prop[x] for x in
-                                                                acs.loc[acs['prop_pay'].notna(), 'prop_pay']]
+                acs.loc[acs['prop_pay_employer'].notna(), 'prop_pay_employer'] = [d_prop[x] for x in
+                                                                acs.loc[acs['prop_pay_employer'].notna(), 'prop_pay_employer']]
 
             # Sample restriction - reduce to simulated takers/needers, append dropped rows later before saving post-sim acs
             acs_neither_taker_needer = acs[(acs['taker'] == 0) & (acs['needer'] == 0)]
@@ -466,10 +466,10 @@ class SimulationEngine:
                     acs.loc[acs['dual_receiver'] == 1, 'len_%s' % t] + \
                     (acs.loc[acs['dual_receiver'] == 1, 'mnl_%s' % t] - acs.loc[acs['dual_receiver'] == 1, 'len_%s' % t]) * \
                     acs.loc[acs['dual_receiver'] == 1, 'effective_rrp'] / (
-                                1 - acs.loc[acs['dual_receiver'] == 1, 'prop_pay'])
+                                1 - acs.loc[acs['dual_receiver'] == 1, 'prop_pay_employer'])
                 # if rre+rrp>=1, set cfl = mnl
-                acs.loc[(acs['dual_receiver'] == 1) & (acs['prop_pay'] >= 1 - acs['effective_rrp']), 'cfl_%s' % t] = \
-                    acs.loc[(acs['dual_receiver'] == 1) & (acs['prop_pay'] >= 1 - acs['effective_rrp']), 'mnl_%s' % t]
+                acs.loc[(acs['dual_receiver'] == 1) & (acs['prop_pay_employer'] >= 1 - acs['effective_rrp']), 'cfl_%s' % t] = \
+                    acs.loc[(acs['dual_receiver'] == 1) & (acs['prop_pay_employer'] >= 1 - acs['effective_rrp']), 'mnl_%s' % t]
                 # Get covered-by-program leave lengths (cp-len) for dual receivers among anypay=1
                 # subtract wait period, down to 0
                 # wait period benefit recollection indicator, min cfl needed for recollection
@@ -488,30 +488,30 @@ class SimulationEngine:
             # Given cf-len, get cp-len
             for t in params['leave_types']:
                 # single receiver, rrp>rre. Assume will use state program benefit to replace employer benefit
-                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < acs['effective_rrp']), 'cfl_%s' % t] = \
-                    acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < acs['effective_rrp']), 'len_%s' % t] + \
-                    (acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < acs['effective_rrp']), 'mnl_%s' % t] -
-                     acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < acs['effective_rrp']), 'len_%s' % t]) * \
-                    (acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < acs['effective_rrp']), 'effective_rrp']
-                     - acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < acs['effective_rrp']), 'prop_pay']) \
-                    / (1 - acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < acs['effective_rrp']), 'prop_pay'])
+                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay_employer'] < acs['effective_rrp']), 'cfl_%s' % t] = \
+                    acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay_employer'] < acs['effective_rrp']), 'len_%s' % t] + \
+                    (acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay_employer'] < acs['effective_rrp']), 'mnl_%s' % t] -
+                     acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay_employer'] < acs['effective_rrp']), 'len_%s' % t]) * \
+                    (acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay_employer'] < acs['effective_rrp']), 'effective_rrp']
+                     - acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay_employer'] < acs['effective_rrp']), 'prop_pay_employer']) \
+                    / (1 - acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay_employer'] < acs['effective_rrp']), 'prop_pay_employer'])
                 # single receiver, rrp<=rre. Assume will not use any state program benefit
                 # so still using same employer benefit as status-quo, thus cf-len = sq-len
-                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >= acs['effective_rrp']), 'cfl_%s' % t] = \
-                    acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >= acs['effective_rrp']), 'len_%s' % t]
+                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay_employer'] >= acs['effective_rrp']), 'cfl_%s' % t] = \
+                    acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay_employer'] >= acs['effective_rrp']), 'len_%s' % t]
                 # Get covered-by-program leave lengths (cp-len) for single receivers
                 # if rrp<=rre, cp-len = 0
-                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] >= acs['effective_rrp']), 'cpl_%s' % t] = 0
+                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay_employer'] >= acs['effective_rrp']), 'cpl_%s' % t] = 0
                 # if rrp>rre, cp-len = cf-len - wait period (assume covered by company), down to 0
-                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < acs['effective_rrp']), 'cpl_%s' % t] = \
+                acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay_employer'] < acs['effective_rrp']), 'cpl_%s' % t] = \
                     [max(x, 0) for x in
                      (acs.loc[(acs['dual_receiver'] == 0) &
-                              (acs['prop_pay'] < acs['effective_rrp']), 'cfl_%s' % t] - wait_period).values]
+                              (acs['prop_pay_employer'] < acs['effective_rrp']), 'cfl_%s' % t] - wait_period).values]
                 # recollect if any
                 if recollect:
-                    acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < acs['effective_rrp']) &
+                    acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay_employer'] < acs['effective_rrp']) &
                             (acs['cfl_%s' % t] >= min_cfl_recollect), 'cpl_%s' % t] = \
-                        acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay'] < acs['effective_rrp']) &
+                        acs.loc[(acs['dual_receiver'] == 0) & (acs['prop_pay_employer'] < acs['effective_rrp']) &
                                 (acs['cfl_%s' % t] >= min_cfl_recollect), 'cfl_%s' % t]
                 # later will apply cap of coverage period (in weeks)
 

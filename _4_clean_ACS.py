@@ -69,14 +69,64 @@ class DataCleanerACS:
         # Number of dependents
         d_hh['ndep_kid'] = d_hh['NOC']
         d_hh['ndep_old'] = d_hh['R65']
+        d_hh['noelderly'] = np.where(d_hh['ndep_old']==0, 1, 0)
+        d_hh['noelderly'] = np.where(d_hh['ndep_old'].isna(), np.nan, d_hh['noelderly'])
         d_hh['ndep_spouse'] = np.where(d_hh['FES'].isin([2,3]), 1, 0)
         d_hh['ndep_spouse_kid'] = d_hh['ndep_kid'] + d_hh['ndep_spouse']
-        return d_hh[['SERIALNO', 'NPF', 'nochildren', 'faminc', 'lnfaminc', 'PARTNER', 'ndep_kid', 'ndep_old',
+        return d_hh[['SERIALNO', 'NPF', 'nochildren', 'noelderly', 'faminc', 'lnfaminc', 'PARTNER', 'ndep_kid', 'ndep_old',
                      'ndep_spouse', 'ndep_spouse_kid']]
 
     def clean_person_state_data(self, st, cps, chunk_size=100000):
+        ## First handle CPS data outside the ACS person data chunk loop
+        # identify industry and occupation CPS codes for creating same cats in ACS in chunk loop
+        top_ind = [cps[cps.ind_top1==1].a_mjind.value_counts().index[0]]
+        top_ind += [cps[cps.ind_top2==1].a_mjind.value_counts().index[0]]
+        top_ind += [cps[cps.ind_top3==1].a_mjind.value_counts().index[0]]
+        top_occ = [cps[cps.occ_top1==1].a_mjocc.value_counts().index[0]]
+        top_occ += [cps[cps.occ_top2==1].a_mjocc.value_counts().index[0]]
+        top_occ += [cps[cps.occ_top3==1].a_mjocc.value_counts().index[0]]
+
+        # use cps df to train models for predicting needed yvars in ACS person data chunks
+        # fillna for cps
+        cps = fillna_df(cps, self.random_state)
+        ## for faster testing
+        # cps = cps.dropna(how='any')
+
+        # weight col
+        w = cps['marsupwt']
+        # dict from yvar to impute to xvars
+        xvars_in_acs = ['female', 'black', 'asian', 'native', 'other', 'age', 'agesq', 'BA', 'GradSch', 'married']
+        xvars_in_acs += ['wage12', 'wkswork', 'wkhours', 'emp_gov']
+        xvars_in_acs += ['ind_top1', 'ind_top2', 'ind_top3', 'ind_other', 'ind_na']
+        xvars_in_acs += ['occ_top1', 'occ_top2', 'occ_top3', 'occ_other', 'occ_na']
+        dct_cps_yx = {
+            'hourly': xvars_in_acs,
+            'empsize': xvars_in_acs,
+            'oneemp':xvars_in_acs,
+            'union': xvars_in_acs + ['hourly', 'empsize', 'oneemp']
+           }
+        # dict to store CPS-based classifiers
+        dct_cps_clfs = {}
+        # empsize - mord
+        y = cps['empsize']
+        X = cps[dct_cps_yx['empsize']]
+        clf = mord.LogisticAT().fit(X, y)
+        dct_cps_clfs['empsize'] = clf
+        # paid hourly, oneemp, union - logit
+        for col_y in ['hourly', 'oneemp', 'union']:
+            y = cps[col_y]
+            X = cps[dct_cps_yx[col_y]]
+            clf = sklearn.linear_model.LogisticRegression(solver='liblinear').fit(X, y, sample_weight=w)
+            dct_cps_clfs[col_y] = clf
+
+        ## Get household data for merging to person data chunks
         d_hh = self.load_data(st)
+
+        ## Work on ACS person data in chunks
+        # initiate output master person data to store cleaned up chunks
         dout = pd.DataFrame([])
+
+        # clean person data by chunks
         ichunk = 1
         print('Cleaning ACS data. State chosen = %s. Chunk size = %s ACS rows' % (st.upper(), chunk_size))
 
@@ -168,8 +218,8 @@ class DataCleanerACS:
                 5: 20,
                 6: 7
             }
-            d['weeks_worked_cat'] = d['WKW'].map(dict_wks)
-            d['weeks_worked_cat'] = np.where(d['weeks_worked_cat'].isna(), 0, d['weeks_worked_cat'])
+            d['wkswork'] = d['WKW'].map(dict_wks)
+            d['wkswork'] = np.where(d['wkswork'].isna(), 0, d['wkswork'])
             # Weeks worked - WKW category bounds, for bounding imputed weeks worked from CPS
             dict_wkwBounds = {
                 1: (50, 52),
@@ -196,12 +246,18 @@ class DataCleanerACS:
 
             # Employment at government
             # missing = age<16, or NILF over 5 years, or never worked
+            d['emp_gov'] = np.where(d['COW'].isin([3,4,5]), 1, 0)
+            d['emp_gov'] = np.where(d['COW'].isna(), np.nan, d['emp_gov'])
             d['empgov_fed'] = np.where(d['COW'] == 5, 1, 0)
             d['empgov_fed'] = np.where(np.isnan(d['COW']), np.nan, d['empgov_fed'])
             d['empgov_st'] = np.where(d['COW'] == 4, 1, 0)
             d['empgov_st'] = np.where(np.isnan(d['COW']), np.nan, d['empgov_st'])
             d['empgov_loc'] = np.where(d['COW'] == 3, 1, 0)
             d['empgov_loc'] = np.where(np.isnan(d['COW']), np.nan, d['empgov_loc'])
+
+            # Employment at non-profit
+            d['emp_nonprofit'] = np.where(d['COW']==2, 1, 0)
+            d['emp_nonprofit'] = np.where(d['COW'].isna(), np.nan, d['emp_nonprofit'])
 
             # Presence of children for females
             d['fem_cu6'] = np.where(d['PAOC'] == 1, 1, 0)
@@ -212,7 +268,6 @@ class DataCleanerACS:
                 d.loc[d['PAOC'].isna(), x] = np.nan
 
             # Occupation
-
             # use numeric OCCP = OCCP12 if ACS 2011-2015, or OCCP = OCCP if ACS 2012-2016
             if self.yr == 2015:
                 if 'N.A.' in d['OCCP12'].value_counts().index:
@@ -232,17 +287,8 @@ class DataCleanerACS:
                     d.loc[d['OCCP'] == 'N.A.', 'OCCP'] = np.nan
                 d.loc[d['OCCP'].notna(), 'OCCP'] = [int(x) for x in d.loc[d['OCCP'].notna(), 'OCCP']]
 
-            d['occ_1'] = 0
-            d['occ_2'] = 0
-            d['occ_3'] = 0
-            d['occ_4'] = 0
-            d['occ_5'] = 0
-            d['occ_6'] = 0
-            d['occ_7'] = 0
-            d['occ_8'] = 0
-            d['occ_9'] = 0
-            d['occ_10'] = 0
-            d['maj_occ'] = 0
+            for c in range(1, 11):
+                d['occ_%s' % c] = 0
             d.loc[(d['OCCP'] >= 10) & (d['OCCP'] <= 950), 'occ_1'] = 1
             d.loc[(d['OCCP'] >= 1000) & (d['OCCP'] <= 3540), 'occ_2'] = 1
             d.loc[(d['OCCP'] >= 3600) & (d['OCCP'] <= 4650), 'occ_3'] = 1
@@ -256,21 +302,19 @@ class DataCleanerACS:
             # make sure occ_x gets nan if OCCP code is nan
             for x in range(1, 11):
                 d.loc[d['OCCP'].isna(), 'occ_%s' % x] = np.nan
-
+            # set maj_occ in 1 col
+            d['maj_occ'] = 0
+            for x in range(1, 11):
+                d.loc[d['occ_%s' % x]==1, 'maj_occ'] = x
+            # get cols of top-3 occ codes, other, NA
+            for rank in range(1, 4):
+                d['occ_top%s' % rank] = np.where(d['occ_%s' % top_occ[rank-1]]==1, 1, 0)
+            d['occ_other'] = np.where((~d['maj_occ'].isin(top_occ)), 1, 0)
+            d['occ_na'] = np.where(d['maj_occ'].isna(), 1, 0)
+            
             # Industry
-            d['ind_1'] = 0
-            d['ind_2'] = 0
-            d['ind_3'] = 0
-            d['ind_4'] = 0
-            d['ind_5'] = 0
-            d['ind_6'] = 0
-            d['ind_7'] = 0
-            d['ind_8'] = 0
-            d['ind_9'] = 0
-            d['ind_10'] = 0
-            d['ind_11'] = 0
-            d['ind_12'] = 0
-            d['ind_13'] = 0
+            for c in range(1, 14):
+                d['ind_%s' % c] = 0
             d.loc[(d['INDP'] >= 170) & (d['INDP'] <= 290), 'ind_1'] = 1
             d.loc[(d['INDP'] >= 370) & (d['INDP'] <= 490), 'ind_2'] = 1
             d.loc[(d['INDP'] == 770), 'ind_3'] = 1
@@ -287,61 +331,53 @@ class DataCleanerACS:
             # make sure ind_x gets nan if INDP code is nan
             for x in range(1, 14):
                 d.loc[d['INDP'].isna(), 'ind_%s' % x] = np.nan
+            # set maj_ind in 1 col
+            d['maj_ind'] = 0
+            for x in range(1, 14):
+                d.loc[d['ind_%s' % x]==1, 'maj_ind'] = x
+
+            # get cols of top-3 ind codes, other, NA
+            for rank in range(1, 4):
+                d['ind_top%s' % rank] = np.where(d['ind_%s' % top_ind[rank - 1]] == 1, 1, 0)
+            d['ind_other'] = np.where((~d['maj_ind'].isin(top_ind)), 1, 0)
+            d['ind_na'] = np.where(d['maj_ind'].isna(), 1, 0)
 
             # -------------------------- #
-            # CPS Imputation
+            # impute ACS vars using CPS-based classifiers built before the chunk loop
             # -------------------------- #
-            # predictors and weights
-            X = cps[['female', 'black', 'age', 'agesq', 'BA', 'GradSch'] +
-                    ['ind_%s' % x for x in range(1, 14)] +
-                    ['occ_%s' % x for x in range(1, 11)]]
-            w = cps['marsupwt']
-            # Xd = fillna_binary(d[X.columns])
-            Xd = fillna_df(d[X.columns], self.random_state)
-            # paid hourly
-            y = cps['hourly']
-            clf = sklearn.linear_model.LogisticRegression(solver='liblinear').fit(X, y, sample_weight=w)
-            d['hourly'] = pd.Series(clf.predict(Xd), index=d.index)
-            # one employer
-            y = cps['oneemp']
-            clf = sklearn.linear_model.LogisticRegression(solver='liblinear').fit(X, y, sample_weight=w)
-            d['oneemp'] = pd.Series(clf.predict(Xd), index=d.index)
-            # weeks worked - impose condition of categorical WKW from ACS itself
-            y = cps['wkswork']
-            clf = sklearn.linear_model.LinearRegression().fit(X, y, sample_weight=w)
-            d['wkswork_dec'] = pd.Series(clf.predict(Xd), index=d.index)
-            d['wkswork'] = [min(max(int(x[0]), x[1]), x[2]) for x in d[['wkswork_dec', 'wkw_min', 'wkw_max']].values]
-            # employer size
-            y = cps['empsize']
-            clf = mord.LogisticAT().fit(X, y)
-            d['empsize'] = pd.Series(clf.predict(Xd), index=d.index)
+            Xd = fillna_df(d[xvars_in_acs], self.random_state)
+            # paid hourly, oneemp, empsize, union
+            for c in ['hourly', 'oneemp', 'empsize', 'union']: # imputing union needs previous vars, set union to end
+                clf = dct_cps_clfs[c]
+                if c=='union':
+                    Xd = Xd.join(d[['hourly', 'oneemp', 'empsize']])
+                d[c] = pd.Series(clf.predict(Xd), index=d.index)
 
-            # Based on ACS raw and CPS-imputation, get FMLA-coverage indicator coveligd
-            d['coveligd'] = np.where((d['oneemp'] == 1) &
-                                     (d['wkhours'] * d['wkswork'] >= 1250) &
-                                     (d['empsize'] >= 3), 1, 0)
-
+            # get fmla_eligible col based on imputed vars above
+            d['fmla_eligible'] = np.where((d['oneemp'] == 1) &
+                                          (d['wkhours'] * d['wkswork'] >= 1250) &
+                                          (d['empsize'] >= 3), 1, 0)
+            print('fmla_eligible value count \n', d['fmla_eligible'].value_counts())
             # -------------------------- #
             # Save the resulting dataset
             # -------------------------- #
             cols = ['SERIALNO', 'SPORDER', 'PWGTP', 'ST', 'POWSP', 'NPF',
-                    'employed', 'empgov_fed', 'empgov_st', 'empgov_loc',
-                    'wkhours', 'weeks_worked_cat', 'wage12', 'lnearn', 'hiemp',
+                    'employed', 'emp_gov', 'emp_nonprofit', 'empgov_fed', 'empgov_st', 'empgov_loc',
+                    'wkhours', 'wkswork', 'wage12', 'lnearn', 'hiemp',
                     'a_age', 'age', 'agesq',
                     'male', 'female',
-                    'nochildren', 'ndep_kid', 'ndep_old', 'ndep_spouse', 'ndep_spouse_kid',
+                    'nochildren', 'noelderly', 'ndep_kid', 'ndep_old', 'ndep_spouse', 'ndep_spouse_kid',
                     'ltHS', 'HSgrad', 'someCol', 'BA', 'GradSch', 'noHSdegree', 'BAplus',
                     'faminc', 'lnfaminc',
                     'married', 'partner', 'separated', 'divorced', 'widowed', 'nevermarried',
                     'asian', 'black', 'white', 'native', 'other', 'hisp',
                     'fem_cu6', 'fem_cu6and617', 'fem_c617', 'fem_nochild',
-                    'coveligd',
                     'ESR', 'COW'  # original ACS vars for restricting samples later
                     ]
-            cols += ['ind_%s' % x for x in range(1, 14)]
+            cols += ['INDP'] + ['ind_%s' % x for x in range(1, 14)]
             cols += ['OCCP'] + ['occ_%s' % x for x in range(1, 11)]
-            cols += ['hourly', 'oneemp', 'wkswork', 'empsize']
-            cols += ['WKW', 'wkswork_dec', 'wkw_min', 'wkw_max']
+            cols += ['hourly', 'oneemp', 'wkswork', 'empsize', 'fmla_eligible', 'union']
+            cols += ['WKW', 'wkw_min', 'wkw_max']
             cols += ['PWGTP%s' % x for x in range(1, 81)]
 
             d_reduced = d[cols]
