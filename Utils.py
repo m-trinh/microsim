@@ -128,7 +128,7 @@ class Parameters:
 
 class GeneralParameters(Parameters):
     def __init__(self, fmla_file='', acs_directory='', output_directory='', state='',
-                 simulation_method='Logistic Regression', engine_type='Python', r_path='', random_seed=None,
+                 simulation_method='Logistic Regression', engine_type='Python', r_path='', random_seed=12345,
                  state_of_work=True, year=2016):
         """General program parameters. A distinction needs to be made for program comparison, as each program will share
         these parameters but not others."""
@@ -252,7 +252,7 @@ def as_currency(amount):
         return '-${:,.2f}'.format(-amount)
 
 
-def generate_default_state_params(parameters=None, state='CA'):
+def generate_default_state_params(parameters=None, state='RI'):
     """Creates a new OtherParameters object with values for a state
 
     :param parameters: OtherParameters, default None

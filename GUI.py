@@ -479,7 +479,7 @@ class MicrosimGUI(Tk):
         st = self.general_params.state.lower()
         yr = self.general_params.year
         fp_fmla_in = self.general_params.fmla_file
-        fp_cps_in = './data/cps/cpsmar%s.dta' % (yr - 2)
+        fp_cps_in = './data/cps/cps_clean_%s.csv' % (yr - 2)
         fp_acsh_in = self.general_params.acs_directory + '/%s/household_files' % yr
         fp_acsp_in = self.general_params.acs_directory + '/%s/person_files' % yr
         state_of_work = self.general_params.state_of_work

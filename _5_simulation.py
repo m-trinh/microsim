@@ -200,15 +200,15 @@ class SimulationEngine:
         self.__put_queue({'type': 'progress', 'engine': None, 'value': 10})
         self.__put_queue({'type': 'message', 'engine': None,
                           'value': 'File saved: clean FMLA data file before CPS imputation.'})
-        message = dcf.impute_fmla_cps(self.fp_cps_in, self.fp_cps_out)
-        self.__put_queue({'type': 'message', 'engine': None, 'value': message})
-        self.__put_queue({'type': 'progress', 'engine': None, 'value': 20})
-        self.__put_queue({'type': 'message', 'engine': None,
-                          'value': 'File saved: clean FMLA data file after CPS imputation.'})
+        # message = dcf.impute_fmla_cps(self.fp_cps_in, self.fp_cps_out)
+        # self.__put_queue({'type': 'message', 'engine': None, 'value': message})
+        # self.__put_queue({'type': 'progress', 'engine': None, 'value': 20})
+        # self.__put_queue({'type': 'message', 'engine': None,
+        #                   'value': 'File saved: clean FMLA data file after CPS imputation.'})
         dcf.get_length_distribution(self.fp_length_distribution_out)
-        # self.__put_queue({'type': 'progress', 'engine': self.engine_type, 'value': 25})
-        # self.__put_queue({'type': 'message', 'engine': self.engine_type,
-        #                   'value': 'File saved: leave distribution estimated from FMLA data.'})
+        self.__put_queue({'type': 'progress', 'engine': None, 'value': 25})
+        self.__put_queue({'type': 'message', 'engine': None,
+                          'value': 'File saved: leave distribution estimated from FMLA data.'})
 
         self.__put_queue({'type': 'message', 'engine': None,
                           'value': 'Cleaning ACS data. State chosen = RI. Chunk size = 100000 ACS rows'})
@@ -233,6 +233,7 @@ class SimulationEngine:
         append = False
 
         # Read in cleaned ACS and FMLA data, and FMLA-based length distribution
+        ichunk = 1
         for acs in pd.read_csv(acs_fp_in, chunksize=chunksize):
             # Sample restriction - reduce to eligible workers (all elig criteria indep from simulation below)
 
@@ -309,8 +310,9 @@ class SimulationEngine:
                     acs = acs.join(simcol_indexed)
                 else:  # sim col same length as acs
                     acs[c] = get_sim_col(X, y, w, Xa, clf, self.random_state)
-                print('Simulation of col %s done. Time elapsed = %s' % (c, (time() - tt)))
-            print('6+6+1 simulated. Time elapsed = %s' % (time() - t0))
+                print('Simulation of col %s done for chunk %s. Time elapsed = %s' % (c, ichunk, (time() - tt)))
+            print('6 take_type variables, 6 need_type variables, and resp_len simulated for chunk %s. '
+                  'Time elapsed = %s' % (ichunk, (time() - t0)))
 
             # Post-simluation logic control
             acs.loc[acs['male'] == 1, 'take_matdis'] = 0
@@ -420,7 +422,8 @@ class SimulationEngine:
             # check if sum of mnl hits max = 52*5 = 260. If so, use max=260 to distribute prop to mnl of 6 types
             acs['mnl_all'] = [x.sum() for x in acs[['mnl_%s' % x for x in params['leave_types']]].values]
             for t in params['leave_types']:
-                acs.loc[acs['mnl_all'] > 260, 'mnl_%s' % t] = [int(x) for x in acs.loc[acs['mnl_all'] > 260, 'mnl_%s' % t] /
+                acs.loc[acs['mnl_all'] > 260, 'mnl_%s' % t] = [int(x) for x in
+                                                               acs.loc[acs['mnl_all'] > 260, 'mnl_%s' % t] /
                                                                acs.loc[acs['mnl_all'] > 260, 'mnl_all'] * 260]
             # the mnl-capped workers would must have sq-len no larger than mn-len
             for t in params['leave_types']:
@@ -565,6 +568,9 @@ class SimulationEngine:
             else:
                 acs.to_csv(acs_fp_out, mode='a', index=False, header=False)
 
+            # end of chunk loop, update ichunk
+            ichunk +=1
+
         message = 'Leaves simulated for 5-year ACS %s-%s in state %s. Time needed = %s seconds. ' % \
                   ((self.yr-4), self.yr, self.st.upper(), round(time()-tsim, 0))
         print(message)
@@ -634,13 +640,17 @@ class SimulationEngine:
         # read simulated ACS, and reduce to takers/needers
         params = self.prog_para[sim_num]
         output_directory = self.output_directories[sim_num]
-        out_total = None
+        # out_total = None
+        costs = None
+        costs_rep = None
+        # TODO: cannot do following in chunks in current way FIX IT!
+        # can only do chunks for costs and costs_rep, not se, not ci
         for acs in pd.read_csv('%s/acs_sim_%s_%s.csv' % (output_directory, self.st, self.out_id), chunksize=chunksize):
             acs_taker_needer = acs[(acs['taker'] == 1) | (acs['needer'] == 1)]
             acs_neither_taker_needer = acs.drop(acs_taker_needer.index)
 
             # apply take up flag and weekly benefit cap, and compute total cost, 6 types
-            costs = {}
+            costs_chunk = {}
             for t in params['leave_types']:
                 # v = capped weekly benefit of leave type
                 v = [min(x, params['wkbene_cap']) for x in
@@ -649,14 +659,20 @@ class SimulationEngine:
                 w = acs_taker_needer['PWGTP'] * self.pow_pop_multiplier
 
                 # get program cost for leave type t - sumprod of capped benefit, weight, and takeup flag for each ACS row
-                costs[t] = (v * acs_taker_needer['cpl_%s' % t] / 5 * w * acs_taker_needer['takeup_%s' % t]).sum()
-            costs['total'] = sum(list(costs.values()))
+                costs_chunk[t] = (v * acs_taker_needer['cpl_%s' % t] / 5 * w * acs_taker_needer['takeup_%s' % t]).sum()
+            costs_chunk['total'] = sum(list(costs_chunk.values()))
+            # add costs_chunk to costs
+            if costs is None:
+                costs = costs_chunk
+            else:
+                for k, v in costs.items():
+                    costs[k] += costs_chunk[k]
 
-            # compute standard error using replication weights, then compute confidence interval (lower bound at 0)
-            sesq = dict(zip(costs.keys(), [0] * len(costs.keys())))
-            for wt in ['PWGTP%s' % x for x in range(1, 81)]:
-                # initialize costs dict for current rep weight
-                costs_rep = {}
+            rep_wt_ixs = list(range(1, 81)) # list of rep weight indices
+            # initialize costs dict from rep weight index to cost profile
+            costs_rep_chunk = {}
+            for wt in ['PWGTP%s' % x for x in rep_wt_ixs]:
+                costs_rep_chunk_wt = {}
                 # get takeup_type flags for acs under current rep weight
                 acs = self.get_acs_with_takeup_flags(acs_taker_needer, acs_neither_taker_needer, wt, params)
                 acs_taker_needer = acs[(acs['taker'] == 1) | (acs['needer'] == 1)]
@@ -667,49 +683,63 @@ class SimulationEngine:
                     # inflate weight for missing POW
                     w = acs_taker_needer[wt] * self.pow_pop_multiplier
 
-                    # get program cost for leave type t - sumprod of capped benefit, weight, and takeup flag for each ACS
-                    # row
-                    costs_rep[t] = (v * acs_taker_needer['cpl_%s' % t] / 5 * w * acs_taker_needer['takeup_%s' % t]).sum()
-                costs_rep['total'] = sum(list(costs_rep.values()))
-                for k in costs_rep.keys():
-                    sesq[k] += 4 / 80 * (costs[k] - costs_rep[k]) ** 2
-
-            for k, v in sesq.items():
-                sesq[k] = v ** 0.5
-            ci = {}
-            for k, v in sesq.items():
-                ci[k] = (max(costs[k] - 1.96 * sesq[k], 0), costs[k] + 1.96 * sesq[k])
-
-            # Save output
-            out_costs = pd.DataFrame.from_dict(costs, orient='index')
-            out_costs = out_costs.reset_index()
-            out_costs.columns = ['type', 'cost']
-
-            out_ci = pd.DataFrame.from_dict(ci, orient='index')
-            out_ci = out_ci.reset_index()
-            out_ci.columns = ['type', 'ci_lower', 'ci_upper']
-
-            out = pd.merge(out_costs, out_ci, how='left', on='type')
-
-            d_tix = {'own': 1, 'matdis': 2, 'bond': 3, 'illchild': 4, 'illspouse': 5, 'illparent': 6, 'total': 7}
-            out['tix'] = [d_tix[x] for x in out['type']]
-
-            out = out.sort_values(by='tix')
-            del out['tix']
-
-            if out_total is not None:
-                out_total[['cost', 'ci_lower', 'ci_upper']] += out[['cost', 'ci_lower', 'ci_upper']]
+                    # get program cost for leave type t - sumprod of capped benefit, weight,
+                    # and takeup flag for each ACS row
+                    costs_rep_chunk_wt[t] = (v * acs_taker_needer['cpl_%s' % t] / 5 * w * acs_taker_needer['takeup_%s' % t]).sum()
+                costs_rep_chunk_wt['total'] = sum(list(costs_rep_chunk_wt.values()))
+                # update cost_rep_chunk
+                costs_rep_chunk[wt] = costs_rep_chunk_wt
+            # add costs_rep_chunk to costs_rep
+            if costs_rep is None:
+                costs_rep = costs_rep_chunk
             else:
-                out_total = out
+                for wt in ['PWGTP%s' % x for x in rep_wt_ixs]:
+                    for k, v in costs_rep[wt].items(): # k is leave type, and total
+                        costs_rep[wt][k] += costs_rep_chunk[wt][k]
+        # end of chunk loop
 
-        out_total.to_csv('%s/program_cost_%s_%s.csv' % (output_directory, self.st, self.out_id), index=False)
+        # compute standard error using replication weights, then compute confidence interval (lower bound at 0)
+        # methodology reference: https://usa.ipums.org/usa/repwt.shtml
+        sesq = dict(zip(costs.keys(), [0] * len(costs.keys())))
+        for wt in ['PWGTP%s' % x for x in rep_wt_ixs]:
+            for k in costs_rep[wt].keys():
+                sesq[k] += 4 / 80 * (costs[k] - costs_rep[wt][k]) ** 2
+        for k, v in sesq.items():
+            sesq[k] = v ** 0.5
+        ci = {}
+        for k, v in sesq.items():
+            ci[k] = (max(costs[k] - 1.96 * sesq[k], 0), costs[k] + 1.96 * sesq[k])
+
+        # Save output
+        out_costs = pd.DataFrame.from_dict(costs, orient='index')
+        out_costs = out_costs.reset_index()
+        out_costs.columns = ['type', 'cost']
+
+        out_ci = pd.DataFrame.from_dict(ci, orient='index')
+        out_ci = out_ci.reset_index()
+        out_ci.columns = ['type', 'ci_lower', 'ci_upper']
+
+        out = pd.merge(out_costs, out_ci, how='left', on='type')
+
+        d_tix = {'own': 1, 'matdis': 2, 'bond': 3, 'illchild': 4, 'illspouse': 5, 'illparent': 6, 'total': 7}
+        out['tix'] = [d_tix[x] for x in out['type']]
+
+        out = out.sort_values(by='tix')
+        del out['tix']
+        #
+        # if out_total is not None:
+        #     out_total[['cost', 'ci_lower', 'ci_upper']] += out[['cost', 'ci_lower', 'ci_upper']]
+        # else:
+        #     out_total = out
+
+        out.to_csv('%s/program_cost_%s_%s.csv' % (output_directory, self.st, self.out_id), index=False)
         message = 'Output saved. Total cost = $%s million 2012 dollars' % \
-                  (round(out_total[out_total['type'] == 'total']['cost']/1000000, 1))
+                  (round(out[out['type'] == 'total']['cost']/1000000, 1))
         print(message)
         self.progress += 10 / len(self.prog_para)
         self.__put_queue({'type': 'progress', 'engine': sim_num, 'value': self.progress})
         self.__put_queue({'type': 'message', 'engine': sim_num, 'value': message})
-        return out_total  # df of leave type specific costs and total cost, along with ci's
+        return out  # df of leave type specific costs and total cost, along with ci's
 
     def create_chart(self, out, sim_num):
         output_directory = self.output_directories[sim_num]

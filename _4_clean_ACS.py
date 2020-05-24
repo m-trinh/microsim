@@ -87,10 +87,8 @@ class DataCleanerACS:
         top_occ += [cps[cps.occ_top3==1].a_mjocc.value_counts().index[0]]
 
         # use cps df to train models for predicting needed yvars in ACS person data chunks
-        # fillna for cps
-        cps = fillna_df(cps, self.random_state)
-        ## for faster testing
-        # cps = cps.dropna(how='any')
+        # fillna for cps - not needed if use cps_clean_year.csv (preprocessed)
+        # cps = fillna_df(cps, self.random_state)
 
         # weight col
         w = cps['marsupwt']
@@ -357,7 +355,6 @@ class DataCleanerACS:
             d['fmla_eligible'] = np.where((d['oneemp'] == 1) &
                                           (d['wkhours'] * d['wkswork'] >= 1250) &
                                           (d['empsize'] >= 3), 1, 0)
-            print('fmla_eligible value count \n', d['fmla_eligible'].value_counts())
             # -------------------------- #
             # Save the resulting dataset
             # -------------------------- #
@@ -395,7 +392,7 @@ class DataCleanerACS:
         t0 = time()
 
         # Load CPS data from impute_FMLA_CPS
-        cps = pd.read_csv('./data/cps/cps_for_acs_sim.csv')
+        cps = pd.read_csv('./data/cps/cps_clean_2014.csv')
         if self.st.lower() == 'all':
             for i, st in enumerate(STATE_CODES):
                 dout = self.clean_person_state_data(st.lower(), cps, chunk_size=chunk_size)
