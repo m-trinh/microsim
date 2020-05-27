@@ -172,4 +172,17 @@ else:
 
 
 
+types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
+for t in types:
+    print(d['take_%s' % t].value_counts())
+for t in types:
+    print(d['need_%s' % t].value_counts())
+
+fp = "C:/workfiles/Microsimulation/microsim/data/acs/2018/pow_person_files/p34_nj_pow.csv"
+
+fp2 = "./output/output_20200526_235821_main simulation/acs_sim_nj_20200526_235821.csv"
+acs2 = pd.read_csv(fp2)
+
+fp3 = "./data/acs/ACS_cleaned_forsimulation_2018_ri.csv"
+acs3 = pd.read_csv(fp3)
 

@@ -234,6 +234,7 @@ class SimulationEngine:
 
         # Read in cleaned ACS and FMLA data, and FMLA-based length distribution
         ichunk = 1
+        n_eligible_workers = 0 # number of eligible workers (acs.PWGTP.sum()), to be update in chunk loop
         for acs in pd.read_csv(acs_fp_in, chunksize=chunksize):
             # Sample restriction - reduce to eligible workers (all elig criteria indep from simulation below)
 
@@ -564,15 +565,18 @@ class SimulationEngine:
             # Save ACS data after finishing simulation
             if not append:
                 acs.to_csv(acs_fp_out, index=False)
+                n_eligible_workers = acs['PWGTP'].sum()
                 append = True
             else:
                 acs.to_csv(acs_fp_out, mode='a', index=False, header=False)
+                n_eligible_workers += acs['PWGTP'].sum()
 
             # end of chunk loop, update ichunk
             ichunk +=1
 
         message = 'Leaves simulated for 5-year ACS %s-%s in state %s. Time needed = %s seconds. ' % \
                   ((self.yr-4), self.yr, self.st.upper(), round(time()-tsim, 0))
+        message += '\nEstimate of total eligible workers in state = %s' % n_eligible_workers
         print(message)
         self.progress += 40 / len(self.prog_para)
         self.__put_queue({'type': 'progress', 'engine': sim_num, 'value': self.progress})
@@ -633,7 +637,7 @@ class SimulationEngine:
                           'Effective takeup = %s. '
                           'Post-sim weighted share = %s' % (t, params['d_takeup'][t], takeup, s_takeup))
 
-            # return ACS with all eligible workers (regardless of taker/needer status), with takeup_type flags sim'ed
+        # return ACS with all eligible workers (regardless of taker/needer status), with takeup_type flags sim'ed
         return acs
 
     def get_cost(self, sim_num, chunksize=100000):
@@ -643,7 +647,6 @@ class SimulationEngine:
         # out_total = None
         costs = None
         costs_rep = None
-        # TODO: cannot do following in chunks in current way FIX IT!
         # can only do chunks for costs and costs_rep, not se, not ci
         for acs in pd.read_csv('%s/acs_sim_%s_%s.csv' % (output_directory, self.st, self.out_id), chunksize=chunksize):
             acs_taker_needer = acs[(acs['taker'] == 1) | (acs['needer'] == 1)]

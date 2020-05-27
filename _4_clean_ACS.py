@@ -135,8 +135,10 @@ class DataCleanerACS:
 
         # process person data by chunk
         for d in pd.read_csv(fp_d_p, chunksize=chunk_size):
+            print('check a: d.shape = \n', d.shape)
             # Merge with the household level variables
-            d = pd.merge(d, d_hh, on='SERIALNO')
+            d = pd.merge(d, d_hh, on='SERIALNO', how='left')
+            print('check b: d.shape = \n', d.shape)
 
             # -------------------------- #
             # Remove ineligible workers, include only
@@ -146,10 +148,9 @@ class DataCleanerACS:
             d = d[((d['ESR'] == 1) | (d['ESR'] == 2)) &
                   ((d['COW'] == 1) | (d['COW'] == 2) | (d['COW'] == 3) | (d['COW'] == 4) | (d['COW'] == 5) |
                    (d['COW'] == 6) | (d['COW'] == 7))]
-
             # Rename ACS variables to be consistent with FMLA data
-            rename_dic = {'AGEP': 'age'}
-            d.rename(columns=rename_dic, inplace=True)
+            dct_rename = {'AGEP': 'age'}
+            d = d.rename(columns=dct_rename)
 
             # duplicating age column for meshing with CPS estimate output
             d['a_age'] = d['age']
@@ -378,10 +379,14 @@ class DataCleanerACS:
             cols += ['PWGTP%s' % x for x in range(1, 81)]
 
             d_reduced = d[cols]
+            print('check c: d_reduced.shape = \n', d_reduced.shape)
+
             dout = dout.append(d_reduced)
+            print('check d: in-loop dout.shape = \n', dout.shape)
+
             print('ACS data cleaned for chunk %s of person data...' % ichunk)
             ichunk += 1
-
+        print('check e: final dout.shape = \n', dout.shape)
         return dout
 
     def clean_person_data(self, chunk_size=100000):
@@ -392,7 +397,7 @@ class DataCleanerACS:
         t0 = time()
 
         # Load CPS data from impute_FMLA_CPS
-        cps = pd.read_csv('./data/cps/cps_clean_2014.csv')
+        cps = pd.read_csv('./data/cps/cps_clean_%s.csv' % (self.yr - 2)) # set CPS year as mid-year of ACS5
         if self.st.lower() == 'all':
             for i, st in enumerate(STATE_CODES):
                 dout = self.clean_person_state_data(st.lower(), cps, chunk_size=chunk_size)
