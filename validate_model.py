@@ -148,10 +148,14 @@ from Utils import format_chart
 import json
 
 # a function to plot pop level results - worker counts
-def plot_pop_level_worker_counts(dp, clf_class_names, suffix=None):
+def plot_pop_level_worker_counts(dp, clf_class_names_plot, savefig=None):
     '''
     :param: clf_class_names: col of dp except 'true', numbers will follow this order in plot
     '''
+    # get clf class names, and corresponding labels for plot, must align for proper plotting
+    clf_class_names_plot = [type(z).__name__ for z in clfs]
+    clf_labels_plot = tuple([dct_clf[x] for x in clf_class_names_plot])
+    # make plot
     title = 'Population Level Validation Results - Worker Counts'
     fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
     dp = dp[clf_class_names + ['true']]
@@ -163,7 +167,7 @@ def plot_pop_level_worker_counts(dp, clf_class_names, suffix=None):
     bar2 = ax.bar(ind + width / 2, zs, width, align='center', capsize=5, color='tan', ecolor='grey')
     ax.set_ylabel('Millions of workers')
     ax.set_xticks(ind)
-    ax.set_xticklabels(clf_labels)
+    ax.set_xticklabels(clf_labels_plot)
     ax.yaxis.grid(False)
     ax.legend((bar1, bar2), ('Leave Takers', 'Leave Needers'))
     ax.ticklabel_format(style='plain', axis='y')
@@ -180,16 +184,21 @@ def plot_pop_level_worker_counts(dp, clf_class_names, suffix=None):
     hline_offset = 1.025
     hline_text = 'Actual Number of Needers: %s million' % (round(n_needers_true, 1))
     plt.text(2, n_needers_true * hline_offset, hline_text, horizontalalignment='center', color='k')
-    if suffix is not None:
+    if savefig is not None:
+        dir_out, suffix = savefig
         # save
         plt.savefig(dir_out + 'pop_level_workers%s.png' % suffix, facecolor='white', edgecolor='grey')  #
     return None
 
 # a function to plot pop level results - leave counts
-def plot_pop_level_leave_counts(dp, clf_class_names, suffix=None):
+def plot_pop_level_leave_counts(dp, clf_class_names_plot, savefig=None):
     '''
     :param: clf_class_names: col of dp except 'true', numbers will follow this order in plot
     '''
+    # get clf class names, and corresponding labels for plot, must align for proper plotting
+    clf_class_names_plot = [type(z).__name__ for z in clfs]
+    clf_labels_plot = tuple([dct_clf[x] for x in clf_class_names_plot])
+    # make plot
     title = 'Population Level Validation Results - Leaves Taken'
     fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
     dp = dp[clf_class_names + ['true']]
@@ -199,7 +208,7 @@ def plot_pop_level_leave_counts(dp, clf_class_names, suffix=None):
     bar1 = ax.bar(ind, ys, width, align='center', capsize=5, color='indianred', ecolor='grey')
     ax.set_ylabel('Number of Leaves')
     ax.set_xticks(ind)
-    ax.set_xticklabels(clf_labels)
+    ax.set_xticklabels(clf_labels_plot)
     ax.yaxis.grid(False)
     ax.ticklabel_format(style='plain', axis='y')
     ax.get_yaxis().set_major_formatter(matplotlib.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
@@ -216,15 +225,21 @@ def plot_pop_level_leave_counts(dp, clf_class_names, suffix=None):
     hline_offset = 1.025
     hline_text = 'Actual Number of Total Leaves: %s million' % (round(n_leaves_true_a4, 1))
     plt.text(2, n_leaves_true_a4 * hline_offset, hline_text, horizontalalignment='center', color='k')
-    if suffix is not None:
+    if savefig is not None:
+        dir_out, suffix = savefig
         # save
         plt.savefig(dir_out + 'pop_level_leaves%s.png' % suffix, facecolor='white', edgecolor='grey')  #
     return None
 
 # a function to plot ind level results
-def plot_ind_level(di, yvar, suffix=None):
+def plot_ind_level(di, clf_class_names_plot, yvar, savefig=None):
+    # get clf class names, and corresponding labels for plot, must align for proper plotting
+    clf_class_names_plot = [type(z).__name__ for z in clfs]
+    clf_labels_plot = tuple([dct_clf[x] for x in clf_class_names_plot])
+    # make plot
     title = 'Individual Level Validation Results - Performance Measures\nOutcome = %s' % yvar
     fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
+    di = di[clf_class_names] # order to ensure
     ys = [x[yvar] for x in di.loc['precision'].values]
     zs = [x[yvar] for x in di.loc['recall'].values]
     ws = [x[yvar] for x in di.loc['f1'].values]
@@ -235,13 +250,14 @@ def plot_ind_level(di, yvar, suffix=None):
     bar3 = ax.bar(ind + width, ws, width, align='center', capsize=5, color='slategray', ecolor='grey')
     ax.set_ylabel('Performance Measure')
     ax.set_xticks(ind)
-    ax.set_xticklabels(clf_labels)
+    ax.set_xticklabels(clf_labels_plot)
     ax.yaxis.grid(False)
     ax.legend((bar1, bar2, bar3), ('Precision', 'Recall', 'F1'))
     ax.ticklabel_format(style='plain', axis='y')
     # ax.get_yaxis().set_major_formatter(matplotlib.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
     format_chart(fig, ax, title, bg_color='white', fg_color='k')
-    if suffix is not None:
+    if savefig is not None:
+        dir_out, suffix = savefig
         # save
         plt.savefig(dir_out + 'ind_level%s.png' % suffix, facecolor='white', edgecolor='grey')  #
     return None
@@ -265,7 +281,7 @@ for random_seed in seeds:
     clfs += [sklearn.neighbors.KNeighborsClassifier(n_neighbors=5)]
     clfs += [sklearn.naive_bayes.MultinomialNB()]
     clfs += [sklearn.ensemble.RandomForestClassifier(random_state=random_state)]
-    clfs += [xgboost.XGBClassifier()]
+    clfs += [xgboost.XGBClassifier(objective='binary:logistic')]
     clfs += [sklearn.linear_model.RidgeClassifier()]
     clfs += [sklearn.svm.SVC(probability=True, gamma='auto', random_state=random_state)]
     # clfs = [sklearn.linear_model.LogisticRegression(solver='liblinear', multi_class='ovr', random_state=random_state)]
@@ -370,7 +386,7 @@ def get_avg_out_pop(dir_results, seeds, true_numbers=False):
     avg_out_p = None
     # random_seed = 12345
     for s in seeds:
-        # load json, convert to df, norm to millions
+        # load json, convert to df, norm to millions, and norm by number of seeds for avg
         with open(dir_results + 'seed_%s' % s + '/pop_level_%s_k%s.json' % (fmla_wave, fold)) as f:
             out_p = json.load(f)
         out_p_df = pd.DataFrame.from_dict(
@@ -389,6 +405,38 @@ def get_avg_out_pop(dir_results, seeds, true_numbers=False):
         true_counts = true_counts / 10 ** 6
         avg_out_p = avg_out_p.join(true_counts)
     return avg_out_p
+
+def get_avg_out_ind(dir_results, seeds):
+    '''
+
+    :param dir_results: directory storing seed-specific result folders, e.g. ./seeds_12345_12354_noSVC
+    :param seeds: list of seeds used, corresponding to seed folders in dir_results
+    :param true_numbers: if True, then add a col 'true' to avg_out_p showing true pop-level numbers
+    :return: avg_ind_p, a df with rows= , and cols=clf class names
+    '''
+    avg_out_i = None
+    # random_seed = 12345
+    for s in seeds:
+        # load json, convert to df, norm by number of seeds for avg
+        with open(dir_results + 'seed_%s' % s + '/ind_level_%s_k%s.json' % (fmla_wave, fold)) as f:
+            out_i = json.load(f)
+        out_i_df = pd.DataFrame.from_dict(out_i)
+        for col in out_i_df.columns:
+            for ix in out_i_df.index:
+                dct_scores = out_i_df[col][ix]
+                out_i_df[col][ix] = {k: v/len(seeds) for k, v in dct_scores.items()}
+
+        # update avg_out_i with pop-level prediction numbers from a seed
+        if avg_out_i is None:
+            avg_out_i = out_i_df
+        else:
+            for col in avg_out_i.columns:
+                for ix in avg_out_i.index:
+                    avg_out_i[col][ix] = {k: (avg_out_i[col][ix][k] + out_i_df[col][ix][k]) for k, v in
+                                          avg_out_i[col][ix].items()}
+
+    return avg_out_i
+
 # get avg_out_pop for noSVC results
 dir_results = 'C:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_2/results/seeds_12345_12354_noSVC/'
 avg_out_p = get_avg_out_pop(dir_results, seeds, true_numbers=True)
@@ -397,14 +445,23 @@ dir_results = 'C:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_2/res
 avg_out_p = avg_out_p.join(get_avg_out_pop(dir_results, seeds))
 # send 'true' col to end
 avg_out_p = avg_out_p[[x for x in avg_out_p.columns if x!='true'] + ['true']]
+# get avg_out_ind for noSVC results
+avg_out_i = get_avg_out_ind(dir_results, seeds)
+# add in col for SVC
+dir_results = 'C:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_2/results/seeds_12345_12354_SVC/'
+avg_out_i = avg_out_i.join(get_avg_out_ind(dir_results, seeds))
+
 # plot with average results
 # Pop level results - worker counts
 plot_pop_level_worker_counts(avg_out_p, clf_class_names_plot)
 # Pop level results - leave counts
 plot_pop_level_leave_counts(avg_out_p, clf_class_names_plot)
 # Ind level results
-
-
+dir_out = 'C:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_2/draft_plot/'
+for yvar in ['taker', 'needer', 'resp_len'] + ['take_own', 'need_own', 'take_matdis', 'need_matdis']:
+    suffix = '_%s_k%s_%s' % (fmla_wave, fold, yvar)
+    savefig = (dir_out, suffix)
+    plot_ind_level(avg_out_i, clf_class_names_plot, yvar, savefig=savefig)
 
 
 

@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 DEFAULT_STATE_PARAMS = {
     '': {},
     'CA': {
-        'replacement_ratio': 0.55,
+        'replacement_ratio': 0.57,
         'benefit_effect': True,
         'top_off_rate': 0.01,
         'top_off_min_length': 10,
@@ -19,7 +19,7 @@ DEFAULT_STATE_PARAMS = {
                       'Ill Child': 6,
                       'Ill Spouse': 6,
                       'Ill Parent': 6},
-        'weekly_ben_cap': 1082,
+        'weekly_ben_cap': 1144,
         'fmla_protection_constraint': True,
         'eligible_earnings': 300,
         'government_employees': False,

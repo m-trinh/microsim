@@ -33,6 +33,7 @@ import sklearn.tree
 import sklearn.ensemble
 import sklearn.gaussian_process
 import sklearn.svm
+import xgboost
 from datetime import datetime
 import matplotlib.pyplot as plt
 import os
@@ -75,17 +76,19 @@ class SimulationEngine:
 
         # a dict from clf_name to clf
         self.d_clf = {
-            'Logistic Regression GLM': ['logit glm', sklearn.linear_model.LogisticRegression(solver='liblinear', multi_class='auto', random_state=self.random_state)],
+            'Logistic Regression GLM': ['logit glm',
+                                        sklearn.linear_model.LogisticRegression(solver='liblinear',
+                                                                                multi_class='auto',
+                                                                                random_state=self.random_state)],
             'Logistic Regression': sklearn.linear_model.LogisticRegression(solver='liblinear', multi_class='auto',
                                                                            random_state=self.random_state),
             'Ridge Classifier': sklearn.linear_model.RidgeClassifier(random_state=self.random_state),
             'Naive Bayes': sklearn.naive_bayes.MultinomialNB(),
             'Support Vector Machine': sklearn.svm.SVC(probability=True, gamma='auto', random_state=self.random_state),
             'Random Forest': sklearn.ensemble.RandomForestClassifier(random_state=self.random_state),
-            'K Nearest Neighbor': sklearn.neighbors.KNeighborsClassifier()
+            'K Nearest Neighbor': sklearn.neighbors.KNeighborsClassifier(),
+            'XGBoost': xgboost.XGBClassifier(objective='binary:logistic') # = multi:softmax as needed in get_sim_col
         }
-        # self.d_clf['Stochastic Gradient Descent'] = sklearn.linear_model.SGDClassifier(loss='modified_huber',
-        # max_iter=1000, tol=0.001)
 
         # out id for creating unique out folder to store all model outputs
         self.out_id = datetime.now().strftime('%Y%m%d_%H%M%S')

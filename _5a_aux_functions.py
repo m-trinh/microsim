@@ -419,7 +419,11 @@ def get_sim_col(X, y, w, Xa, clf, random_state):
 
     else:
         Z, Za = X, Xa
+
     # Fit model
+    # if XGB and yvar has 3+ classes, update objective
+    if (len(y.value_counts())>=3) and (isinstance(clf, xgboost.XGBClassifier)):
+        clf = xgboost.XGBClassifier(objective='multi:softmax')
     # glm logit
     if isinstance(clf, list): # logit GLM = ['logit glm', sklearn logit classifier]
         if len(y.value_counts())==2: # for (almost all) binary yvars, use statsmodel if user chose logit GLM
@@ -892,8 +896,6 @@ def get_multiple_leave_vars(d, types, random_state):
         d['length_%s' % t] = np.where(d['take_%s' % t].isna(), np.nan, d['length_%s' % t])
 
     return d
-
-####### TODO: remove testing func below
 
 ## Get take up flags
 def get_acs_with_takeup_flags(acs_taker_needer, acs_neither_taker_needer, col_w, params, random_state):

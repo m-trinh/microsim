@@ -922,7 +922,8 @@ class GeneralParamsFrame(Frame):
 
         # Currently implemented simulation methods
         self.simulation_methods = ('Logistic Regression GLM', 'Logistic Regression', 'Ridge Classifier',
-                                   'K Nearest Neighbor', 'Naive Bayes', 'Support Vector Machine', 'Random Forest')
+                                   'K Nearest Neighbor', 'Naive Bayes', 'Support Vector Machine',
+                                   'Random Forest', 'XGBoost')
         self.cwd = os.getcwd()  # Current working directory
         self.variables = self.winfo_toplevel().variables
 
