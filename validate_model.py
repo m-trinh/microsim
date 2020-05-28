@@ -24,13 +24,12 @@ import sklearn.linear_model, sklearn.naive_bayes, sklearn.neighbors, sklearn.tre
 import xgboost
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import precision_score, recall_score, f1_score
-import math
-from datetime import datetime
 import matplotlib.pyplot as plt
-import random
-import json
-from datetime import datetime
+import matplotlib
+from Utils import format_chart
 import os
+from os import listdir
+from os.path import isfile, join
 
 # a function to get yhat via k-fold train-test split (stratified) and prediction
 def get_kfold_yhat(X, y, clf, fold, random_state):
@@ -139,13 +138,6 @@ def get_individual_level_results(d, clf_name, weighted_test=True):
 # ------------------------
 ## Plot functions
 # ------------------------
-import pandas as pd
-import numpy as np
-from collections import OrderedDict
-import matplotlib.pyplot as plt
-import matplotlib
-from Utils import format_chart
-import json
 
 # a function to plot pop level results - worker counts
 def plot_pop_level_worker_counts(dp, clf_class_names_plot, savefig=None):
@@ -471,21 +463,16 @@ for yvar in ['taker', 'needer', 'resp_len'] + ['take_own', 'need_own', 'take_mat
 #######################################
 
 # Program Outlay Results
-from os import listdir
-from os.path import isfile, join
-
 # Make a df of total program costs
 costs = {}
-sts = ['ca', 'nj', 'ri']
+sts = ['ri', 'nj', 'ca']
 for s in sts:
     costs[s] = {}
-methods = ['logit', 'knn5', 'nb', 'rf', 'ridge', 'svc']
+methods = ['logit', 'knn', 'nb', 'rf', 'xgb', 'ridge', 'svm']
+dir = './output/_ib2_v2/'
 for st in sts:
     for method in methods:
-        if st=='nj':
-            fp='./output/_mnl/%s_%s/' % (st, method)
-        else:
-            fp = './output/%s_%s/' % (st, method)
+        fp= dir + '%s_%s/' % (st, method)
         fs = [f for f in listdir(fp) if isfile(join(fp, f))]
         f_dc = [f for f in fs if 'program_cost' in f][0]
         dc = pd.read_csv(fp+f_dc)
@@ -494,28 +481,43 @@ for st in sts:
                 dc[c] = [x/10**6 for x in dc[c]]
         costs[st][method] = dc.loc[dc['type']=='total', 'cost'].values[0]
 costs = pd.DataFrame.from_dict(costs)
+costs = costs.reindex(methods)
+costs = costs[sts]
+
 # plot
-title = 'Program Cost Validation Results'
+title = 'Program Outlay Validation Results'
 fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
-costs = costs.reindex(['logit', 'knn5', 'nb', 'rf', 'ridge', 'svc'])
-ys = costs['ca']
+ys = costs['ri']
 zs = costs['nj']
-ws = costs['ri']
+ws = costs['ca']
+dct_color = dict(zip(sts, ['indianred', 'slategray', 'tan']))
+
 ind = np.arange(len(ys))
 width = 0.2
-bar1 = ax.bar(ind-width, ys, width, align='center', capsize=5, color='indianred', ecolor='grey')
-bar2 = ax.bar(ind, zs, width, align='center', capsize=5, color='tan', ecolor='grey')
-bar3 = ax.bar(ind+width, ws, width, align='center', capsize=5, color='slategray', ecolor='grey')
-ax.set_ylabel('Program Cost')
+bar1 = ax.bar(ind-width, ys, width, align='center', capsize=5, color=dct_color['ri'], ecolor='grey')
+bar2 = ax.bar(ind, zs, width, align='center', capsize=5, color=dct_color['nj'], ecolor='grey')
+bar3 = ax.bar(ind+width, ws, width, align='center', capsize=5, color=dct_color['ca'], ecolor='grey')
+ax.set_ylabel('Program Outlay')
 ax.set_xticks(ind)
-ax.set_xticklabels(('Random Draw', 'Logit', 'KNN', 'Naive Bayes', 'Random Forest', 'Ridge', 'SVC'))
+ax.set_xticklabels(('Logit', 'KNN', 'Naive Bayes', 'Random Forest', 'XGB', 'Ridge', 'SVC'))
 ax.yaxis.grid(False)
-ax.legend( (bar1, bar2, bar3), ('California', 'New Jersey', 'Rhode Island') )
+ax.legend((bar1, bar2, bar3), ('Rhode Island','New Jersey', 'California' ))
 ax.ticklabel_format(style='plain', axis='y')
 #ax.get_yaxis().set_major_formatter(matplotlib.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
+
+# add horizontal bar for true numbers
+dct_cost = dict(zip(sts, [166.7, 502.2, 5681.7]))
+dct_offset = dict(zip(sts, [1.025, 1.025, 0.975]))
+for st in sts:
+    y = dct_cost[st]
+    plt.axhline(y=y, color=dct_color[st], linestyle='--')
+    hline_offset = dct_offset[st]
+    hline_text = 'Actual Program Outlay, %s: %s million' % (st.upper(), y)
+    plt.text(2, y * hline_offset, hline_text, horizontalalignment='center', color='k')
 format_chart(fig, ax, title, bg_color='white', fg_color='k')
 # save
-plt.savefig(dir_out + 'program_costs.png', facecolor='white', edgecolor='grey') #
+dir_out = 'C:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_2/draft_plot/'
+plt.savefig(dir_out + 'program_outlay.png', facecolor='white', edgecolor='grey') #
 
 
 
