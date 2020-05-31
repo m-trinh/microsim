@@ -150,7 +150,9 @@ class DataCleanerFMLA:
                       (d['D4_CAT'] == 9), (d['D4_CAT'] == 10)]
         choices = [15, 25, 32.5, 37.5, 45, 62.5, 87.5, 130]
         d['faminc'] = 1000*np.select(conditions, choices, default=np.nan)
-        d['lnfaminc'] = np.log(d['faminc'])
+        d.loc[(d['faminc'] <= 0.01) & (~d['faminc'].isna()), 'faminc'] = 0.01  # set to 0.01 for any reported income <=0.01
+        # Log income - set to log(0.01) for any reported income <=0.01, set to NA if income NA
+        d['ln_faminc'] = [np.log(x) if not np.isnan(x) else x for x in d['faminc']]
 
         # Marital status
         d['married'] = np.where(d['D10'] == 1, 1, 0)

@@ -478,6 +478,7 @@ class MicrosimGUI(Tk):
         # Get values from GeneralParameters object
         st = self.general_params.state.lower()
         yr = self.general_params.year
+        fmla_wave = 2018 # TODO: implement in GeneralParameters() and show in GUI
         fp_fmla_in = self.general_params.fmla_file
         fp_cps_in = './data/cps/cps_clean_%s.csv' % (yr - 2)
         fp_acsh_in = self.general_params.acs_directory + '/%s/household_files' % yr
@@ -495,7 +496,7 @@ class MicrosimGUI(Tk):
 
         clf_name = self.general_params.simulation_method
         random_seed = self.general_params.random_seed
-        return SimulationEngine(st, yr, fps_in, fps_out, clf_name=clf_name, random_state=random_seed,
+        return SimulationEngine(st, yr, fmla_wave, fps_in, fps_out, clf_name=clf_name, random_state=random_seed,
                                 state_of_work=state_of_work, q=q)
 
     def add_engine_params(self, parameters):

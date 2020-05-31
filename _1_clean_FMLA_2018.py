@@ -159,6 +159,9 @@ class DataCleanerFMLA:
                             185000, 195000, 225000, 275000,
                             325000, 375000, 425000, 500000]))  # boundary cat is 450k+, appox by 500k
         d['faminc'] = [dct_inc[x] if not np.isnan(x) else x for x in d['nd4_cat']]
+        d.loc[(d['faminc'] <= 0.01) & (~d['faminc'].isna()), 'faminc'] = 0.01  # set to 0.01 for any income <=0.01
+        # Log income - set to log(0.01) for any reported income <=0.01, set to NA if income NA
+        d['ln_faminc'] = [np.log(x) if not np.isnan(x) else x for x in d['faminc']]
 
         # Marital status
         d['married'] = np.where(d['d10'] == 1, 1, 0)
@@ -358,6 +361,20 @@ class DataCleanerFMLA:
         for k, v in dct_ind.items():
             d['ind_%s' % k] = np.where(d['ne15_coded'].isin(dct_ind[k]), 1, 0)
             d['ind_%s' % k] = np.where(d['ne15_coded'].isin(['DR', 'S', '99999']), np.nan, d['ind_%s' % k])
+
+        # categorize numerical cols
+        # use hard value as cutoffs (must match with ACS cutoffs)
+        dct_cuts = {
+            'faminc': [40000, 70000], # no needed for ln_faminc, monotonic
+            'age': [35, 65],  # not needed for agesq - cuts already accounts for non-linearity
+            'wkhours': [20, 35]
+        }
+        for k, v in dct_cuts.items():
+            d[k + '_grp1'] = np.where(d[k] < v[0], 1, 0)
+            d[k + '_grp2'] = np.where((d[k] < v[1]) & (d[k] >= v[0]), 1, 0)
+            d[k + '_grp3'] = np.where(d[k] >= v[1], 1, 0)
+            for z in [1, 2, 3]:
+                d[k + '_grp%s' % z] = np.where(d[k].isna(), np.nan, d[k + '_grp%s' % z])
 
         # Save data
         d.to_csv(self.fp_fmla_out, index=False)

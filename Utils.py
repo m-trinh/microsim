@@ -128,7 +128,7 @@ class Parameters:
 
 class GeneralParameters(Parameters):
     def __init__(self, fmla_file='', acs_directory='', output_directory='', state='',
-                 simulation_method='Logistic Regression', engine_type='Python', r_path='', random_seed=12345,
+                 simulation_method='Naive Bayes', engine_type='Python', r_path='', random_seed=12345,
                  state_of_work=True, year=2018):
         """General program parameters. A distinction needs to be made for program comparison, as each program will share
         these parameters but not others."""

@@ -38,17 +38,26 @@ def get_columns(fmla_wave, leave_types):
               'ltHS', 'someCol', 'BA', 'GradSch',
               'black', 'other', 'asian','native','hisp',
               'nochildren','faminc'] # ,'coveligd'
+        Xs += ['age',  'agesq', 'faminc']
+
     elif fmla_wave==2018:
         Xs = ['widowed', 'divorced', 'separated', 'nevermarried',
-              'female', 'age','agesq',
+              'female',
               'ltHS', 'someCol', 'BA', 'GradSch',
               'black', 'other', 'asian','native','hisp',
-              'nochildren','faminc'] + \
+              'nochildren'] + \
              ['fmla_eligible', 'emp_gov', 'emp_nonprofit',
-              'union', 'wkhours', 'noelderly',
-              'hourly'] + ['occ_%s' % x for x in range(1, 10)] + ['ind_%s' % x for x in range(1, 13)]
+              'union', 'noelderly',
+              'hourly', 'low_wage'] + ['occ_%s' % x for x in range(1, 10)] + ['ind_%s' % x for x in range(1, 13)]
+        Xs += ['age',  'agesq', 'faminc', 'wkhours']
+
         # no job tenure data in CPS or ACS, cannot use as xvars
         # Xs += ['job_tenure_0_1', 'job_tenure_1_3', 'job_tenure_3_5', 'job_tenure_5_10']
+        # FMLA 18 has no weeks worked over a year, consider CPS-impute
+    #
+    # # group cols for numeric xvars (to replace Xs_num in Naive Bayes)
+    # num_xvars = ['faminc', 'age', 'wkhours'] # no need for ln_faminc and agesq since monotonic
+    # Xs_grp = [item for sublist in [[x + '_grp%s' % z for z in range(1, 4)] for x in num_xvars] for item in sublist]
 
     # same weight column and yvars for wave 2012 and 2018
     w = 'weight'
@@ -376,28 +385,27 @@ def get_sim_col(X, y, w, Xa, clf, random_state):
         simcol = clf.predict(Xa)
         return simcol
 
-        # simcol = [y.iloc[z] for z in random_state.choice(len(y), len(Xa))]
-
-        # Data preparing - categorization for Naive Bayes
+    # Data preparing - categorization for Naive Bayes
     elif isinstance(clf, sklearn.naive_bayes.MultinomialNB):
-        # Cateogrize integer variables (ndep_kid, ndep_old) into 0, 1, 2+ groups
-        # Categorize decimal variables into binary columns of tercile groups
+        # get group cols to replace num cols (not nec. 1-1 replace)
+        dct_cuts = {
+            'faminc': [40000, 70000], # not needed for ln_faminc (monotonic)
+            'age': [35, 65],  # not needed for agesq - cuts already accounts for non-linearity
+            'wkhours': [20, 35]
+        }
+        for c, v in dct_cuts.items():
+            for df in [X, Xa]:
+                df[c + '_grp1'] = np.where(df[c] < v[0], 1, 0)
+                df[c + '_grp2'] = np.where((df[c] < v[1]) & (df[c] >= v[0]), 1, 0)
+                df[c + '_grp3'] = np.where(df[c] >= v[1], 1, 0)
+                for z in [1, 2, 3]:
+                    df[c + '_grp%s' % z] = np.where(df[c].isna(), np.nan, df[c + '_grp%s' % z])
+        # get cols_NB  for NB
         num_cols = get_bool_num_cols(X)[1]
-        for c in num_cols:
-            if c in ['ndep_kid', 'ndep_old']:
-                for df in [X, Xa]:
-                    df['%s_0' % c] = (df[c] == 0).astype(int)
-                    df['%s_1' % c] = (df[c] == 1).astype(int)
-                    df['%s_2' % c] = (df[c] >= 2).astype(int)
-                    # will remove ndep_kid, ndep_old from NB's training xvars X (when calling cols_NB)
-            else:
-                wq1, wq2 = get_wquantile(X[c], w, 1/3), get_wquantile(X[c], w, 2/3)
-                for df in [X, Xa]:
-                    df['%s_ter1' % c] = (df[c] < wq1).astype(int)
-                    df['%s_ter2' % c] = ((df[c] >= wq1) & (df[c] < wq2)).astype(int)
-                    df['%s_ter3' % c] = (df[c] >= wq2).astype(int)
-                    # will remove faminc, age, agesq from NB's training xvars X (when calling cols_NB)
         cols_NB = [x for x in X.columns if x not in num_cols]
+        for c in dct_cuts.keys():
+            cols_NB += ['%s_grp%s' % (c, x) for x in range(1, 4)] # same for ln_faminc (monotonic)
+
     # Standardization, (x-mu)/sigma for both train/test data
     # which classifiers need it?
     # see https://stats.stackexchange.com/questions/244507/what-algorithms-need-feature-scaling-beside-from-svm

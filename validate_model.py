@@ -32,7 +32,7 @@ from os import listdir
 from os.path import isfile, join
 
 # a function to get yhat via k-fold train-test split (stratified) and prediction
-def get_kfold_yhat(X, y, clf, fold, random_state):
+def get_kfold_yhat(X, y, w, clf, fold, random_state):
     '''
     :param y: must be pd.Series with name
     '''
@@ -81,11 +81,11 @@ def get_kfold_yhat(X, y, clf, fold, random_state):
     return yhat
 
 # a function to use given classifier to generate kfold prediction cols
-def update_df_with_kfold_cols(d, col_Xs, col_ys, clf, random_state):
-    X, ys = d[col_Xs], d[col_ys]
+def update_df_with_kfold_cols(d, col_Xs, col_ys, col_w, clf, random_state):
+    X, ys, w = d[col_Xs], d[col_ys], d[col_w]
     for col in col_ys:
         y = ys[col]
-        yhat = get_kfold_yhat(X, y, clf, fold, random_state)
+        yhat = get_kfold_yhat(X, y, w, clf, fold, random_state)
         if yhat.name in d.columns:
             del d[yhat.name]
         d = d.join(yhat)
@@ -296,9 +296,6 @@ for random_seed in seeds:
     d_raw = d.copy()
     types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
     col_Xs, col_ys, col_w = get_columns(fmla_wave, types)
-    d = d[col_Xs + col_ys + [col_w]]
-    d = fillna_df(d, random_state=random_state)
-    X, ys = d[col_Xs], d[col_ys]
     # part_size = int(round(len(d) / fold, 0))
 
     ## Get output
@@ -312,7 +309,12 @@ for random_seed in seeds:
         # get results
         print('Getting results for clf = %s' % clf_name)
         t0 = time()
-        d = update_df_with_kfold_cols(d, col_Xs, col_ys, clf, random_state=random_state)
+
+        d = d[col_Xs + col_ys + [col_w]]
+        d = fillna_df(d, random_state=random_state)
+        X, ys = d[col_Xs], d[col_ys]
+
+        d = update_df_with_kfold_cols(d, col_Xs, col_ys, col_w, clf, random_state=random_state)
         print('Time needed to get results = %s' % round((time() - t0), 0))
         clf_name, out_pop_clf = get_population_level_results(d, clf_name)
         clf_name, out_ind_clf = get_individual_level_results(d, clf_name)

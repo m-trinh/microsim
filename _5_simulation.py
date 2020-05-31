@@ -38,17 +38,19 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import os
 import csv
-from _1_clean_FMLA_2018 import DataCleanerFMLA
+from _1_clean_FMLA_2018 import DataCleanerFMLA as dcf18
+from _1_clean_FMLA_2012 import DataCleanerFMLA as dcf12
 from _4_clean_ACS import DataCleanerACS
 from Utils import check_dependency, get_sim_name, create_cost_chart, STATE_CODES
 
 
 class SimulationEngine:
-    def __init__(self, st, yr, fps_in, fps_out, clf_name='Logistic Regression', state_of_work=True,
+    def __init__(self, st, yr, fmla_wave, fps_in, fps_out, clf_name='Logistic Regression', state_of_work=True,
                  random_state=None, pow_pop_multiplier=1.02, q=None):
         """
         :param st: state name, 'ca', 'ma', etc.
         :param yr: end year of 5-year ACS
+        :param fmla_wave: wave of FMLA data, 2012 or 2018
         :param fps_in: filepaths of infiles (FMLA, ACS h, ACS p, CPS)
         :param fps_out: filepaths of outfiles files (FMLA, CPS, ACS, length distribution, master ACS post sim)
         :param clf_name: classifier name
@@ -56,6 +58,7 @@ class SimulationEngine:
 
         self.st = st
         self.yr = yr
+        self.fmla_wave = fmla_wave
         self.fp_fmla_in = fps_in[0]
         self.fp_cps_in = fps_in[1]
         self.fp_acsh_in = fps_in[2]  # directory only for ACS household file
@@ -198,7 +201,10 @@ class SimulationEngine:
         return None
 
     def prepare_data(self):
-        dcf = DataCleanerFMLA(self.fp_fmla_in, self.fp_fmla_out, self.random_state)
+        if self.fmla_wave == 2018:
+            dcf = dcf18(self.fp_fmla_in, self.fp_fmla_out, self.random_state)
+        elif self.fmla_wave == 2012:
+            dcf = dcf12(self.fp_fmla_in, self.fp_fmla_out, self.random_state)
         dcf.clean_data()
         self.__put_queue({'type': 'progress', 'engine': None, 'value': 10})
         self.__put_queue({'type': 'message', 'engine': None,
@@ -216,7 +222,7 @@ class SimulationEngine:
         self.__put_queue({'type': 'message', 'engine': None,
                           'value': 'Cleaning ACS data. State chosen = RI. Chunk size = 100000 ACS rows'})
         dca = DataCleanerACS(self.st, self.yr, self.fp_acsh_in, self.fp_acsp_in, self.fp_acs_out, self.state_of_work,
-                             self.random_state)
+                             self.random_state, self.fmla_wave) # set yr_adjinc = self.fmla_wave to inflation-adjust
         message = dca.clean_person_data()
         self.__put_queue({'type': 'progress', 'engine': None, 'value': 50})
         self.__put_queue({'type': 'message', 'engine': None, 'value': message})
@@ -241,7 +247,7 @@ class SimulationEngine:
         for acs in pd.read_csv(acs_fp_in, chunksize=chunksize):
             # Sample restriction - reduce to eligible workers (all elig criteria indep from simulation below)
 
-            # drop government workers if desired
+            # drop government and self-employed workers based on user input
             if not params['incl_private']:
                 acs = acs.drop(acs[(acs['COW'] == 1) | (acs['COW'] == 2)].index)
             if not params['incl_empgov_fed']:
@@ -643,7 +649,7 @@ class SimulationEngine:
         # return ACS with all eligible workers (regardless of taker/needer status), with takeup_type flags sim'ed
         return acs
 
-    def get_cost(self, sim_num, chunksize=100000):
+    def get_cost(self, sim_num, chunksize=10000): # when testing done set back to 100000
         # read simulated ACS, and reduce to takers/needers
         params = self.prog_para[sim_num]
         output_directory = self.output_directories[sim_num]
@@ -658,6 +664,7 @@ class SimulationEngine:
             # apply take up flag and weekly benefit cap, and compute total cost, 6 types
             costs_chunk = {}
             for t in params['leave_types']:
+                # TODO: move v, w eq'ns out of t-loop to save time - main wt
                 # v = capped weekly benefit of leave type
                 v = [min(x, params['wkbene_cap']) for x in
                      ((acs_taker_needer['wage12'] / acs_taker_needer['wkswork'] * acs_taker_needer['effective_rrp']))]
@@ -674,6 +681,7 @@ class SimulationEngine:
                 for k, v in costs.items():
                     costs[k] += costs_chunk[k]
 
+            # now turn to getting takeup flags and costs for 80 rep weights
             rep_wt_ixs = list(range(1, 81)) # list of rep weight indices
             # initialize costs dict from rep weight index to cost profile
             costs_rep_chunk = {}
@@ -681,9 +689,14 @@ class SimulationEngine:
                 costs_rep_chunk_wt = {}
                 # get takeup_type flags for acs under current rep weight
                 acs = self.get_acs_with_takeup_flags(acs_taker_needer, acs_neither_taker_needer, wt, params)
+                print('acs.shape=\n', acs.shape) # 7461*222
+                print(acs['taker'].describe())
                 acs_taker_needer = acs[(acs['taker'] == 1) | (acs['needer'] == 1)]
+                print('acs_taker_needer.shape \n', acs_taker_needer.shape) # 0*222
+                #print(acs_taker_needer[['taker', 'needer']].head(15))
 
                 for t in params['leave_types']:
+                    # TODO: move v, w eq'ns out of t-loop to save time - rep wt
                     v = [min(x, params['wkbene_cap']) for x in
                          ((acs_taker_needer['wage12'] / acs_taker_needer['wkswork'] * acs_taker_needer['effective_rrp']))]
                     # inflate weight for missing POW
@@ -691,17 +704,26 @@ class SimulationEngine:
 
                     # get program cost for leave type t - sumprod of capped benefit, weight,
                     # and takeup flag for each ACS row
+                    #print('acs_taker_needer[takeup_type] =\n', acs_taker_needer['takeup_%s' % t].describe())
                     costs_rep_chunk_wt[t] = (v * acs_taker_needer['cpl_%s' % t] / 5 * w * acs_taker_needer['takeup_%s' % t]).sum()
                 costs_rep_chunk_wt['total'] = sum(list(costs_rep_chunk_wt.values()))
                 # update cost_rep_chunk
                 costs_rep_chunk[wt] = costs_rep_chunk_wt
+            # end of wt loop
+            print('completed costs_rep_chunk[%s] = \n' % wt, costs_rep_chunk[wt])
+
             # add costs_rep_chunk to costs_rep
             if costs_rep is None:
                 costs_rep = costs_rep_chunk
             else:
                 for wt in ['PWGTP%s' % x for x in rep_wt_ixs]:
                     for k, v in costs_rep[wt].items(): # k is leave type, and total
+                        if wt in ['PWGTP%s' % x for x in range(10)]:
+                            print('costs_rep[%s][%s] = %s before updating' % (wt, k, costs_rep[wt][k]))
+                            print('addition = %s' % costs_rep_chunk[wt][k])
                         costs_rep[wt][k] += costs_rep_chunk[wt][k]
+                        if wt in ['PWGTP%s' % x for x in range(10)]:
+                            print('costs_rep[%s][%s] = %s after updating' % (wt, k, costs_rep[wt][k]))
         # end of chunk loop
 
         # compute standard error using replication weights, then compute confidence interval (lower bound at 0)
