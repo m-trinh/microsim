@@ -1,14 +1,11 @@
 .idea/
 __pycache__
-_for_dol/*
-_from_dol/*
 data/*
-draft/*
+from_luke/*
 output/*
 r_engine/*
 build/*
 dist/*
-PR_comparison/*
 hook-sklearn.py
 Microsimulator.spec
 *.exe
@@ -24,3 +21,10 @@ test_r_python.py
 MicrosimTest.py
 config.ini
 venv/
+*.xlsx
+r_model_full/R_dataframes
+r_model_full/restricted_data
+r_model_full/output
+r_model_full/logs
+r_model_full/.Rproj.user
+r_model_full/.Rhistory
