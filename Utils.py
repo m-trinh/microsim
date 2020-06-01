@@ -442,7 +442,7 @@ def create_r_command(general_params, other_params, progress_file):
 
     # Convert the list into a string
     params = [str(p) for p in params]
-    command = '{} --vanilla run_engine_python.R {}'.format(general_params.r_path, ' '.join(params))
+    command = '{} --vanilla run_engine.R {}'.format(general_params.r_path, ' '.join(params))
     return command
 
 

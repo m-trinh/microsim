@@ -23,3 +23,4 @@ test_r_python.py
 *.swp
 MicrosimTest.py
 config.ini
+venv/

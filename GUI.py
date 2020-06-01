@@ -1048,7 +1048,7 @@ class GeneralParamsFrame(Frame):
         self.row_padding = 4
         self.fmla_label.grid(column=0, row=0, sticky=W, pady=self.row_padding)
         self.fmla_input.grid(column=1, row=0, columnspan=3, sticky=(E, W), padx=8, pady=self.row_padding)
-        self.fmla_button.grid(column=4, row=0, sticky=W, pady=self.row_padding)
+        self.fmla_button.grid(column=4, row=0, pady=self.row_padding)
         self.acs_label.grid(column=0, row=1, sticky=W, pady=self.row_padding)
         self.acs_input.grid(column=1, row=1, columnspan=3, sticky=(E, W), padx=8, pady=self.row_padding)
         self.acs_button.grid(column=4, row=1, pady=self.row_padding)
@@ -2925,7 +2925,11 @@ class AdvancedFrame(Frame):
         tip = 'Reveal advanced simulation parameters'
         self.advanced_label = TipLabel(self, tip, text="Advanced Parameters:", bg=DARK_COLOR, fg=LIGHT_COLOR,
                                        font='-size 9 -weight bold')
-        self.button_container = Frame(self, highlightbackground='#FFFFFF', borderwidth=1, relief='flat')
+
+        if sys.platform == 'darwin':
+            self.button_container = Frame(self, background=DARK_COLOR)
+        else:
+            self.button_container = Frame(self, highlightbackground='#FFFFFF', borderwidth=1, relief='flat')
 
         # Buttons that reveal or hide the advanced parameters
         self.on_button = SubtleToggle(self.button_container, text='On', width=3, command=toggle_function)
@@ -2961,10 +2965,16 @@ class SubtleToggle(SubtleButton):
         """Changes the background of the button based on the current state"""
         if self.toggled_on:  # If button is on, then turn off
             self.toggled_on = False
-            self.config(background=self.off_background)
+            if sys.platform == 'darwin':
+                self.config(relief=SUNKEN)
+            else:
+                self.config(background=self.off_background)
         else:  # If button is off, then turn on
             self.toggled_on = True
-            self.config(background=self.on_background)
+            if sys.platform == 'darwin':
+                self.config(relief=RAISED)
+            else:
+                self.config(background=self.on_background)
 
 
 class BorderButton(Frame):
@@ -2978,6 +2988,13 @@ class BorderButton(Frame):
             If set to false, the frame will not be prepopulated with a default button. A custom button can be added.
         :param options: Other widget options
         """
+
+        if sys.platform == 'darwin':
+            highlightbackground = DARK_COLOR
+            borderwidth = 0
+            foreground = None
+            background = None
+
         super().__init__(parent, highlightbackground=highlightbackground, relief=relief, borderwidth=borderwidth)
 
         if not custom:
