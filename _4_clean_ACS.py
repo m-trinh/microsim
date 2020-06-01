@@ -417,13 +417,10 @@ class DataCleanerACS:
             cols += ['PWGTP%s' % x for x in range(1, 81)]
             # reduced ACS chunk to be appended to output df dout
             d_reduced = d[cols]
-            print('check c: d_reduced.shape = \n', d_reduced.shape)
             dout = dout.append(d_reduced)
-            print('check d: in-loop dout.shape = \n', dout.shape)
 
             print('ACS data cleaned for chunk %s of person data...' % ichunk)
             ichunk += 1
-        print('check e: final dout.shape = \n', dout.shape)
         return dout
 
     def clean_person_data(self, chunk_size=100000):

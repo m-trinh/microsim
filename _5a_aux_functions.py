@@ -964,3 +964,11 @@ def get_acs_with_takeup_flags(acs_taker_needer, acs_neither_taker_needer, col_w,
 
                 # return ACS with all eligible workers (regardless of taker/needer status), with takeup_type flags sim'ed
     return acs
+
+# a function to show number of NAs in list, array, series
+def get_na_count(v):
+    if isinstance(v, pd.Series):
+        v = np.array(v.values)
+    elif isinstance(v, list):
+        v = np.array(v)
+    return (np.isnan(v).sum(), len(v))

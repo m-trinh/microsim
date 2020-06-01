@@ -25,7 +25,7 @@ import numpy as np
 import bisect
 import json
 from time import time
-from _5a_aux_functions import get_columns, get_sim_col, get_weighted_draws
+from _5a_aux_functions import get_columns, get_sim_col, get_weighted_draws, get_na_count
 import sklearn.linear_model
 import sklearn.naive_bayes
 import sklearn.neighbors
@@ -230,6 +230,7 @@ class SimulationEngine:
         return None
 
     def get_acs_simulated(self, sim_num, chunksize=100000):
+
         tsim = time()
         params = self.prog_para[sim_num]
         pfl = 'non-PFL'  # status of PFL as of ACS sample period
@@ -244,6 +245,14 @@ class SimulationEngine:
         # Read in cleaned ACS and FMLA data, and FMLA-based length distribution
         ichunk = 1
         n_eligible_workers = 0 # number of eligible workers (acs.PWGTP.sum()), to be update in chunk loop
+        # set clf, and set chunksize large if clf needs standardization (so cannot chunk)
+        clf = self.d_clf[self.clf_name]
+        if isinstance(clf, (sklearn.linear_model.LogisticRegression,
+                            sklearn.linear_model.RidgeClassifier,
+                            sklearn.neighbors.KNeighborsClassifier,
+                            sklearn.svm.SVC)):
+            chunksize = 10**7
+        # get sim cols by chunks
         for acs in pd.read_csv(acs_fp_in, chunksize=chunksize):
             # Sample restriction - reduce to eligible workers (all elig criteria indep from simulation below)
 
@@ -288,9 +297,6 @@ class SimulationEngine:
                     acs[wt] = acs[wt] / params['clone_factor']
                 # then expand acs by factor
                 acs = pd.concat([acs] * params['clone_factor'])
-
-            # Define classifier
-            clf = self.d_clf[self.clf_name]
 
             # Train models using FMLA, and simulate on ACS workers
             t0 = time()
@@ -388,15 +394,12 @@ class SimulationEngine:
             for t in params['leave_types']:
                 acs['len_%s' % t] = 0
                 n_lensim = len(acs.loc[acs['take_%s' % t] == 1])  # number of acs workers who need length simulation
-                # print(n_lensim)
                 ps = [x[1] for x in flen[pfl][t]]  # prob vector of length of type t
                 cs = np.cumsum(ps)
                 lens = []  # initiate list of lengths
                 for i in range(n_lensim):
                     lens.append(flen[pfl][t][bisect.bisect(cs, self.random_state.random_sample())][0])
                 acs.loc[acs['take_%s' % t] == 1, 'len_%s' % t] = np.array(lens)
-                # print('mean = %s' % acs['len_%s' % t].mean())
-            # print('te: sq length sim = %s' % (time()-t0))
 
             # Max needed lengths (mnl) - draw from simulated without-program length distribution
             # conditional on max length >= without-program length
@@ -552,24 +555,8 @@ class SimulationEngine:
             for t in params['leave_types']:
                 acs.loc[acs['cpl_%s' % t] >= 0, 'cpl_%s' % t] = [min(x, 5 * params['d_maxwk'][t]) for x in
                                                                  acs.loc[acs['cpl_%s' % t] >= 0, 'cpl_%s' % t]]
-
-            # get acs with takeup flags for each leave type
-            acs = self.get_acs_with_takeup_flags(acs, acs_neither_taker_needer, 'PWGTP', params)
-
-            # get benefit received for each worker
-            acs_taker_needer = acs[(acs['taker'] == 1) | (acs['needer'] == 1)]
-            acs_neither_taker_needer = acs.drop(acs_taker_needer.index)
-            # apply take up flag and weekly benefit cap, and annual benefit for each worker, 6 types
-            for t in params['leave_types']:
-                # v = capped weekly benefit of leave type
-                v = [min(x, params['wkbene_cap']) for x in
-                     ((acs_taker_needer['cpl_%s' % t] / 5) *
-                      (acs_taker_needer['wage12'] / acs_taker_needer['wkswork'] * acs_taker_needer['effective_rrp']))]
-                # get annual benefit for leave type t - sumprod of capped benefit, and takeup flag for each ACS row
-                acs_taker_needer['annual_benefit_%s' % t] = (v * acs_taker_needer['cpl_%s' % t] / 5 *
-                                                             acs_taker_needer['takeup_%s' % t])
-            # append acs_neither_taker_needer
-            acs = acs_taker_needer.append(acs_neither_taker_needer, sort=True)
+            # acs now is taker/needer only, append acs_neither_taker_needer to get all eligible workers
+            acs = acs.append(acs_neither_taker_needer, sort=True)
 
             # Save ACS data after finishing simulation
             if not append:
@@ -587,11 +574,13 @@ class SimulationEngine:
                   ((self.yr-4), self.yr, self.st.upper(), round(time()-tsim, 0))
         message += '\nEstimate of total eligible workers in state = %s' % n_eligible_workers
         print(message)
+
         self.progress += 40 / len(self.prog_para)
         self.__put_queue({'type': 'progress', 'engine': sim_num, 'value': self.progress})
         self.__put_queue({'type': 'message', 'engine': sim_num, 'value': message})
 
     def get_acs_with_takeup_flags(self, acs_taker_needer, acs_neither_taker_needer, col_w, params):
+
         # get 0/1 takeup flag using post-sim acs with only takers/needers
         # col_w = weight column, PWGTP for main, or PWGTPx for x-th rep weight in ACS data
 
@@ -625,7 +614,6 @@ class SimulationEngine:
                               'based on simulation results, at %s.' % (t, s_positive_cpl))
                 takeup = min(s_positive_cpl, params['d_takeup'][t])
                 p_draw = takeup / s_positive_cpl  # need to draw w/ prob=p_draw from cpl>=min_takeup_cpl subpop, to get desired takeup
-                # print('p_draw for type -%s- = %s' % (t, p_draw))
                 # get take up indicator for type t - weighted random draw from cpl_type>=min_takeup_cpl until target is reached
                 if alpha >0:
                     draws = get_weighted_draws(acs[acs['cpl_%s' % t] >= min_takeup_cpl][col_w], p_draw, self.random_state,
@@ -635,7 +623,6 @@ class SimulationEngine:
                                                shuffle_weights=None)
                 else:
                     print('ERROR: alpha (exponent) of shuffle_weights should be non-negative. Please check!')
-                # print('draws = %s' % draws)
                 acs.loc[acs['cpl_%s' % t] >= min_takeup_cpl, 'takeup_%s' % t] = draws
 
                 # for main weight, check if target pop is achieved among eligible ACS persons
@@ -649,82 +636,89 @@ class SimulationEngine:
         # return ACS with all eligible workers (regardless of taker/needer status), with takeup_type flags sim'ed
         return acs
 
-    def get_cost(self, sim_num, chunksize=10000): # when testing done set back to 100000
+
+    def get_cost(self, sim_num):
+        ## Get takeup cols for main and rep weights, then get costs and costs_rep, se, and ci
+        # no chunking - otherwise will not be using sum of weights for entire acs sample
+
         # read simulated ACS, and reduce to takers/needers
-        params = self.prog_para[sim_num]
+        fp_acs_sim = '%s/acs_sim_%s_%s.csv' % (self.output_directories[sim_num], self.st, self.out_id)
         output_directory = self.output_directories[sim_num]
+        params = self.prog_para[sim_num]
+
         # out_total = None
         costs = None
         costs_rep = None
-        # can only do chunks for costs and costs_rep, not se, not ci
-        for acs in pd.read_csv('%s/acs_sim_%s_%s.csv' % (output_directory, self.st, self.out_id), chunksize=chunksize):
+
+        acs = pd.read_csv(fp_acs_sim)
+        acs_taker_needer = acs[(acs['taker'] == 1) | (acs['needer'] == 1)]
+        acs_neither_taker_needer = acs.drop(acs_taker_needer.index)
+
+        # get takeup flag using main weight
+        wt = 'PWGTP'
+        acs = self.get_acs_with_takeup_flags(acs_taker_needer, acs_neither_taker_needer, wt, params)
+        acs_taker_needer = acs[(acs['taker'] == 1) | (acs['needer'] == 1)]
+
+        # get benefit received for each worker
+        # apply take up flag and weekly benefit cap, and annual benefit for each worker, 6 types
+        for t in params['leave_types']:
+            # v = capped weekly benefit of leave type
+            v = [min(x, params['wkbene_cap']) for x in
+                 ((acs_taker_needer['cpl_%s' % t] / 5) *
+                  (acs_taker_needer['wage12'] / acs_taker_needer['wkswork'] * acs_taker_needer['effective_rrp']))]
+            # get annual benefit for leave type t - sumprod of capped benefit, and takeup flag for each ACS row
+            acs_taker_needer['annual_benefit_%s' % t] = (v * acs_taker_needer['cpl_%s' % t] / 5 *
+                                                         acs_taker_needer['takeup_%s' % t])
+        # append acs_neither_taker_needer
+        acs = acs_taker_needer.append(acs_neither_taker_needer, sort=True)
+        # Save to same fp_acs_sim, updated with takeup flags and annual benefits by type
+        acs.to_csv(fp_acs_sim, index=False)
+        message = 'File saved: post-sim ACS with take-up flags and annual benefits simulated.'
+        print(message)
+
+        # apply take up flag and weekly benefit cap, and compute total cost, 6 types
+        costs = {}
+        # v is capped weekly benefit (same for all types, assuming no multiple types within 1 week)
+        v = [min(x, params['wkbene_cap']) for x in
+             ((acs_taker_needer['wage12'] / acs_taker_needer['wkswork'] * acs_taker_needer['effective_rrp']))]
+        v = np.array(v)
+        # w is inflated weight for missing POW
+        # for each leave type, get program outlay
+        for t in params['leave_types']:
+            # get program cost for leave type t - sumprod of capped benefit, weight, and takeup flag for each ACS row
+            w = acs_taker_needer['PWGTP'] * self.pow_pop_multiplier
+            costs[t] = (v * acs_taker_needer['cpl_%s' % t] / 5 * w * acs_taker_needer['takeup_%s' % t]).sum()
+        costs['total'] = sum(list(costs.values()))
+        print('Completed cost estimation - costs[total] = %s' % costs['total'])
+
+        # get takeup flag using 80 rep weights, and get se, ci
+        t0_se = time()
+        print('Computing standard errors for cost estimates...')
+        # suffices of rep wt col name PWGTPx x=1~80
+        rep_wt_ixs = list(range(1, 81))
+        # initialize costs dict from rep weight index to cost profile
+        costs_rep = {}
+        for wt in ['PWGTP%s' % x for x in rep_wt_ixs]:
+            costs_rep_wt = {}
+            # get takeup_type flags for acs under current rep weight
+            # acs_taker_needer contains takeup cols from main weight, but get_acs_with_takeup_flags \
+            # has a del step to remove takeup cols
+            acs = self.get_acs_with_takeup_flags(acs_taker_needer, acs_neither_taker_needer, wt, params)
             acs_taker_needer = acs[(acs['taker'] == 1) | (acs['needer'] == 1)]
-            acs_neither_taker_needer = acs.drop(acs_taker_needer.index)
 
-            # apply take up flag and weekly benefit cap, and compute total cost, 6 types
-            costs_chunk = {}
+            # v is capped weekly benefit (same for all types, assuming no multiple types within 1 week)
+            v = [min(x, params['wkbene_cap']) for x in
+                 ((acs_taker_needer['wage12'] / acs_taker_needer['wkswork'] * acs_taker_needer['effective_rrp']))]
+            v = np.array(v)
+            # w is inflated weight for missing POW
+            w = acs_taker_needer[wt] * self.pow_pop_multiplier
             for t in params['leave_types']:
-                # TODO: move v, w eq'ns out of t-loop to save time - main wt
-                # v = capped weekly benefit of leave type
-                v = [min(x, params['wkbene_cap']) for x in
-                     ((acs_taker_needer['wage12'] / acs_taker_needer['wkswork'] * acs_taker_needer['effective_rrp']))]
-                # inflate weight for missing POW
-                w = acs_taker_needer['PWGTP'] * self.pow_pop_multiplier
-
-                # get program cost for leave type t - sumprod of capped benefit, weight, and takeup flag for each ACS row
-                costs_chunk[t] = (v * acs_taker_needer['cpl_%s' % t] / 5 * w * acs_taker_needer['takeup_%s' % t]).sum()
-            costs_chunk['total'] = sum(list(costs_chunk.values()))
-            # add costs_chunk to costs
-            if costs is None:
-                costs = costs_chunk
-            else:
-                for k, v in costs.items():
-                    costs[k] += costs_chunk[k]
-
-            # now turn to getting takeup flags and costs for 80 rep weights
-            rep_wt_ixs = list(range(1, 81)) # list of rep weight indices
-            # initialize costs dict from rep weight index to cost profile
-            costs_rep_chunk = {}
-            for wt in ['PWGTP%s' % x for x in rep_wt_ixs]:
-                costs_rep_chunk_wt = {}
-                # get takeup_type flags for acs under current rep weight
-                acs = self.get_acs_with_takeup_flags(acs_taker_needer, acs_neither_taker_needer, wt, params)
-                print('acs.shape=\n', acs.shape) # 7461*222
-                print(acs['taker'].describe())
-                acs_taker_needer = acs[(acs['taker'] == 1) | (acs['needer'] == 1)]
-                print('acs_taker_needer.shape \n', acs_taker_needer.shape) # 0*222
-                #print(acs_taker_needer[['taker', 'needer']].head(15))
-
-                for t in params['leave_types']:
-                    # TODO: move v, w eq'ns out of t-loop to save time - rep wt
-                    v = [min(x, params['wkbene_cap']) for x in
-                         ((acs_taker_needer['wage12'] / acs_taker_needer['wkswork'] * acs_taker_needer['effective_rrp']))]
-                    # inflate weight for missing POW
-                    w = acs_taker_needer[wt] * self.pow_pop_multiplier
-
-                    # get program cost for leave type t - sumprod of capped benefit, weight,
-                    # and takeup flag for each ACS row
-                    #print('acs_taker_needer[takeup_type] =\n', acs_taker_needer['takeup_%s' % t].describe())
-                    costs_rep_chunk_wt[t] = (v * acs_taker_needer['cpl_%s' % t] / 5 * w * acs_taker_needer['takeup_%s' % t]).sum()
-                costs_rep_chunk_wt['total'] = sum(list(costs_rep_chunk_wt.values()))
-                # update cost_rep_chunk
-                costs_rep_chunk[wt] = costs_rep_chunk_wt
-            # end of wt loop
-            print('completed costs_rep_chunk[%s] = \n' % wt, costs_rep_chunk[wt])
-
-            # add costs_rep_chunk to costs_rep
-            if costs_rep is None:
-                costs_rep = costs_rep_chunk
-            else:
-                for wt in ['PWGTP%s' % x for x in rep_wt_ixs]:
-                    for k, v in costs_rep[wt].items(): # k is leave type, and total
-                        if wt in ['PWGTP%s' % x for x in range(10)]:
-                            print('costs_rep[%s][%s] = %s before updating' % (wt, k, costs_rep[wt][k]))
-                            print('addition = %s' % costs_rep_chunk[wt][k])
-                        costs_rep[wt][k] += costs_rep_chunk[wt][k]
-                        if wt in ['PWGTP%s' % x for x in range(10)]:
-                            print('costs_rep[%s][%s] = %s after updating' % (wt, k, costs_rep[wt][k]))
-        # end of chunk loop
+                # get program cost for leave type t - sumprod of capped benefit, weight, and takeup flag
+                costs_rep_wt[t] = (v * acs_taker_needer['cpl_%s' % t] / 5 * w * acs_taker_needer['takeup_%s' % t]).sum()
+            costs_rep_wt['total'] = sum(list(costs_rep_wt.values()))
+            # update cost_rep_chunk
+            costs_rep[wt] = costs_rep_wt
+        # end of wt loop
 
         # compute standard error using replication weights, then compute confidence interval (lower bound at 0)
         # methodology reference: https://usa.ipums.org/usa/repwt.shtml
@@ -737,6 +731,9 @@ class SimulationEngine:
         ci = {}
         for k, v in sesq.items():
             ci[k] = (max(costs[k] - 1.96 * sesq[k], 0), costs[k] + 1.96 * sesq[k])
+
+        t_se = round((time()-t0_se), 0)
+        print('Completed computing standard errrors for cost estimates. Time needed = %s seconds' % t_se)
 
         # Save output
         out_costs = pd.DataFrame.from_dict(costs, orient='index')
@@ -754,15 +751,10 @@ class SimulationEngine:
 
         out = out.sort_values(by='tix')
         del out['tix']
-        #
-        # if out_total is not None:
-        #     out_total[['cost', 'ci_lower', 'ci_upper']] += out[['cost', 'ci_lower', 'ci_upper']]
-        # else:
-        #     out_total = out
 
         out.to_csv('%s/program_cost_%s_%s.csv' % (output_directory, self.st, self.out_id), index=False)
-        message = 'Output saved. Total cost = $%s million 2012 dollars' % \
-                  (round(out[out['type'] == 'total']['cost']/1000000, 1))
+        message = 'Output saved. Total cost = $%s million %s dollars' % \
+                  (round(out.loc[out['type']=='total', 'cost'].values[0]/1000000, 1), self.fmla_wave)
         print(message)
         self.progress += 10 / len(self.prog_para)
         self.__put_queue({'type': 'progress', 'engine': sim_num, 'value': self.progress})

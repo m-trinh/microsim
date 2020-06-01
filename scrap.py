@@ -187,25 +187,19 @@ fp3 = "./data/acs/ACS_cleaned_forsimulation_2018_ri.csv"
 acs3 = pd.read_csv(fp3)
 
 # TODO: clean-ACS code fix, see below
-# Fix large CI in NJ/NB, check if affects CA/NB underestimation
+# [done] Fix large CI in NJ/NB, check if affects CA/NB underestimation
 # takeup flags now drawn by chunks, approx if chunksize and last chunk is large enough (so big pool for draws)
 # problematic if not enough takers with min take length>=5 to draw from!!
 # we don't need a lot of takers/needers to be 'enough', but NB's underprecition may lead to extremely small
 # or even 0 taker/needer in chunk
 # this causes insufficient draw of takers to satisfy user-supplied takeup rate, so the chunk does not properly
 # contribute its share to cost -> get low costs for that rep wt, -> large SE -> large CI
-
 # solution is to draw takeup flag using entire post-sim ACS for all rep wts just like main weight
 # i.e. when draw flags for main weight, draw rest 80 flag cols for 80 rep wts
 # not a huge RAM issue when use post-sim ACS without chunking - for CA is only 434MB so okay!
 
-# hmm.. still why RI/NB and NJ/NB with chunking gives good costs under main wt, but bad under rep wt? they all
-# come from chunking...
-# we have all NA for takeup_type cols for chunk-2 of RI/NB! chunk-1 is fine.. this is root of issue, but why?
-# count = 0 for chunk-2's acs_taker_needer[takeup_type]
-# repeated use of 'acs' to define acs_taker_needer df across loop elts... not good?
+# [done] Fix chunk-based mean/sig computation in clean-ACS code - set large chunksize for clf's need stand'n?
 
-# Fix chunk-based mean/sig computation in clean-ACS code - talk to Mike/Aaron.. use previous chunks' updated mean/sig?
 # [done] remove ndep_kid, ndep_old, use nochildren, no elderly binary in clean-ACS code
 # [done] for NB classifier, get tercile/group-based binary cols for numerical xvars in clean-ACS code
 # [done] numerical xvars - faminc, ln_faminc (tercile); and age, wkhours (group)

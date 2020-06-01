@@ -31,7 +31,7 @@ class DataCleanerFMLA:
     def clean_data(self):
 
         ## Read in FMLA data
-        d = pd.read_csv(self.fp_fmla_in)
+        d = pd.read_csv(self.fp_fmla_in, low_memory=False)
         # make all col name lower case
         d.columns = [x.lower() for x in d.columns]
 
@@ -220,15 +220,13 @@ class DataCleanerFMLA:
             d['take_%s' % k] = np.where(d['a5_mr_cat'].isin(v), 1, 0)
             d['take_%s' % k] = np.where(d['a5_mr_cat'].isna(), np.nan, d['take_%s' % k])
             d['take_%s' % k] = np.where(d['leave_cat'].isin([2, 3]), 0, d['take_%s' % k])
-        # for t in types:
-        #     print(d['take_%s' % t].isna().value_counts())
+
         dct_need = dict(zip(types, [[1], [3, 20], [5, 8, 9, 21], [11], [12, 16], [13]]))
         for k, v in dct_need.items():
             d['need_%s' % k] = np.where(d['b6_cat'].isin(v), 1, 0)
             d['need_%s' % k] = np.where(d['b6_cat'].isna(), np.nan, d['need_%s' % k])
             d['need_%s' % k] = np.where(d['leave_cat'].isin([1, 3]), 0, d['need_%s' % k])
-        # for t in types:
-        #     print(d['need_%s' % t].isna().value_counts())
+
 
         # taker/needer status
         d['taker'] = [max(x) for x in d[['take_%s' % t for t in types]].values]
@@ -390,7 +388,7 @@ class DataCleanerFMLA:
         # Read in processed FMLA data and raw CPS data, and clean CPS data
         # note: read FMLA is only for FMLA 2012 which needs CPS imputation
         d = pd.read_csv(self.fp_fmla_out, low_memory=False)
-        cps = pd.read_csv(fp_cps_in)
+        cps = pd.read_csv(fp_cps_in, low_memory=False)
 
         # CPS-imputation for new vars needed in FMLA
         # no new vars needed so far for FMLA 2018
