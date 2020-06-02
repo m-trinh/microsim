@@ -22,7 +22,6 @@ Xs = ['widowed', 'divorced', 'separated', 'nevermarried',
       'ltHS', 'someCol', 'BA', 'GradSch',
       'black', 'other', 'asian', 'native', 'hisp',
       'nochildren', 'faminc', 'coveligd']
-types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
 ys = ['take_%s' % x for x in types] + ['need_%s' % x for x in types] + ['resp_len']
 w = 'weight'
 # lens = ['length']

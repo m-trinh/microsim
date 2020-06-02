@@ -478,25 +478,26 @@ class MicrosimGUI(Tk):
         # Get values from GeneralParameters object
         st = self.general_params.state.lower()
         yr = self.general_params.year
+        fmla_wave = 2018 # TODO: implement in GeneralParameters() and show in GUI
         fp_fmla_in = self.general_params.fmla_file
-        fp_cps_in = './data/cps/CPS%sextract.csv' % (yr - 2)
+        fp_cps_in = './data/cps/cps_clean_%s.csv' % (yr - 2)
         fp_acsh_in = self.general_params.acs_directory + '/%s/household_files' % yr
         fp_acsp_in = self.general_params.acs_directory + '/%s/person_files' % yr
         state_of_work = self.general_params.state_of_work
         if state_of_work:
             fp_acsh_in = self.general_params.acs_directory + '/%s/pow_household_files' % yr
             fp_acsp_in = self.general_params.acs_directory + '/%s/pow_person_files' % yr
+        fp_fmla_out = './data/fmla/fmla_%s/fmla_clean_%s.csv' % (fmla_wave, fmla_wave)
         fp_dir_out = self.general_params.output_directory
-        fp_fmla_out = './data/fmla_2012/fmla_clean_2012.csv'
         fp_cps_out = './data/cps/cps_for_acs_sim.csv'
         fp_acs_out = './data/acs/'
-        fp_length_distribution_out = './data/fmla_2012/length_distributions_exact_days.json'
+        fp_length_distribution_out = './data/fmla/fmla_2018/length_distributions_exact_days.json'
         fps_in = [fp_fmla_in, fp_cps_in, fp_acsh_in, fp_acsp_in]
         fps_out = [fp_dir_out, fp_fmla_out, fp_cps_out, fp_acs_out, fp_length_distribution_out]
 
         clf_name = self.general_params.simulation_method
         random_seed = self.general_params.random_seed
-        return SimulationEngine(st, yr, fps_in, fps_out, clf_name=clf_name, random_state=random_seed,
+        return SimulationEngine(st, yr, fmla_wave, fps_in, fps_out, clf_name=clf_name, random_state=random_seed,
                                 state_of_work=state_of_work, q=q)
 
     def add_engine_params(self, parameters):
@@ -948,7 +949,8 @@ class GeneralParamsFrame(Frame):
 
         # Currently implemented simulation methods
         self.simulation_methods = ('Logistic Regression GLM', 'Logistic Regression', 'Ridge Classifier',
-                                   'K Nearest Neighbor', 'Naive Bayes', 'Support Vector Machine', 'Random Forest')
+                                   'K Nearest Neighbor', 'Naive Bayes', 'Support Vector Machine',
+                                   'Random Forest', 'XGBoost')
         self.cwd = os.getcwd()  # Current working directory
         self.variables = self.winfo_toplevel().variables
 
@@ -2359,8 +2361,8 @@ class PopulationAnalysis(ScrollFrame):
         """
 
         # Set x and y axis labels
-        ax.set_ylabel('Number of Days', fontsize=9)
-        ax.set_xlabel('Number of Workers', fontsize=9)
+        ax.set_ylabel('Number of Workers', fontsize=9)
+        ax.set_xlabel('Number of Days', fontsize=9)
 
         # Set axis ticks
         if xticks is not None:
