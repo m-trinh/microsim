@@ -207,7 +207,15 @@ acs3 = pd.read_csv(fp3)
 # [done] use ADJINC, adjinc to correct all dollar amounts in clean-ACS
 # [for Mike] add a fmla_wave option in GUI (like ACS year) class GeneralParameters()
 # [done] add xvar - low_wage
+
 # get xvars consistent in 2012 as 2018
+
 # output a separate CSV for subsample of ineligible workers in ACS (no drop in clean-ACS and sim code)
 # ineligible subsample not appended to main post-sim ACS because latter may have been cloned
+
+# wrap up validate_model to produce IB2 results in 1 run
+
 # modify R code to match Py
+
+
+
