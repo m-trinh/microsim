@@ -25,39 +25,29 @@ def get_columns(fmla_wave, leave_types):
     leave_types: ['own', 'matdis', ...]
     '''
     if fmla_wave==2012:
-        # original CZ's xvars
-        # Xs = ['age', 'agesq', 'male', 'noHSdegree',
-        #       'BAplus', 'empgov_fed', 'empgov_st', 'empgov_loc',
-        #       'lnfaminc', 'black', 'asian', 'hisp', 'other',
-        #       'ndep_kid', 'ndep_old', 'nevermarried', 'partner',
-        #       'widowed', 'divorced', 'separated']
-
-        # using LP's xvars
         Xs = ['widowed', 'divorced', 'separated', 'nevermarried',
-              'female', 'age','agesq',
+              'female',
               'ltHS', 'someCol', 'BA', 'GradSch',
               'black', 'other', 'asian','native','hisp',
-              'nochildren','faminc'] # ,'coveligd'
-        Xs += ['age',  'agesq', 'faminc']
+              'nochildren']
+        Xs += ['fmla_eligible', 'emp_gov', 'union', 'noelderly', 'hourly']
+        Xs += ['age',  'agesq', 'faminc', 'wkhours']
 
     elif fmla_wave==2018:
         Xs = ['widowed', 'divorced', 'separated', 'nevermarried',
               'female',
               'ltHS', 'someCol', 'BA', 'GradSch',
               'black', 'other', 'asian','native','hisp',
-              'nochildren'] + \
-             ['fmla_eligible', 'emp_gov', 'emp_nonprofit',
-              'union', 'noelderly',
-              'hourly', 'low_wage'] + ['occ_%s' % x for x in range(1, 10)] + ['ind_%s' % x for x in range(1, 13)]
+              'nochildren']
+        Xs +=['fmla_eligible', 'emp_gov', 'union', 'noelderly', 'hourly']
         Xs += ['age',  'agesq', 'faminc', 'wkhours']
+        Xs += ['emp_nonprofit', 'low_wage'] + \
+              ['occ_%s' % x for x in range(1, 10)] + ['ind_%s' % x for x in range(1, 13)]
+
 
         # no job tenure data in CPS or ACS, cannot use as xvars
         # Xs += ['job_tenure_0_1', 'job_tenure_1_3', 'job_tenure_3_5', 'job_tenure_5_10']
         # FMLA 18 has no weeks worked over a year, consider CPS-impute
-    #
-    # # group cols for numeric xvars (to replace Xs_num in Naive Bayes)
-    # num_xvars = ['faminc', 'age', 'wkhours'] # no need for ln_faminc and agesq since monotonic
-    # Xs_grp = [item for sublist in [[x + '_grp%s' % z for z in range(1, 4)] for x in num_xvars] for item in sublist]
 
     # same weight column and yvars for wave 2012 and 2018
     w = 'weight'

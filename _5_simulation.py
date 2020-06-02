@@ -215,7 +215,8 @@ class SimulationEngine:
         # self.__put_queue({'type': 'progress', 'engine': None, 'value': 20})
         # self.__put_queue({'type': 'message', 'engine': None,
         #                   'value': 'File saved: clean FMLA data file after CPS imputation.'})
-        dcf.get_length_distribution(self.fp_length_distribution_out)
+        if self.fmla_wave == 2018: # if 2012, length distribution is input data based on restricted FMLA PUF
+            dcf.get_length_distribution(self.fp_length_distribution_out)
         self.__put_queue({'type': 'progress', 'engine': None, 'value': 25})
         self.__put_queue({'type': 'message', 'engine': None,
                           'value': 'File saved: leave distribution estimated from FMLA data.'})
@@ -301,7 +302,7 @@ class SimulationEngine:
 
             # Train models using FMLA, and simulate on ACS workers
             t0 = time()
-            col_Xs, col_ys, col_w = get_columns(2018, params['leave_types'])
+            col_Xs, col_ys, col_w = get_columns(self.fmla_wave, params['leave_types'])
             X = d[col_Xs]
             w = d[col_w]
             Xa = acs[X.columns]
