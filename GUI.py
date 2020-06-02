@@ -74,7 +74,7 @@ class MicrosimGUI(Tk):
         # This frame holds buttons for comparing program parameters
         self.simulation_comparison = ComparisonFrame(self.content, bg=DARK_COLOR)
         # This notebook will have three tabs for the program, population, and simulation parameters
-        self.parameter_notebook = ParameterNotebook(self.content)
+        self.parameter_notebook = ParameterNotebook(self.content, height=150)
         self.advanced_frame = AdvancedFrame(self.content, self.toggle_advanced_parameters)
         self.run_button = RunButton(self.content, text="Run", height=1, command=self.run_simulation)
 
@@ -85,13 +85,14 @@ class MicrosimGUI(Tk):
 
         self.content.pack(expand=True, fill=BOTH)
         self.general_params_frame.pack(fill=X)
-        self.simulation_comparison.pack(fill=X, pady=(4, 0))
-        self.parameter_notebook.pack(expand=True, fill=BOTH, pady=(4, 8))
-        self.advanced_frame.pack(anchor=E, pady=(0, 6))
+        self.simulation_comparison.pack(fill=X, pady=(2, 0))
+        self.parameter_notebook.pack(expand=True, fill=BOTH, pady=(4, 4))
+        self.advanced_frame.pack(anchor=E, pady=(0, 4))
         self.run_button.pack(anchor=E, fill=Y)
 
         self.update_idletasks()
         self.original_height = self.winfo_height()  # Need to keep track of original height of window when resizing
+        self.minsize(self.winfo_width(), 650)  # Set minimum height of window
 
         # Display the advanced parameters
         try:
@@ -128,6 +129,7 @@ class MicrosimGUI(Tk):
         d = self.default_params
         variables = {
             'fmla_file': StringVar(value=g.fmla_file),
+            'fmla_wave': IntVar(value=g.fmla_wave),
             'acs_directory': StringVar(value=g.acs_directory),
             'output_directory': StringVar(value=g.output_directory),
             'state': StringVar(value=g.state),
@@ -202,6 +204,8 @@ class MicrosimGUI(Tk):
             # When users change the existing_program variable, change all parameters to match an existing state program
             self.variables['existing_program'].trace('w', self.set_existing_parameters)
             self.variables['state'].trace('w', self.save_config)
+            self.variables['fmla_wave'].trace('w', self.save_config)
+            self.variables['year'].trace('w', self.save_config)
         else:
             self.variables['fmla_file'].trace_add("write", self.check_file_entries)
             self.variables['acs_directory'].trace_add("write", self.check_file_entries)
@@ -209,6 +213,8 @@ class MicrosimGUI(Tk):
             self.variables['r_path'].trace_add("write", self.check_file_entries)
             self.variables['existing_program'].trace_add('write', self.set_existing_parameters)
             self.variables['state'].trace_add('write', self.save_config)
+            self.variables['fmla_wave'].trace_add('write', self.save_config)
+            self.variables['year'].trace_add('write', self.save_config)
 
     def on_close(self):
         """When the main window is closed, destroy all progress and result windows. Also destroy main window."""
@@ -478,7 +484,7 @@ class MicrosimGUI(Tk):
         # Get values from GeneralParameters object
         st = self.general_params.state.lower()
         yr = self.general_params.year
-        fmla_wave = 2018 # TODO: implement in GeneralParameters() and show in GUI
+        fmla_wave = self.general_params.fmla_wave
         fp_fmla_in = self.general_params.fmla_file
         fp_cps_in = './data/cps/cps_clean_%s.csv' % (yr - 2)
         fp_acsh_in = self.general_params.acs_directory + '/%s/household_files' % yr
@@ -826,16 +832,12 @@ class MicrosimGUI(Tk):
         self.general_params_frame.hide_advanced_parameters()
         self.parameter_notebook.hide_advanced_parameters()
         self.update_idletasks()
-        self.minsize(self.winfo_width(), self.original_height)  # Return minimum height to original value
 
     def show_advanced_parameters(self):
         """Reveals inputs that are for advanced users"""
         self.general_params_frame.show_advanced_parameters()
         self.parameter_notebook.show_advanced_parameters()
         self.update_idletasks()
-        # Return minimum height to account for new widgets
-        height_change = 200
-        self.minsize(self.winfo_width(), self.original_height + height_change)
 
     def toggle_advanced_parameters(self):
         """Switches between either showing or hiding advanced inputs"""
@@ -920,7 +922,7 @@ class MicrosimGUI(Tk):
             self.config['PATHS'][path] = self.variables[path].get()
 
         # Save other parameters
-        params_to_save = ['state', 'engine_type']
+        params_to_save = ['state', 'year', 'fmla_wave', 'engine_type']
         for param in params_to_save:
             self.config['PARAMS'][param] = str(self.variables[param].get())
 
@@ -964,6 +966,14 @@ class GeneralParamsFrame(Frame):
                                         command=lambda: self.browse_file(self.fmla_input, self.spreadsheet_ftypes))
         self.fmla_button.config(width=None)
 
+        # ------------------------------------------------ FMLA Wave ------------------------------------------------
+        tip = "The year of the survey wave that the above FMLA file is for."
+        fmla_waves = (2012, 2018)
+        self.fmla_wave_label = TipLabel(self, tip, text="FMLA Wave:", bg=DARK_COLOR, fg=LIGHT_COLOR, anchor=N)
+        self.fmla_wave_input = ttk.Combobox(self, textvariable=self.variables['fmla_wave'], state="readonly",
+                                            width=7, values=fmla_waves)
+        self.fmla_wave_input.current(fmla_waves.index(self.variables['fmla_wave'].get()))
+
         # ------------------------------------------------ ACS File -------------------------------------------------
         tip = 'A directory that contains ACS files that the model will use to estimate the cost of a paid ' \
               'leave program. There should be one household and one person file for the selected state.'
@@ -991,7 +1001,7 @@ class GeneralParamsFrame(Frame):
         tip = 'The state that will be used to estimate program cost. Only people  living or working in ' \
               'this state will be chosen from the input and  output files.'
         self.state_label = TipLabel(self, tip, text='State to Simulate:', bg=DARK_COLOR, fg=LIGHT_COLOR)
-        self.state_input = ttk.Combobox(self, textvariable=self.variables['state'], state="readonly", width=5,
+        self.state_input = ttk.Combobox(self, textvariable=self.variables['state'], state="readonly", width=7,
                                         values=self.states)
 
         # Set current value for state combobox
@@ -1009,8 +1019,11 @@ class GeneralParamsFrame(Frame):
 
         # ------------------------------------------------ ACS Year -------------------------------------------------
         tip = 'Year of ACS data.'
+        years = (2016, 2017, 2018)
         self.year_label = TipLabel(self, tip, text="Year:", bg=DARK_COLOR, fg=LIGHT_COLOR)
-        self.year_input = GeneralEntry(self, textvariable=self.variables['year'], width=6)
+        self.year_input = ttk.Combobox(self, textvariable=self.variables['year'], state="readonly",
+                                       width=7, values=years)
+        self.year_input.current(years.index(self.variables['year'].get()))
 
         # -------------------------------------------- Simulation Method --------------------------------------------
         tip = 'The method used to train model.'
@@ -1024,7 +1037,7 @@ class GeneralParamsFrame(Frame):
         tip = 'The value that will be used in random number generation. Can be used to recreate results as long ' \
               'as all other parameters are unchanged.'
         self.random_seed_label = TipLabel(self, tip, text="Random Seed:", bg=DARK_COLOR, fg=LIGHT_COLOR)
-        self.random_seed_input = GeneralEntry(self, textvariable=self.variables['random_seed'])
+        self.random_seed_input = GeneralEntry(self, textvariable=self.variables['random_seed'], width=23)
 
         # ----------------------------------------------- Engine Type -----------------------------------------------
         tip = 'Choose between the Python and R model.'
@@ -1047,18 +1060,20 @@ class GeneralParamsFrame(Frame):
         self.variables['engine_type'].trace('w', self.toggle_r_path)
 
         # Add the input widgets to the parent widget
-        self.row_padding = 4
+        self.row_padding = 2
         self.fmla_label.grid(column=0, row=0, sticky=W, pady=self.row_padding)
         self.fmla_input.grid(column=1, row=0, columnspan=3, sticky=(E, W), padx=8, pady=self.row_padding)
         self.fmla_button.grid(column=4, row=0, pady=self.row_padding)
-        self.acs_label.grid(column=0, row=1, sticky=W, pady=self.row_padding)
-        self.acs_input.grid(column=1, row=1, columnspan=3, sticky=(E, W), padx=8, pady=self.row_padding)
-        self.acs_button.grid(column=4, row=1, pady=self.row_padding)
-        self.output_directory_label.grid(column=0, row=2, sticky=W, pady=self.row_padding)
-        self.output_directory_input.grid(column=1, row=2, columnspan=3, sticky=(E, W), padx=8, pady=self.row_padding)
-        self.output_directory_button.grid(column=4, row=2, pady=self.row_padding)
-        self.state_label.grid(column=0, row=4, sticky=W, pady=(self.row_padding, 2))
-        self.state_input.grid(column=1, row=4, sticky=W, padx=8, pady=(self.row_padding, 2))
+        self.fmla_wave_label.grid(column=0, row=1, sticky=W, pady=self.row_padding)
+        self.fmla_wave_input.grid(column=1, row=1, sticky=W, padx=8, pady=self.row_padding)
+        self.acs_label.grid(column=0, row=2, sticky=W, pady=self.row_padding)
+        self.acs_input.grid(column=1, row=2, columnspan=3, sticky=(E, W), padx=8, pady=self.row_padding)
+        self.acs_button.grid(column=4, row=2, pady=self.row_padding)
+        self.output_directory_label.grid(column=0, row=3, sticky=W, pady=self.row_padding)
+        self.output_directory_input.grid(column=1, row=3, columnspan=3, sticky=(E, W), padx=8, pady=self.row_padding)
+        self.output_directory_button.grid(column=4, row=3, pady=self.row_padding)
+        self.state_label.grid(column=0, row=4, sticky=W, pady=(self.row_padding, 0))
+        self.state_input.grid(column=1, row=4, sticky=W, padx=8, pady=(self.row_padding, 0))
 
         # Give the second column more space than the others
         self.columnconfigure(1, weight=1)
@@ -1091,8 +1106,8 @@ class GeneralParamsFrame(Frame):
         self.simulation_method_input.grid(column=1, row=9, sticky=W, padx=8, pady=self.row_padding)
         self.random_seed_label.grid(column=0, row=10, sticky=W, pady=self.row_padding)
         self.random_seed_input.grid(column=1, row=10, sticky=W, padx=8, pady=self.row_padding)
-        self.engine_type_label.grid(column=0, row=11, sticky=W, pady=self.row_padding)
-        self.engine_type_input.grid(column=1, row=11, sticky=W, padx=8, pady=self.row_padding)
+        # self.engine_type_label.grid(column=0, row=11, sticky=W, pady=self.row_padding)
+        # self.engine_type_input.grid(column=1, row=11, sticky=W, padx=8, pady=self.row_padding)
         self.toggle_r_path()
 
     def browse_file(self, file_input, filetypes):
@@ -1399,7 +1414,7 @@ class NotebookFrame(ScrollFrame):
     def __init__(self, parent=None, **kwargs):
         super().__init__(parent, **kwargs)
         self.default_params = self.winfo_toplevel().default_params
-        self.row_padding = 4
+        self.row_padding = 2
 
     @abstractmethod
     def hide_advanced_parameters(self):
@@ -1772,7 +1787,7 @@ class SimulationFrame(NotebookFrame):
 
 
 class EmployeeTypesFrame(ttk.LabelFrame):
-    def __init__(self, parent, variables, row_padding=4, **kwargs):
+    def __init__(self, parent, variables, row_padding=2, **kwargs):
         """Frame to hold the type of employees eligible for the leave program"""
         super().__init__(parent, **kwargs)
         self.variables = variables
@@ -1838,7 +1853,7 @@ class EmployeeTypesFrame(ttk.LabelFrame):
 
 
 class LeaveTypesFrame(ttk.LabelFrame):
-    def __init__(self, parent, variables, row_padding=4, **kwargs):
+    def __init__(self, parent, variables, row_padding=2, **kwargs):
         """Frame to hold inputs related to leave type parameters"""
         super().__init__(parent, **kwargs)
 
@@ -1874,7 +1889,7 @@ class LeaveTypesFrame(ttk.LabelFrame):
 
 
 class BenefitFinancingFrame(ttk.LabelFrame):
-    def __init__(self, parent, variables, row_padding=4, wraplength=0, **kwargs):
+    def __init__(self, parent, variables, row_padding=2, wraplength=0, **kwargs):
         """Frame to hold inputs related to Benefit financing parameters"""
         super().__init__(parent, **kwargs)
 

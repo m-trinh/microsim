@@ -133,6 +133,7 @@ class GeneralParameters(Parameters):
         """General program parameters. A distinction needs to be made for program comparison, as each program will share
         these parameters but not others."""
         self.fmla_file = fmla_file
+        self.fmla_wave = 2018
         self.acs_directory = acs_directory
         self.output_directory = output_directory
         self.state = state
