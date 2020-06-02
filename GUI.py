@@ -497,7 +497,7 @@ class MicrosimGUI(Tk):
         fp_dir_out = self.general_params.output_directory
         fp_cps_out = './data/cps/cps_for_acs_sim.csv'
         fp_acs_out = './data/acs/'
-        fp_length_distribution_out = './data/fmla/fmla_2018/length_distributions_exact_days.json'
+        fp_length_distribution_out = './data/fmla/fmla_%s/length_distributions_exact_days.json' % fmla_wave
         fps_in = [fp_fmla_in, fp_cps_in, fp_acsh_in, fp_acsp_in]
         fps_out = [fp_dir_out, fp_fmla_out, fp_cps_out, fp_acs_out, fp_length_distribution_out]
 

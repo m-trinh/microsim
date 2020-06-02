@@ -32,30 +32,15 @@ class DataCleanerFMLA:
         # Make empid to follow 0-order to be consistent with Python standard (e.g. indices output from kNN)
         d['empid'] = d['empid'] - 1
 
-        # FMLA eligible worker
-        d['eligworker'] = np.nan
-        # eligible workers - same company past year (E13), and FT or 1250+ hours
-        d.loc[(d['E13'] == 1) & ((d['E14'] == 1) | ((d['E15_CAT'] >= 5) & (d['E15_CAT'] <= 8))), 'eligworker'] = 1
-        # ineligible workers - different company, or part time and <1250 hours
-        d.loc[(d['E13'].notna()) & (d['E13'] != 1), 'eligworker'] = 0  # E13 same job past year fails
-        d.loc[(d['E14'].notna()) & (d['E14'] != 1)
-              & (d['E15_CAT'].notna()) & (
-                  (d['E15_CAT'] < 5) | (d['E15_CAT'] > 8)), 'eligworker'] = 0  # E14 (FT) and E15 (hrs) fails
-
-        # Covered workplace (E11:50+ workers on site, E12: #workers within 75 miles)
-        d['covwrkplace'] = np.where((d['E11'] == 1) | ((d['E12'] >= 6) & (d['E12'] <= 9)), 1, 0)
-        d['covwrkplace'] = np.where(np.isnan(d['covwrkplace']), 0, d['covwrkplace'])
-        d['cond1'] = np.where(np.isnan(d['E11']) & np.isnan(d['E12']), 1, 0) # E11 and E12 missing
-        d['cond2'] = np.where((d['E11'] == 2) & (np.isnan(d['E11']) == False) & np.isnan(d['E12']), 1, 0) # E11=No, E12 missing
-        d['miscond'] = np.where((d['cond1'] == 1) | (d['cond2'] == 1), 1, 0) # E11=miss/No, E12 missing
-        d['covwrkplace'] = np.where(d['miscond'] == 1, np.nan, d['covwrkplace'])
-
-        # Covered and eligible
-        # set to 1 if both workplace and worker covered, set to nan if 1/nan, nan/1, or nan/nan
-        d['coveligd'] = np.where((d['covwrkplace'] == 1) & (d['eligworker'] == 1), 1, 0)
-        d['coveligd'] = np.where((np.isnan(d['covwrkplace'])) & (np.isnan(d['eligworker'])), np.nan, d['coveligd'])
-        d['coveligd'] = np.where((np.isnan(d['covwrkplace'])) & (d['eligworker'] == 1), np.nan, d['coveligd'])
-        d['coveligd'] = np.where((np.isnan(d['eligworker'])) & (d['covwrkplace'] == 1), np.nan, d['coveligd'])
+        # FMLA eligibility
+        d['fmla_eligible'] = np.where((d['E13']==1) & # one employer past year
+                                      ((d['E14'] == 1) | (d['E15_CAT'].isin([5,6,7,8]))) & # FT or wkhour>=25/week
+                                      (d['E12'].isin([6,7,8,9])) # emp size over 50 within 75 miles
+                                      , 1, 0)
+        d['fmla_eligible'] = np.where((d['E13'].isna()) |
+                                      ((d['E14'].isna()) & (d['E15_CAT'].isna())) |
+                                      (d['E13'].isna())
+                                      , np.nan, d['fmla_eligible'])
 
         # Hourly worker
         d['hourly'] = np.where(d['E9_1'] == 2, 1, 0)
@@ -86,6 +71,7 @@ class DataCleanerFMLA:
 
         # Employment at government
         # all rows should be valid for empgov_[] indicators, given FMLA sample
+        d['emp_gov'] = np.where(d['D2'].isin([1,2,3]), 1, 0)
         d['empgov_fed'] = np.where(d['D2'] == 1, 1, 0)
         d['empgov_st'] = np.where(d['D2'] == 2, 1, 0)
         d['empgov_loc'] = np.where(d['D2'] == 3, 1, 0)
@@ -111,8 +97,12 @@ class DataCleanerFMLA:
         d['nochildren'] = np.where(np.isnan(d['D7_CAT']), np.nan, d['nochildren'])
 
         # No spouse
-        d['nospouse'] = np.where(d['d10'].isin([3, 4, 5, 6]), 1, 0)
+        d['nospouse'] = np.where(d['D10'].isin([3, 4, 5, 6]), 1, 0)
         d['nospouse'] = np.where(np.isnan(d['D10']), np.nan, d['nospouse'])
+
+        # No elderly dependent
+        d['noelderly'] = np.where(d['D8_CAT'] == 0, 1, 0)
+        d['noelderly'] = np.where(d['D8_CAT'].isna(), np.nan, d['noelderly'])
 
         # Number of dependents
         d['ndep_kid'] = d.D7_CAT
@@ -384,13 +374,13 @@ class DataCleanerFMLA:
         d['anypay'] = np.where(np.isnan(d['A45']), np.nan, d['anypay'])
 
         # proportion of pay received from employer (mid point of ranges provided in FMLA)
-        d['prop_pay'] = np.where(d['A50'] == 1, 0.125, np.nan)
-        d['prop_pay'] = np.where(d['A50'] == 2, 0.375, d['prop_pay'])
-        d['prop_pay'] = np.where(d['A50'] == 3, 0.5, d['prop_pay'])
-        d['prop_pay'] = np.where(d['A50'] == 4, 0.625, d['prop_pay'])
-        d['prop_pay'] = np.where(d['A50'] == 5, 0.875, d['prop_pay'])
-        d['prop_pay'] = np.where(d['A49'] == 1, 1, d['prop_pay'])
-        d['prop_pay'] = np.where(d['A45'] == 2, 0, d['prop_pay'])
+        d['prop_pay_employer'] = np.where(d['A50'] == 1, 0.125, np.nan)
+        d['prop_pay_employer'] = np.where(d['A50'] == 2, 0.375, d['prop_pay_employer'])
+        d['prop_pay_employer'] = np.where(d['A50'] == 3, 0.5, d['prop_pay_employer'])
+        d['prop_pay_employer'] = np.where(d['A50'] == 4, 0.625, d['prop_pay_employer'])
+        d['prop_pay_employer'] = np.where(d['A50'] == 5, 0.875, d['prop_pay_employer'])
+        d['prop_pay_employer'] = np.where(d['A49'] == 1, 1, d['prop_pay_employer'])
+        d['prop_pay_employer'] = np.where(d['A45'] == 2, 0, d['prop_pay_employer'])
 
         # receive any pay from state program
         d['recStateFL'] = np.where(d['A48b'] == 1, 1, 0)
