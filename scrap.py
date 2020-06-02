@@ -214,6 +214,7 @@ acs3 = pd.read_csv(fp3)
 # ineligible subsample not appended to main post-sim ACS because latter may have been cloned
 
 # wrap up validate_model to produce IB2 results in 1 run
+# generate CPS 2015 clean file from raw, test using ACS17
 
 # modify R code to match Py
 

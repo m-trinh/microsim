@@ -487,12 +487,13 @@ class MicrosimGUI(Tk):
         if state_of_work:
             fp_acsh_in = self.general_params.acs_directory + '/%s/pow_household_files' % yr
             fp_acsp_in = self.general_params.acs_directory + '/%s/pow_person_files' % yr
-        fp_fmla_out = './data/fmla/fmla_2018/fmla_clean_2018.csv'
+        fp_fmla_out = './data/fmla/fmla_%s/fmla_clean_%s.csv' % (fmla_wave, fmla_wave)
+        fp_dir_out = self.general_params.output_directory
         fp_cps_out = './data/cps/cps_for_acs_sim.csv'
         fp_acs_out = './data/acs/'
         fp_length_distribution_out = './data/fmla/fmla_2018/length_distributions_exact_days.json'
         fps_in = [fp_fmla_in, fp_cps_in, fp_acsh_in, fp_acsp_in]
-        fps_out = [fp_fmla_out, fp_cps_out, fp_acs_out, fp_length_distribution_out]
+        fps_out = [fp_dir_out, fp_fmla_out, fp_cps_out, fp_acs_out, fp_length_distribution_out]
 
         clf_name = self.general_params.simulation_method
         random_seed = self.general_params.random_seed
@@ -650,10 +651,35 @@ class MicrosimGUI(Tk):
             errors.append((self.parameter_notebook.population_frame.alpha_input,
                            'This field should contain a real number'))
 
-        errors = self.validate_leave_types(errors)
+        errors += self.validate_file_inputs()
+        errors += self.validate_leave_types()
         return errors
 
-    def validate_leave_types(self, errors):
+    def validate_file_inputs(self):
+        errors = []
+        file_inputs = [
+            self.general_params_frame.fmla_input,
+            self.general_params_frame.acs_input,
+            self.general_params_frame.output_directory_input
+        ]
+
+        if self.variables['engine_type'] == 'R':
+            file_inputs.append(self.general_params_frame.r_path_input)
+
+        for entry in file_inputs:
+            entry_val = entry.get()
+            if not os.path.exists(entry_val):
+                entry_val = os.path.expanduser(entry_val)
+                if os.path.exists(entry_val):
+                    entry.delete(0, END)  # Clear current value in entry widget
+                    entry.insert(0, entry_val)  # Add expanded user filepath to entry widget
+                else:
+                    errors.append((entry, 'The file or directory does not exist'))
+
+        return errors
+
+    def validate_leave_types(self):
+        errors = []
         if not (self.variables['own_health'].get() or self.variables['maternity'].get() or
                 self.variables['new_child'].get() or self.variables['ill_child'].get() or
                 self.variables['ill_spouse'].get() or self.variables['ill_parent'].get()):
@@ -1024,7 +1050,7 @@ class GeneralParamsFrame(Frame):
         self.row_padding = 4
         self.fmla_label.grid(column=0, row=0, sticky=W, pady=self.row_padding)
         self.fmla_input.grid(column=1, row=0, columnspan=3, sticky=(E, W), padx=8, pady=self.row_padding)
-        self.fmla_button.grid(column=4, row=0, sticky=W, pady=self.row_padding)
+        self.fmla_button.grid(column=4, row=0, pady=self.row_padding)
         self.acs_label.grid(column=0, row=1, sticky=W, pady=self.row_padding)
         self.acs_input.grid(column=1, row=1, columnspan=3, sticky=(E, W), padx=8, pady=self.row_padding)
         self.acs_button.grid(column=4, row=1, pady=self.row_padding)
@@ -2901,7 +2927,11 @@ class AdvancedFrame(Frame):
         tip = 'Reveal advanced simulation parameters'
         self.advanced_label = TipLabel(self, tip, text="Advanced Parameters:", bg=DARK_COLOR, fg=LIGHT_COLOR,
                                        font='-size 9 -weight bold')
-        self.button_container = Frame(self, highlightbackground='#FFFFFF', borderwidth=1, relief='flat')
+
+        if sys.platform == 'darwin':
+            self.button_container = Frame(self, background=DARK_COLOR)
+        else:
+            self.button_container = Frame(self, highlightbackground='#FFFFFF', borderwidth=1, relief='flat')
 
         # Buttons that reveal or hide the advanced parameters
         self.on_button = SubtleToggle(self.button_container, text='On', width=3, command=toggle_function)
@@ -2937,10 +2967,16 @@ class SubtleToggle(SubtleButton):
         """Changes the background of the button based on the current state"""
         if self.toggled_on:  # If button is on, then turn off
             self.toggled_on = False
-            self.config(background=self.off_background)
+            if sys.platform == 'darwin':
+                self.config(relief=SUNKEN)
+            else:
+                self.config(background=self.off_background)
         else:  # If button is off, then turn on
             self.toggled_on = True
-            self.config(background=self.on_background)
+            if sys.platform == 'darwin':
+                self.config(relief=RAISED)
+            else:
+                self.config(background=self.on_background)
 
 
 class BorderButton(Frame):
@@ -2954,6 +2990,13 @@ class BorderButton(Frame):
             If set to false, the frame will not be prepopulated with a default button. A custom button can be added.
         :param options: Other widget options
         """
+
+        if sys.platform == 'darwin':
+            highlightbackground = DARK_COLOR
+            borderwidth = 0
+            foreground = None
+            background = None
+
         super().__init__(parent, highlightbackground=highlightbackground, relief=relief, borderwidth=borderwidth)
 
         if not custom:

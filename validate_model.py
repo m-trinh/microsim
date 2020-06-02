@@ -42,7 +42,7 @@ def get_kfold_yhat(X, y, w, clf, fold, random_state):
     for train_index, test_index in skf.split(X, y):
         Xtr, Xts = X.loc[train_index, ], X.loc[test_index, ]
         ytr, yts = y.loc[train_index, ], y.loc[test_index, ]
-        wtr, wts = d[col_w][Xtr.index], d[col_w][Xts.index]
+        wtr, wts = w[Xtr.index], w[Xts.index]
         # save a copy of Xts - get_sim_col() will mutate Xts['age'] etc under Naive Bayes
         # which would make logic control infeasible
         Xts_copy = Xts.copy()
@@ -81,7 +81,7 @@ def get_kfold_yhat(X, y, w, clf, fold, random_state):
     return yhat
 
 # a function to use given classifier to generate kfold prediction cols
-def update_df_with_kfold_cols(d, col_Xs, col_ys, col_w, clf, random_state):
+def update_df_with_kfold_cols(d, col_Xs, col_ys, col_w, clf, fold, random_state):
     X, ys, w = d[col_Xs], d[col_ys], d[col_w]
     for col in col_ys:
         y = ys[col]
@@ -89,8 +89,8 @@ def update_df_with_kfold_cols(d, col_Xs, col_ys, col_w, clf, random_state):
         if yhat.name in d.columns:
             del d[yhat.name]
         d = d.join(yhat)
-
     ## Get derived cols, both true/predicted
+    types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
     d['taker'] = [max(x) for x in d[['take_%s' % x for x in types]].values]
     d['taker_hat'] = [max(x) for x in d[['take_%s_hat' % x for x in types]].values]
     d['needer'] = [max(x) for x in d[['need_%s' % x for x in types]].values]
@@ -140,17 +140,19 @@ def get_individual_level_results(d, clf_name, weighted_test=True):
 # ------------------------
 
 # a function to plot pop level results - worker counts
-def plot_pop_level_worker_counts(dp, clf_class_names_plot, savefig=None):
+def plot_pop_level_worker_counts(dp, clf_class_names_plot, clf_profile, savefig=None):
     '''
     :param: clf_class_names: col of dp except 'true', numbers will follow this order in plot
     '''
+    # get clfs with cv results (ready for plot), dct_clf, and clf_class_names from clf_profile
+    clfs, clf_class_names_plot, dct_clf = clf_profile
     # get clf class names, and corresponding labels for plot, must align for proper plotting
     clf_class_names_plot = [type(z).__name__ for z in clfs]
     clf_labels_plot = tuple([dct_clf[x] for x in clf_class_names_plot])
     # make plot
     title = 'Population Level Validation Results - Worker Counts'
     fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
-    dp = dp[clf_class_names + ['true']]
+    dp = dp[clf_class_names_plot + ['true']]
     ys = dp.drop(columns=['true']).loc['n_takers'].values
     zs = dp.drop(columns=['true']).loc['n_needers'].values
     ind = np.arange(len(ys))
@@ -183,17 +185,19 @@ def plot_pop_level_worker_counts(dp, clf_class_names_plot, savefig=None):
     return None
 
 # a function to plot pop level results - leave counts
-def plot_pop_level_leave_counts(dp, clf_class_names_plot, savefig=None):
+def plot_pop_level_leave_counts(dp, clf_class_names_plot, clf_profile, savefig=None):
     '''
     :param: clf_class_names: col of dp except 'true', numbers will follow this order in plot
     '''
+    # get clfs with cv results (ready for plot), dct_clf, and clf_class_names from clf_profile
+    clfs, clf_class_names_plot, dct_clf = clf_profile
     # get clf class names, and corresponding labels for plot, must align for proper plotting
     clf_class_names_plot = [type(z).__name__ for z in clfs]
     clf_labels_plot = tuple([dct_clf[x] for x in clf_class_names_plot])
     # make plot
     title = 'Population Level Validation Results - Leaves Taken'
     fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
-    dp = dp[clf_class_names + ['true']]
+    dp = dp[clf_class_names_plot + ['true']]
     ys = dp.drop(columns=['true']).loc['n_reasons_taken'].values
     ind = np.arange(len(ys))
     width = 0.2
@@ -224,14 +228,16 @@ def plot_pop_level_leave_counts(dp, clf_class_names_plot, savefig=None):
     return None
 
 # a function to plot ind level results
-def plot_ind_level(di, clf_class_names_plot, yvar, savefig=None):
+def plot_ind_level(di, clf_class_names_plot, clf_profile, yvar, savefig=None):
+    # get clfs with cv results (ready for plot), dct_clf, and clf_class_names from clf_profile
+    clfs, clf_class_names_plot, dct_clf = clf_profile
     # get clf class names, and corresponding labels for plot, must align for proper plotting
     clf_class_names_plot = [type(z).__name__ for z in clfs]
     clf_labels_plot = tuple([dct_clf[x] for x in clf_class_names_plot])
     # make plot
     title = 'Individual Level Validation Results - Performance Measures\nOutcome = %s' % yvar
     fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
-    di = di[clf_class_names] # order to ensure
+    di = di[clf_class_names_plot] # order to ensure
     ys = [x[yvar] for x in di.loc['precision'].values]
     zs = [x[yvar] for x in di.loc['recall'].values]
     ws = [x[yvar] for x in di.loc['f1'].values]
@@ -254,85 +260,86 @@ def plot_ind_level(di, clf_class_names_plot, yvar, savefig=None):
         plt.savefig(dir_out + 'ind_level%s.png' % suffix, facecolor='white', edgecolor='grey')  #
     return None
 
-## Set up
-# cv params
-fold = 10  # cannot be more than # minor cases in most imbalanced outvar
+# a function to get cross validation results for pop and ind levels, based on number of folds, and list of seeds
+def get_cv_results(d, fmla_wave, fold, seeds, fp_dir_out):
+    for random_seed in seeds:
+        print('--- Seed = %s ---' % random_seed)
+        random_state = np.random.RandomState(random_seed)
+        ## Based on seed, set up classifiers to be validated
+        # classifiers
+        clfs = []
+        clfs += [sklearn.dummy.DummyClassifier(strategy='stratified')]
+        clfs += [
+            sklearn.linear_model.LogisticRegression(solver='liblinear', multi_class='ovr', random_state=random_state)]
+        clfs += [sklearn.neighbors.KNeighborsClassifier(n_neighbors=5)]
+        clfs += [sklearn.naive_bayes.MultinomialNB()]
+        clfs += [sklearn.ensemble.RandomForestClassifier(random_state=random_state)]
+        clfs += [xgboost.XGBClassifier(objective='binary:logistic')]
+        clfs += [sklearn.linear_model.RidgeClassifier()]
+        clfs += [sklearn.svm.SVC(probability=True, gamma='auto', random_state=random_state)]
 
-## Loop across random state
-n_seeds = 10
-seeds = list(range(12345, 12345 + n_seeds))
-for random_seed in seeds:
-    print('--- Seed = %s ---' % random_seed)
-    random_state = np.random.RandomState(random_seed)
-    ## Based on seed, set up classifiers to be validated
-    # classifiers
-    clfs = []
-    clfs += [sklearn.dummy.DummyClassifier(strategy='stratified')]
-    clfs += [
-        sklearn.linear_model.LogisticRegression(solver='liblinear', multi_class='ovr', random_state=random_state)]
-    clfs += [sklearn.neighbors.KNeighborsClassifier(n_neighbors=5)]
-    clfs += [sklearn.naive_bayes.MultinomialNB()]
-    clfs += [sklearn.ensemble.RandomForestClassifier(random_state=random_state)]
-    clfs += [xgboost.XGBClassifier(objective='binary:logistic')]
-    clfs += [sklearn.linear_model.RidgeClassifier()]
-    clfs += [sklearn.svm.SVC(probability=True, gamma='auto', random_state=random_state)]
-    # clfs = [sklearn.linear_model.LogisticRegression(solver='liblinear', multi_class='ovr', random_state=random_state)]
+        # dict from classifier class names to readable labels
+        clf_class_names = ['DummyClassifier', 'LogisticRegression', 'KNeighborsClassifier',
+                           'MultinomialNB', 'RandomForestClassifier', 'XGBClassifier', 'RidgeClassifier', 'SVC']
+        clf_labels = ['Random Draw', 'Logit', 'KNN', 'Naive Bayes', 'Random Forest', 'XGB', 'Ridge', 'SVC']
+        dct_clf = dict(zip(clf_class_names, clf_labels))
+        # classifier plot labels
+        clf_class_names_plot = [type(z).__name__ for z in clfs]
+        clf_labels_plot = tuple([dct_clf[x] for x in clf_class_names_plot])
 
-    # dict from classifier class names to readable labels
-    clf_class_names = ['DummyClassifier', 'LogisticRegression', 'KNeighborsClassifier',
-                       'MultinomialNB', 'RandomForestClassifier', 'XGBClassifier', 'RidgeClassifier', 'SVC']
-    clf_labels = ['Random Draw', 'Logit', 'KNN', 'Naive Bayes', 'Random Forest', 'XGB', 'Ridge', 'SVC']
-    dct_clf = dict(zip(clf_class_names, clf_labels))
-    # classifier plot labels
-    clf_class_names_plot = [type(z).__name__ for z in clfs]
-    clf_labels_plot = tuple([dct_clf[x] for x in clf_class_names_plot])
+        ## Read in FMLA data, get cols, fillna
+        # drop any military workers and reset index
+        try:
+            d = d.drop(d[d['occ_11'] == 1].index)
+            d = d.reset_index(drop=True)
+        except KeyError:
+            pass
 
-    ## Read in FMLA data, get cols, fillna
-    fmla_wave = 2018  # 2012 or 2018
-    d = pd.read_csv('./data/fmla/fmla_%s/fmla_clean_%s.csv' % (fmla_wave, fmla_wave))
-    # drop military workers and reset index
-    d = d.drop(d[d['occ_11'] == 1].index)
-    d = d.reset_index(drop=True)
-    d_raw = d.copy()
-    types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
-    col_Xs, col_ys, col_w = get_columns(fmla_wave, types)
-    # part_size = int(round(len(d) / fold, 0))
+        d_raw = d.copy()
+        types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
+        col_Xs, col_ys, col_w = get_columns(fmla_wave, types)
+        # part_size = int(round(len(d) / fold, 0))
 
-    ## Get output
-    out_pop, out_ind = {}, {}
-    for clf in clfs:
-        # print clf name
-        if type(clf) != str:  # only str clf is 'random draw'
-            clf_name = clf.__class__.__name__
-        else:
-            clf_name = clf
-        # get results
-        print('Getting results for clf = %s' % clf_name)
-        t0 = time()
+        ## Get output
+        out_pop, out_ind = {}, {}
+        for clf in clfs:
+            # print clf name
+            if type(clf) != str:  # only str clf is 'random draw'
+                clf_name = clf.__class__.__name__
+            else:
+                clf_name = clf
+            # get results
+            print('Getting results for clf = %s' % clf_name)
+            t0 = time()
 
-        d = d[col_Xs + col_ys + [col_w]]
-        d = fillna_df(d, random_state=random_state)
-        X, ys = d[col_Xs], d[col_ys]
+            d = d[col_Xs + col_ys + [col_w]]
+            d = fillna_df(d, random_state=random_state)
+            X, ys = d[col_Xs], d[col_ys]
 
-        d = update_df_with_kfold_cols(d, col_Xs, col_ys, col_w, clf, random_state=random_state)
-        print('Time needed to get results = %s' % round((time() - t0), 0))
-        clf_name, out_pop_clf = get_population_level_results(d, clf_name)
-        clf_name, out_ind_clf = get_individual_level_results(d, clf_name)
-        # if isinstance(clf, sklearn.neighbors.KNeighborsClassifier):
-        #     clf_name += str(int(clf.get_params()['n_neighbors']))
-        out_pop[clf_name] = out_pop_clf
-        out_ind[clf_name] = out_ind_clf
+            d = update_df_with_kfold_cols(d, col_Xs, col_ys, col_w, clf, fold, random_state=random_state)
+            print('Time needed to get results = %s' % round((time() - t0), 0))
+            clf_name, out_pop_clf = get_population_level_results(d, clf_name)
+            clf_name, out_ind_clf = get_individual_level_results(d, clf_name)
+            # if isinstance(clf, sklearn.neighbors.KNeighborsClassifier):
+            #     clf_name += str(int(clf.get_params()['n_neighbors']))
+            out_pop[clf_name] = out_pop_clf
+            out_ind[clf_name] = out_ind_clf
 
-    # save as json
-    dir_out = 'C:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_2/results/' + 'seed_%s/' % random_seed
-    if not os.path.exists(dir_out):
-        os.mkdir(dir_out)
-    fp_out_json_pop = dir_out + 'pop_level_%s_k%s.json' % (fmla_wave, fold)
-    fp_out_json_ind = dir_out + 'ind_level_%s_k%s.json' % (fmla_wave, fold)
-    with open(fp_out_json_pop, 'w') as f:
-        json.dump(out_pop, f, sort_keys=True, indent=4)
-    with open(fp_out_json_ind, 'w') as f:
-        json.dump(out_ind, f, sort_keys=True, indent=4)
+        # save as json
+        dir_out = fp_dir_out + 'seed_%s/' % random_seed
+        if not os.path.exists(dir_out):
+            os.mkdir(dir_out)
+        fp_out_json_pop = dir_out + 'pop_level_%s_k%s.json' % (fmla_wave, fold)
+        fp_out_json_ind = dir_out + 'ind_level_%s_k%s.json' % (fmla_wave, fold)
+        with open(fp_out_json_pop, 'w') as f:
+            json.dump(out_pop, f, sort_keys=True, indent=4)
+        with open(fp_out_json_ind, 'w') as f:
+            json.dump(out_ind, f, sort_keys=True, indent=4)
+
+    clf_profile = (clfs, clf_class_names_plot, dct_clf)
+    return clf_profile
+
+
 
     # ## Plots for a given seed
     #
@@ -431,32 +438,6 @@ def get_avg_out_ind(dir_results, seeds):
 
     return avg_out_i
 
-# get avg_out_pop for noSVC results
-dir_results = 'C:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_2/results/seeds_12345_12354_noSVC/'
-avg_out_p = get_avg_out_pop(dir_results, seeds, true_numbers=True)
-# add in col for SVC
-dir_results = 'C:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_2/results/seeds_12345_12354_SVC/'
-avg_out_p = avg_out_p.join(get_avg_out_pop(dir_results, seeds))
-# send 'true' col to end
-avg_out_p = avg_out_p[[x for x in avg_out_p.columns if x!='true'] + ['true']]
-# get avg_out_ind for noSVC results
-avg_out_i = get_avg_out_ind(dir_results, seeds)
-# add in col for SVC
-dir_results = 'C:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_2/results/seeds_12345_12354_SVC/'
-avg_out_i = avg_out_i.join(get_avg_out_ind(dir_results, seeds))
-
-# plot with average results
-# Pop level results - worker counts
-plot_pop_level_worker_counts(avg_out_p, clf_class_names_plot)
-# Pop level results - leave counts
-plot_pop_level_leave_counts(avg_out_p, clf_class_names_plot)
-# Ind level results
-dir_out = 'C:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_2/draft_plot/'
-for yvar in ['taker', 'needer', 'resp_len'] + ['take_own', 'need_own', 'take_matdis', 'need_matdis']:
-    suffix = '_%s_k%s_%s' % (fmla_wave, fold, yvar)
-    savefig = (dir_out, suffix)
-    plot_ind_level(avg_out_i, clf_class_names_plot, yvar, savefig=savefig)
-
 
 
 #######################################
@@ -464,63 +445,116 @@ for yvar in ['taker', 'needer', 'resp_len'] + ['take_own', 'need_own', 'take_mat
 # - for program outlay validation results, run model in GUI and save to respective models
 #######################################
 
-# Program Outlay Results
+# Program Outlay Results - use GUI to run model by state-classifier, name output folder as 'st_clf', e.g. 'ca_knn'
 # Make a df of total program costs
-costs = {}
-sts = ['ri', 'nj', 'ca']
-for s in sts:
-    costs[s] = {}
-methods = ['logit', 'knn', 'nb', 'rf', 'xgb', 'ridge', 'svm']
-dir = './output/_ib2_v2/'
-for st in sts:
-    for method in methods:
-        fp= dir + '%s_%s/' % (st, method)
-        fs = [f for f in listdir(fp) if isfile(join(fp, f))]
-        f_dc = [f for f in fs if 'program_cost' in f][0]
-        dc = pd.read_csv(fp+f_dc)
-        for c in dc.columns:
-            if c!='type':
-                dc[c] = [x/10**6 for x in dc[c]]
-        costs[st][method] = dc.loc[dc['type']=='total', 'cost'].values[0]
-costs = pd.DataFrame.from_dict(costs)
-costs = costs.reindex(methods)
-costs = costs[sts]
+
+# a function to get cost estimates from multiple output folders named in format 'st_clf'
+def get_sim_costs(fp_dir_out, sts, methods):
+    '''
+
+    :param fp_dir_out: parent dir that stores output folders for each sim run
+    :param sts: state names in output folder
+    :param methods: method names in output folder
+    :return: df of cost estimates, by st by method
+    '''
+    costs = {}
+    for st in sts:
+        costs[st] = {}
+        for method in methods:
+            fp = fp_dir_out + '%s_%s/' % (st, method)
+            fs = [f for f in listdir(fp) if isfile(join(fp, f))]
+            f_dc = [f for f in fs if 'program_cost' in f][0]
+            dc = pd.read_csv(fp + f_dc)
+            for c in dc.columns:
+                if c != 'type':
+                    dc[c] = [x / 10 ** 6 for x in dc[c]]
+            costs[st][method] = dc.loc[dc['type'] == 'total', 'cost'].values[0]
+    costs = pd.DataFrame.from_dict(costs)
+    costs = costs.reindex(methods)
+    costs = costs[sts]
+    return costs
 
 # plot
-title = 'Program Outlay Validation Results'
-fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
-ys = costs['ri']
-zs = costs['nj']
-ws = costs['ca']
-dct_color = dict(zip(sts, ['indianred', 'slategray', 'tan']))
+def plot_sim_costs(costs, savefig=None):
+    title = 'Program Outlay Validation Results'
+    fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
+    ys = costs['ri']
+    zs = costs['nj']
+    ws = costs['ca']
+    dct_color = dict(zip(sts, ['indianred', 'slategray', 'tan']))
 
-ind = np.arange(len(ys))
-width = 0.2
-bar1 = ax.bar(ind-width, ys, width, align='center', capsize=5, color=dct_color['ri'], ecolor='grey')
-bar2 = ax.bar(ind, zs, width, align='center', capsize=5, color=dct_color['nj'], ecolor='grey')
-bar3 = ax.bar(ind+width, ws, width, align='center', capsize=5, color=dct_color['ca'], ecolor='grey')
-ax.set_ylabel('Program Outlay')
-ax.set_xticks(ind)
-ax.set_xticklabels(('Logit', 'KNN', 'Naive Bayes', 'Random Forest', 'XGB', 'Ridge', 'SVC'))
-ax.yaxis.grid(False)
-ax.legend((bar1, bar2, bar3), ('Rhode Island','New Jersey', 'California' ))
-ax.ticklabel_format(style='plain', axis='y')
-#ax.get_yaxis().set_major_formatter(matplotlib.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
+    ind = np.arange(len(ys))
+    width = 0.2
+    bar1 = ax.bar(ind-width, ys, width, align='center', capsize=5, color=dct_color['ri'], ecolor='grey')
+    bar2 = ax.bar(ind, zs, width, align='center', capsize=5, color=dct_color['nj'], ecolor='grey')
+    bar3 = ax.bar(ind+width, ws, width, align='center', capsize=5, color=dct_color['ca'], ecolor='grey')
+    ax.set_ylabel('Program Outlay')
+    ax.set_xticks(ind)
+    ax.set_xticklabels(('Logit', 'KNN', 'Naive Bayes', 'Random Forest', 'XGB', 'Ridge', 'SVC'))
+    ax.yaxis.grid(False)
+    ax.legend((bar1, bar2, bar3), ('Rhode Island','New Jersey', 'California' ))
+    ax.ticklabel_format(style='plain', axis='y')
 
-# add horizontal bar for true numbers
-dct_cost = dict(zip(sts, [166.7, 502.2, 5681.7]))
-dct_offset = dict(zip(sts, [1.025, 1.025, 0.975]))
-for st in sts:
-    y = dct_cost[st]
-    plt.axhline(y=y, color=dct_color[st], linestyle='--')
-    hline_offset = dct_offset[st]
-    hline_text = 'Actual Program Outlay, %s: %s million' % (st.upper(), y)
-    plt.text(2, y * hline_offset, hline_text, horizontalalignment='center', color='k')
-format_chart(fig, ax, title, bg_color='white', fg_color='k')
-# save
+    # add horizontal bar for true numbers
+    dct_cost = dict(zip(sts, [166.7, 502.2, 5681.7]))
+    dct_offset = dict(zip(sts, [1.025, 1.025, 0.975]))
+    for st in sts:
+        y = dct_cost[st]
+        plt.axhline(y=y, color=dct_color[st], linestyle='--')
+        hline_offset = dct_offset[st]
+        hline_text = 'Actual Program Outlay, %s: %s million' % (st.upper(), y)
+        plt.text(2, y * hline_offset, hline_text, horizontalalignment='center', color='k')
+    format_chart(fig, ax, title, bg_color='white', fg_color='k')
+    if savefig is not None:
+        dir_out = savefig
+        # save
+        plt.savefig(dir_out + 'program_outlay.png', facecolor='white', edgecolor='grey') #
+    return None
+
+# Get cross validation results based on number of folds and list of seeds, store results in folders
+fmla_wave = 2018
+d = pd.read_csv('./data/fmla/fmla_%s/fmla_clean_%s.csv' % (fmla_wave, fmla_wave))
+fold = 10  # cannot be more than # minor cases in most imbalanced outvar
+n_seeds = 2
+seeds = list(range(12345, 12345 + n_seeds))
+dir_out = 'C:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_2/results/'
+clf_profile = get_cv_results(d, fmla_wave, fold, seeds, dir_out) # clfs, clf_class_names, dct_clf
+clfs, clf_class_names_plot, dct_clf = clf_profile
+# get avg_out_pop for noSVC results
+dir_results = 'C:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_2/results/seeds_12345_12354_noSVC/'
+avg_out_p = get_avg_out_pop(dir_results, seeds, true_numbers=True)
+# # add in col for SVC
+# dir_results = 'C:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_2/results/seeds_12345_12354_SVC/'
+# avg_out_p = avg_out_p.join(get_avg_out_pop(dir_results, seeds))
+# send 'true' col to end
+avg_out_p = avg_out_p[[x for x in avg_out_p.columns if x!='true'] + ['true']]
+# get avg_out_ind for noSVC results
+avg_out_i = get_avg_out_ind(dir_results, seeds)
+# # add in col for SVC
+# dir_results = 'C:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_2/results/seeds_12345_12354_SVC/'
+# avg_out_i = avg_out_i.join(get_avg_out_ind(dir_results, seeds))
+
+# plot with average results
+# Pop level results - worker counts
+plot_pop_level_worker_counts(avg_out_p, clf_class_names_plot, clf_profile)
+# Pop level results - leave counts
+plot_pop_level_leave_counts(avg_out_p, clf_class_names_plot, clf_profile)
+# Ind level results
 dir_out = 'C:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_2/draft_plot/'
-plt.savefig(dir_out + 'program_outlay.png', facecolor='white', edgecolor='grey') #
+for yvar in ['taker', 'needer', 'resp_len'] + ['take_own', 'need_own', 'take_matdis', 'need_matdis']:
+    suffix = '_%s_k%s_%s' % (fmla_wave, fold, yvar)
+    savefig = (dir_out, suffix)
+    plot_ind_level(avg_out_i, clf_class_names_plot, clf_profile, yvar, savefig=savefig)
 
+# get costs df by states and methods
+fp_dir_out = './output/_ib2_v2/'
+sts = ['ri', 'nj', 'ca']
+methods = ['logit', 'knn', 'nb', 'rf', 'xgb', 'ridge', 'svm']
+costs = get_sim_costs(fp_dir_out, sts, methods)
+
+# plot simulated costs by state and methods
+dir_out = 'C:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_2/draft_plot/'
+plot_sim_costs(costs, savefig=dir_out)
 
 
 ################################################################################################
