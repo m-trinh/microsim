@@ -1,7 +1,7 @@
 source("0_master_execution_function.R")
 args = commandArgs(trailingOnly=TRUE)
 
-if (length(args) != 59) {
+if (length(args) != 58) {
   stop("Incorrect number of arguments supplied", call.=FALSE)
 } else {
 	d <- policy_simulation(
@@ -9,24 +9,23 @@ if (length(args) != 59) {
 		xvars=c("widowed", "divorced", "separated", "nevermarried", "female", 
 			  'age_cat', "ltHS", "someCol", "BA", "GradSch", "black", 
 			  "other", "asian",'native', "hisp","nochildren",'faminc_cat','coveligd'),
-		base_bene_level=as.numeric(args[0]),
-		impute_method=args[1],
-		makelog = as.logical(args[2]),
-		sample_prop=as.numeric(args[3]),
-		state=args[4],
-		FEDGOV=as.logical(args[5]),
-		STATEGOV=as.logical(args[6]),
-		LOCALGOV=as.logical(args[7]),
-		SELFEMP=as.logical(args[8]),
-		place_of_work=as.logical(args[9]),
-		exclusive_particip=as.logical(args[10]),
-		SMOTE=as.logical(args[11]),
-		ext_resp_len=as.logical(args[12]),
-		len_method=args[13],
-		sens_var=args[14],
-		progalt_post_or_pre=args[15],
-		intra_impute=as.logical(args[16]),
-		exclusive_particip=as.logical(args[17]),
+		base_bene_level=as.numeric(args[1]),
+		impute_method=args[2],
+		makelog = as.logical(args[3]),
+		sample_prop=as.numeric(args[4]),
+		state=args[5],
+		FEDGOV=as.logical(args[6]),
+		STATEGOV=as.logical(args[7]),
+		LOCALGOV=as.logical(args[8]),
+		SELFEMP=as.logical(args[9]),
+		place_of_work=as.logical(args[10]),
+		exclusive_particip=as.logical(args[11]),
+		SMOTE=as.logical(args[12]),
+		ext_resp_len=as.logical(args[13]),
+		len_method=args[14],
+		sens_var=args[15],
+		progalt_post_or_pre=args[16],
+		intra_impute=as.logical(args[17]),
 		ext_base_effect=as.logical(args[18]),
 		extend_prob=as.numeric(args[19]),
 		extend_days=as.numeric(args[20]),
@@ -56,16 +55,16 @@ if (length(args) != 59) {
 		maxlen_PFL=as.numeric(args[44]),
 		maxlen_DI=as.numeric(args[45]),
 		earnings=as.numeric(args[46]),
-        weeks=as.numeric(args[47]),
-        ann_hours=as.numeric(args[48]),
-        minsize=as.numeric(args[49]),
+    weeks=as.numeric(args[47]),
+    ann_hours=as.numeric(args[48]),
+    minsize=as.numeric(args[49]),
 		own_elig_adj=as.numeric(args[50]),
 		matdis_elig_adj=as.numeric(args[51]),
 		bond_elig_adj=as.numeric(args[52]),
 		illspouse_elig_adj=as.numeric(args[53]),
-        illparent_elig_adj=as.numeric(args[54]),
+    illparent_elig_adj=as.numeric(args[54]),
 		illchild_elig_adj=as.numeric(args[55]),
 		output=args[56],
 		random_seed=as.numeric(args[57]),
-        progress_file=args[58])
+    progress_file=args[58])
 }

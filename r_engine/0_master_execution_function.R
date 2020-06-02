@@ -145,9 +145,9 @@ policy_simulation <- function(saveCSV=FALSE,
   }
 
   if (!is.null(progress_file)) {
-    message <- paste0('{"type": "message", "engine": "' engine_type, '", "value": "Cleaned data files before CPS imputation."}')
+    message <- paste0('{"type": "message", "engine": "', engine_type, '", "value": "Cleaned data files before CPS imputation."}')
     cat(message, file = progress_file, sep = "\n", append = TRUE)
-    message <- paste0('{"type": "progress", "engine": "' engine_type, '", "value": 10}')
+    message <- paste0('{"type": "progress", "engine": "', engine_type, '", "value": 10}')
     cat(message, file = progress_file, sep = "\n", append = TRUE)
   }
   #========================================
@@ -172,9 +172,9 @@ policy_simulation <- function(saveCSV=FALSE,
   d_fmla <- impute_intra_fmla(d_fmla, intra_impute)
 
   if (!is.null(progress_file)) {
-    message <- paste0('{"type": "message", "engine": "' engine_type, '", "value": "Impute leave taken and needed."}')
+    message <- paste0('{"type": "message", "engine": "', engine_type, '", "value": "Impute FMLA leave taken and needed."}')
     cat(message, file = progress_file, sep = "\n", append = TRUE)
-    message <- paste0('{"type": "progress", "engine": "' engine_type, '", "value": 20}')
+    message <- paste0('{"type": "progress", "engine": "', engine_type, '", "value": 20}')
     cat(message, file = progress_file, sep = "\n", append = TRUE)
   }
   # OUTPUT: FMLA data with modified take_ and need_ vars for those with additional leaves
@@ -206,7 +206,13 @@ policy_simulation <- function(saveCSV=FALSE,
   d_acs_imp <- impute_fmla_to_acs(d_fmla,d_acs, impute_method, xvars, kval, xvar_wgts)  
   # OUTPUT: ACS data with imputed values for a) leave taking and needing, b) proportion of pay received from
   #         employer while on leave, and c) whether leave needed was not taken due to unaffordability 
-
+  
+  if (!is.null(progress_file)) {
+    message <- paste0('{"type": "message", "engine": "', engine_type, '", "value": "Impute ACS leave taken and needed."}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+    message <- paste0('{"type": "progress", "engine": "', engine_type, '", "value": 80}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+  }
   # -------------Post-imputation functions-----------------
   # adjust for program's base behavioral effect on leave taking
   # INPUT: FMLA data
@@ -228,6 +234,12 @@ policy_simulation <- function(saveCSV=FALSE,
   #         estimate of leave length
   d_acs_imp <- impute_leave_length(d_fmla_orig, d_acs_imp, conditional, test_conditional, ext_resp_len,
                                    len_method)
+  if (!is.null(progress_file)) {
+    message <- paste0('{"type": "message", "engine": "', engine_type, '", "value": "Impute leave lengths"}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+    message <- paste0('{"type": "progress", "engine": "', engine_type, '", "value": 90}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+  }
   # OUTPUT: ACS data with lengths for leaves imputed
   
   # function interactions description (may not be complete, just writing as they come to me):
@@ -325,6 +337,14 @@ policy_simulation <- function(saveCSV=FALSE,
     }  
   }
   
+  if (!is.null(progress_file)) {
+    message <- paste0('{"type": "message", "engine": "', engine_type, '", "value": "Output saved"}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+    message <- paste0('{"type": "progress", "engine": "', engine_type, '", "value": 100}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+    message <- paste0('{"type": "done", "engine": "', engine_type, '", "value": None}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+  }
   
   return(d_acs_imp)
 }

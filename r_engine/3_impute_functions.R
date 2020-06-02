@@ -128,7 +128,6 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
         }
       }
     }  
-    
     # save output for reference when making other methods
     saveRDS(d_acs, file="./R_dataframes/d_acs_impute_output.rds") # TODO: Remove from final version
   }
@@ -217,7 +216,7 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
 # Define KNN1 matching method
 
 KNN1_scratch <- function(d_train, d_test, imp_var, train_filt, test_filt, xvars, xvar_wgts) { 
-  
+  print('Running KNN1')
   # This returns a dataframe of length equal to acs with the employee id and a column for each leave type
   # that indicates whether or not they took the leave.
 
@@ -273,14 +272,12 @@ KNN1_scratch <- function(d_train, d_test, imp_var, train_filt, test_filt, xvars,
   nest_test <- list()
   nest_train <- list()
   # nested lists of vectors for apply functions
-  
   nest_test <- lapply(seq(1,nrow(m_test)) , function(y){ 
     m_test[y,colnames(test)!='id']
   })
   nest_train <- lapply(seq(1,nrow(m_train)) , function(y){ 
     m_train[y,colnames(train)!='nbor_id' & colnames(train)!=imp_var]
   })
-  
   # mark minimium distance
   min_start <- ncol(train)-2
   

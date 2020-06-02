@@ -493,10 +493,10 @@ class MicrosimGUI(Tk):
         if state_of_work:
             fp_acsh_in = self.general_params.acs_directory + '/%s/pow_household_files' % yr
             fp_acsp_in = self.general_params.acs_directory + '/%s/pow_person_files' % yr
-        fp_fmla_out = './data/fmla/fmla_%s/fmla_clean_%s.csv' % (fmla_wave, fmla_wave)
+        fp_fmla_out = './data/cps/fmla_clean_%s.csv' % fmla_wave
         fp_dir_out = self.general_params.output_directory
         fp_cps_out = './data/cps/cps_for_acs_sim.csv'
-        fp_acs_out = './data/acs/'
+        fp_acs_out = self.general_params.acs_directory
         fp_length_distribution_out = './data/fmla/fmla_%s/length_distributions_exact_days.json' % fmla_wave
         fps_in = [fp_fmla_in, fp_cps_in, fp_acsh_in, fp_acsp_in]
         fps_out = [fp_dir_out, fp_fmla_out, fp_cps_out, fp_acs_out, fp_length_distribution_out]
