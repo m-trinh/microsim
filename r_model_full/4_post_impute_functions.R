@@ -227,7 +227,7 @@ PAY_SCHEDULE <- function(d) {
   # dist <- read.csv("pay_dist_prob.csv")
   
   # columns from this csv written manually to avoid dependency on csv file
-  # proportion of pay received (prop_pay in FMLA data)
+  # proportion of pay received (prop_pay_employer in FMLA data)
   # Westat 2001 survey: About how much of your usual pay did you receive in total?
   Total_paid=c("Less than half","Half","More than half")
   
@@ -250,9 +250,9 @@ PAY_SCHEDULE <- function(d) {
   
   
   # denote bucket of proportion of pay
-  d <- d %>% mutate(Total_paid= ifelse(prop_pay>0 & prop_pay<.5,"Less than half",NA))
-  d <- d %>% mutate(Total_paid= ifelse(prop_pay==.5, "Half" ,Total_paid))
-  d <- d %>% mutate(Total_paid= ifelse(prop_pay>.5 & prop_pay<1, "More than half",Total_paid))
+  d <- d %>% mutate(Total_paid= ifelse(prop_pay_employer>0 & prop_pay_employer<.5,"Less than half",NA))
+  d <- d %>% mutate(Total_paid= ifelse(prop_pay_employer==.5, "Half" ,Total_paid))
+  d <- d %>% mutate(Total_paid= ifelse(prop_pay_employer>.5 & prop_pay_employer<1, "More than half",Total_paid))
   
   # merge probabilities in
   d <- plyr :: join(d,d_prob, type="left",match="all",by="Total_paid")
@@ -264,8 +264,8 @@ PAY_SCHEDULE <- function(d) {
   d <- d %>% mutate(pay_schedule= ifelse(rand<Always_paid,"some pay, all weeks",NA))
   d <- d %>% mutate(pay_schedule= ifelse(rand>=Always_paid & rand2<Fully_paid,"all pay, some weeks",pay_schedule))
   d <- d %>% mutate(pay_schedule= ifelse(rand>=Always_paid & rand2>=Fully_paid,"some pay, some weeks",pay_schedule))
-  d <- d %>% mutate(pay_schedule= ifelse(prop_pay==1,"all pay, all weeks",pay_schedule))
-  d <- d %>% mutate(pay_schedule= ifelse(prop_pay==0,"no pay",pay_schedule))
+  d <- d %>% mutate(pay_schedule= ifelse(prop_pay_employer==1,"all pay, all weeks",pay_schedule))
+  d <- d %>% mutate(pay_schedule= ifelse(prop_pay_employer==0,"no pay",pay_schedule))
   
   # total_length - number of days leave taken of all types
   d['total_length']=0
@@ -283,10 +283,10 @@ PAY_SCHEDULE <- function(d) {
   
   # Keep track of what day employer benefits will be exhausted for those receiving pay in some but not all of their leave
   # all pay, some weeks
-  d <-  d %>% mutate(exhausted_by=ifelse(pay_schedule=="all pay, some weeks",round(total_length*prop_pay, digits=0), NA))
+  d <-  d %>% mutate(exhausted_by=ifelse(pay_schedule=="all pay, some weeks",round(total_length*prop_pay_employer, digits=0), NA))
   
   # some pay, some weeks - like ACM, assumes equal distribution of partiality among pay proportion and weeks taken
-  d <-  d %>% mutate(exhausted_by=ifelse(pay_schedule=="some pay, some weeks",round(total_length*sqrt(prop_pay), digits=0), exhausted_by))
+  d <-  d %>% mutate(exhausted_by=ifelse(pay_schedule=="some pay, some weeks",round(total_length*sqrt(prop_pay_employer), digits=0), exhausted_by))
   
   # clean up vars
   d <- d[, !(names(d) %in% c('rand','rand2','Always_paid','Total_paid','Fully_paid', 'Neither_paid'))]
@@ -369,7 +369,7 @@ ELIGIBILITYRULES <- function(d, earnings=NULL, weeks=NULL, ann_hours=NULL, minsi
   # calculate general participation decision based on employer pay vs state program pay    
   # those who will receive more under the program and are not dual receivers will participate
   d["particip"] <- 0
-  d["particip"] <- ifelse(d[,"eligworker"]==1 & d[,"prop_pay"]<d[,"benefit_prop_temp"]& d[,'dual_receiver']==0,1,0)    
+  d["particip"] <- ifelse(d[,"eligworker"]==1 & d[,"prop_pay_employer"]<d[,"benefit_prop_temp"]& d[,'dual_receiver']==0,1,0)    
   
   # those who exhaust employer benefits before leave ends and are not dual receivers will participate
   d["particip"] <- ifelse(d[,"eligworker"]==1 & !is.na(d[,'exhausted_by']) & d[,'dual_receiver']==0,1,d[,"particip"])  
@@ -525,7 +525,7 @@ EXTENDLEAVES <-function(d_train, d_test,wait_period, ext_base_effect,
     filt <- "TRUE"
 
     # weights
-    weight <- "~ fixed_weight"
+    weight <- "~ weight"
     
     # Run Estimation
     # INPUT: FMLA (training) data set, ACS (test) data set, logit regression model specification, 
@@ -571,13 +571,13 @@ EXTENDLEAVES <-function(d_train, d_test,wait_period, ext_base_effect,
     for (i in leave_types) {
       len_var=paste("length_",i,sep="")
       take_var=paste("take_",i,sep="")
-      d_test["extend_flag"] <- with(d_test, ifelse((prop_pay==0 | !is.na(exhausted_by)) & particip==1 &
+      d_test["extend_flag"] <- with(d_test, ifelse((prop_pay_employer==0 | !is.na(exhausted_by)) & particip==1 &
                                                      longer_leave == 1 & get(take_var)==1 & extend_flag==0 & get(len_var)*1.25>wait_period
                                                    ,1,extend_flag))
-      d_test[len_var] <- with(d_test, ifelse((prop_pay==0 | !is.na(exhausted_by)) & particip==1 &
+      d_test[len_var] <- with(d_test, ifelse((prop_pay_employer==0 | !is.na(exhausted_by)) & particip==1 &
                                                longer_leave == 1 & get(take_var)==1 & extend_flag==0 & get(len_var)*1.25>wait_period
                                              ,get(len_var)*1.25,get(len_var)))
-      d_test["total_length"] <-  with(d_test, ifelse((prop_pay==0 | !is.na(exhausted_by)) & particip==1 &
+      d_test["total_length"] <-  with(d_test, ifelse((prop_pay_employer==0 | !is.na(exhausted_by)) & particip==1 &
                                                        longer_leave == 1 & get(take_var)==1 & extend_flag==0 & get(len_var)*1.25>wait_period
                                                      ,total_length+get(len_var)*.25, total_length))
     }
@@ -837,11 +837,11 @@ BENEFITS <- function(d) {
   d <- d %>% mutate(base_benefits=ifelse(is.na(base_benefits),0,base_benefits))
 
   # Note status quo leave pay
-  d <- d %>% mutate(squo_leave_pay=wage12/(round(weeks_worked*5))*squo_total_length* prop_pay)
+  d <- d %>% mutate(squo_leave_pay=wage12/(round(weeks_worked*5))*squo_total_length* prop_pay_employer)
   
   # base pay received from employer based on schedule
   # pay received is same across all pay schedules
-  d <- d %>% mutate(base_leave_pay=wage12/(round(weeks_worked*5))*total_length* prop_pay)
+  d <- d %>% mutate(base_leave_pay=wage12/(round(weeks_worked*5))*total_length* prop_pay_employer)
   d <- d %>% mutate(base_leave_pay=ifelse(is.na(base_leave_pay),0,base_leave_pay))
   
   # actual pay and benefits - to be modified by remaining parameter functions
@@ -947,7 +947,7 @@ TOPOFF <- function(d, topoff_rate, topoff_minlength) {
   d['topoff_rate'] <- topoff_rate
   d['topoff_min'] <- topoff_minlength
   d['rand'] <- runif(nrow(d))
-  d <- d %>% mutate(topoff= ifelse(rand<topoff_rate & prop_pay==1,1,0))
+  d <- d %>% mutate(topoff= ifelse(rand<topoff_rate & prop_pay_employer==1,1,0))
   d <- d %>% mutate(topoff_count=0)
   for (i in leave_types) {
     len_var=paste("length_",i,sep="")

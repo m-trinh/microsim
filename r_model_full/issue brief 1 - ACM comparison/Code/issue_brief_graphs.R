@@ -8,7 +8,7 @@ library(reshape2)
 library(varhandle)
 
 # read in IMPAQ results
-impaq <- read.csv('output/issue_brief_1 nums.csv')
+impaq <- read.csv('output/issue_brief_1 nums 5_21.csv')
 names(impaq)[names(impaq) == "X"] <- "var"
 names(impaq)[names(impaq) == "source"] <- "model"
 
@@ -71,6 +71,8 @@ Leave_Type<- c('Own Illness','Maternal Disability','Own/Maternal ','Child Bondin
                 'Ill Parent','Ill Spouse ','Eligible Workers','Benefits')
 
 d$Leave_Type <- factor(d$Leave_Type, levels = Leave_Type)
+d$model[d$model=='IMPAQ'] <- 'IMPAQ-DOL'
+d$model <- factor(d$model, levels = c('IMPAQ-DOL','ACM','Actual'))
 
 # make graphs 
 # Exhibit 1 ---- Comparing Total Benefits 
