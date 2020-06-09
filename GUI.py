@@ -324,6 +324,7 @@ class MicrosimGUI(Tk):
             main_output_dir = self.sim_engine.output_directories[0]
             results_files = self.sim_engine.get_results_files()
         else:
+            # TODO: port R engine
             costs = pd.read_csv('./output/output_20200220_130425_main simulation/program_cost_ri_20200220_130425.csv')
             main_output_dir = os.path.join('r_engine', 'output')
             results_files = [os.path.join(main_output_dir, 'output.csv')]
@@ -950,7 +951,7 @@ class GeneralParamsFrame(Frame):
                        'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY')
 
         # Currently implemented simulation methods
-        self.simulation_methods = ('Logistic Regression GLM', 'Logistic Regression', 'Ridge Classifier',
+        self.simulation_methods = ('Logistic Regression GLM', 'Logistic Regression Regularized', 'Ridge Classifier',
                                    'K Nearest Neighbor', 'Naive Bayes', 'Support Vector Machine',
                                    'Random Forest', 'XGBoost')
         self.cwd = os.getcwd()  # Current working directory

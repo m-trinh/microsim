@@ -72,7 +72,7 @@ class DataCleanerACS:
         fp_d_hh = self.fp_h + '/ss%sh%s.csv' % (str(self.yr)[-2:], st)
         if self.state_of_work:
             fp_d_hh = self.fp_h + '/h%s_%s_pow.csv' % (self.dct_st[st], st)
-        d_hh = pd.read_csv(fp_d_hh)
+        d_hh = pd.read_csv(fp_d_hh, low_memory=False)
         # Number of dependents
         d_hh['nochildren'] = np.where(d_hh['NOC'] == 0, 1, 0)
         d_hh['nochildren'] = np.where(d_hh['NOC'].isna(), np.nan, d_hh['nochildren'])
@@ -159,7 +159,7 @@ class DataCleanerACS:
             fp_d_p = self.fp_p + '/p%s_%s_pow.csv' % (self.dct_st[st], st)
 
         # process person data by chunk
-        for d in pd.read_csv(fp_d_p, chunksize=chunk_size):
+        for d in pd.read_csv(fp_d_p, chunksize=chunk_size, low_memory=False):
             # Merge with the household level variables
             d = pd.merge(d, d_hh, on='SERIALNO', how='left')
 
@@ -431,7 +431,7 @@ class DataCleanerACS:
         t0 = time()
 
         # Load CPS data from impute_FMLA_CPS
-        cps = pd.read_csv('./data/cps/cps_clean_%s.csv' % (self.yr - 2)) # set CPS year as mid-year of ACS5
+        cps = pd.read_csv('./data/cps/cps_clean_%s.csv' % (self.yr - 2), low_memory=False) # set CPS year as mid-year of ACS5
         if self.st.lower() == 'all':
             for i, st in enumerate(STATE_CODES):
                 dout = self.clean_person_state_data(st.lower(), cps, chunk_size=chunk_size)

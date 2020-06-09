@@ -574,7 +574,7 @@ class SimulationEngine:
 
         message = 'Leaves simulated for 5-year ACS %s-%s in state %s. Time needed = %s seconds. ' % \
                   ((self.yr-4), self.yr, self.st.upper(), round(time()-tsim, 0))
-        message += '\nEstimate of total eligible workers in state = %s' % n_eligible_workers
+        message += '\nEstimate of total eligible workers in state = %s' % n_eligible_workers*self.pow_pop_multiplier
         print(message)
 
         self.progress += 40 / len(self.prog_para)

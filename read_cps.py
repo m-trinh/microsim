@@ -19,7 +19,7 @@ from _5a_aux_functions import fillna_df
 
 ## Set up file paths, random state
 # TODO: use model random state later
-year = 2016
+year = 2015
 fp_in = './data/cps/cpsmar%s.dta' % year
 fp_out = './data/cps/cps_clean_%s.csv' % year
 random_seed = 12345

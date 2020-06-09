@@ -44,7 +44,8 @@ class DataCleanerFMLA:
         # FMLA eligibility - use fmla_eligible, same as coveligd in FMLA 2012
 
         # Union status - in CPS but not ACS, can sim in ACS if FMLA data shows necessary
-        d['union'] = d['d3']
+        d['union'] = np.where(d['d3']==1, 1, 0)
+        d['union'] = np.where(d['d3'].isna(), np.nan, d['union'])
 
         # Hours per week (main job if multiple jobs, mid-point)
         # a common dict_wkhours for e0b_cat, e0g_cat
@@ -215,7 +216,7 @@ class DataCleanerFMLA:
 
         # dummies for take_type, need_type, where type = own/matdis/bond/illchild/illspouse/illparent
         types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
-        dct_take = dict(zip(types, [[1], [3, 20], [5, 8, 21], [11], [12, 17], [13]]))
+        dct_take = dict(zip(types, [[1], [3, 20], [5, 8, 21], [11], [12, 16], [13]]))
         for k, v in dct_take.items():
             d['take_%s' % k] = np.where(d['a5_mr_cat'].isin(v), 1, 0)
             d['take_%s' % k] = np.where(d['a5_mr_cat'].isna(), np.nan, d['take_%s' % k])
