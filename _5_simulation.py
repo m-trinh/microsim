@@ -45,7 +45,7 @@ from Utils import check_dependency, get_sim_name, create_cost_chart, STATE_CODES
 
 
 class SimulationEngine:
-    def __init__(self, st, yr, fmla_wave, fps_in, fps_out, clf_name='Logistic Regression', state_of_work=True,
+    def __init__(self, st, yr, fmla_wave, fps_in, fps_out, clf_name='Logistic Regression Regularized', state_of_work=True,
                  random_state=None, pow_pop_multiplier=1.02, q=None):
         """
         :param st: state name, 'ca', 'ma', etc.
@@ -84,7 +84,7 @@ class SimulationEngine:
                                         sklearn.linear_model.LogisticRegression(solver='liblinear',
                                                                                 multi_class='auto',
                                                                                 random_state=self.random_state)],
-            'Logistic Regression': sklearn.linear_model.LogisticRegression(solver='liblinear', multi_class='auto',
+            'Logistic Regression Regularized': sklearn.linear_model.LogisticRegression(solver='liblinear', multi_class='auto',
                                                                            random_state=self.random_state),
             'Ridge Classifier': sklearn.linear_model.RidgeClassifier(random_state=self.random_state),
             'Naive Bayes': sklearn.naive_bayes.MultinomialNB(),
@@ -222,7 +222,7 @@ class SimulationEngine:
                           'value': 'File saved: leave distribution estimated from FMLA data.'})
 
         self.__put_queue({'type': 'message', 'engine': None,
-                          'value': 'Cleaning ACS data. State chosen = RI. Chunk size = 100000 ACS rows'})
+                          'value': 'Cleaning ACS data. State chosen = %s. Chunk size = 100000 ACS rows' % self.st})
         dca = DataCleanerACS(self.st, self.yr, self.fp_acsh_in, self.fp_acsp_in, self.fp_acs_out, self.state_of_work,
                              self.random_state, self.fmla_wave) # set yr_adjinc = self.fmla_wave to inflation-adjust
         message = dca.clean_person_data()
@@ -574,7 +574,7 @@ class SimulationEngine:
 
         message = 'Leaves simulated for 5-year ACS %s-%s in state %s. Time needed = %s seconds. ' % \
                   ((self.yr-4), self.yr, self.st.upper(), round(time()-tsim, 0))
-        message += '\nEstimate of total eligible workers in state = %s' % n_eligible_workers*self.pow_pop_multiplier
+        message += '\nEstimate of total eligible workers in state = %s' % (n_eligible_workers*self.pow_pop_multiplier)
         print(message)
 
         self.progress += 40 / len(self.prog_para)
@@ -662,8 +662,7 @@ class SimulationEngine:
         for t in params['leave_types']:
             # v = capped weekly benefit of leave type
             v = [min(x, params['wkbene_cap']) for x in
-                 ((acs_taker_needer['cpl_%s' % t] / 5) *
-                  (acs_taker_needer['wage12'] / acs_taker_needer['wkswork'] * acs_taker_needer['effective_rrp']))]
+                 ((acs_taker_needer['wage12'] / acs_taker_needer['wkswork'] * acs_taker_needer['effective_rrp']))]
             # get annual benefit for leave type t - sumprod of capped benefit, and takeup flag for each ACS row
             acs_taker_needer['annual_benefit_%s' % t] = (v * acs_taker_needer['cpl_%s' % t] / 5 *
                                                          acs_taker_needer['takeup_%s' % t])

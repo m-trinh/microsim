@@ -28,7 +28,7 @@ class ABF:
         self.payroll_tax = self.payroll_tax / 100
 
     # FUNCTION #2: Conduct Final Calculations on the slimmer ABF Output dataset
-    def abf_calcs(self, chunksize=100000):
+    def abf_calcs(self, chunksize=9999999999):
         fp = self.get_abf_fp()
         self.reset_abf_output()
         self.pivot_tables = None
@@ -172,7 +172,8 @@ class ABF:
         os.remove(fp)
         os.rename(os.path.join(self.output_dir, 'abf_temp.csv'), fp)
 
-    def clean_data(self, chunksize=100000):
+    def clean_data(self, chunksize=9999999999):
+        # TODO: fix chunkking code - current abf acs sim master is saved as last chunk, not full acs
         append = False
         for df in pd.read_csv(self.acs_file, usecols=self.keepcols, chunksize=chunksize):
             df['class'] = ''
@@ -196,7 +197,7 @@ class ABF:
             if not append:
                 append = True
 
-    def run(self, rerun=False, variables=None, chunksize=100000):
+    def run(self, rerun=False, variables=None, chunksize=9999999999):
         if rerun and variables is not None:
             self.update_parameters(**variables)
 
