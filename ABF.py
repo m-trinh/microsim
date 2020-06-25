@@ -7,7 +7,7 @@ class ABF:
     def __init__(self, acs_file, benefits, eligible_size, max_taxable_earnings_per_person, benefits_tax,
                  average_state_tax, payroll_tax, output_dir=None):
         self.reps = ['PWGTP' + str(i) for i in range(1, 81)]
-        self.keepcols = ['COW', 'POWSP', 'ST', 'wage12', 'PWGTP', 'age', 'male'] + self.reps
+        self.keepcols = ['COW', 'POWSP', 'ST', 'PWGTP', 'age', 'female', 'wage12'] + self.reps
         self.acs_file = acs_file
         self.eligible_size = eligible_size
         self.max_taxable_earnings_per_person = max_taxable_earnings_per_person
@@ -146,9 +146,9 @@ class ABF:
                           'Tax Revenue Recouped from Benefits': recoup_tax_rev}
 
             pd.set_option('display.float_format', lambda x: '%.2f' % x)
-            revenue_by_class = pd.pivot_table(df, index=["class"], values=["income_w", "ptax_rev_w"], aggfunc=[np.sum])
+            revenue_by_class = pd.pivot_table(df, index=["class_cat"], values=["income_w", "ptax_rev_w"], aggfunc=[np.sum])
             revenue_by_age = pd.pivot_table(df, index=["age_cat"], values=["income_w", "ptax_rev_w"], aggfunc=[np.sum])
-            revenue_by_gender = pd.pivot_table(df, index=["GENDER_CAT"], values=["income_w", "ptax_rev_w"],
+            revenue_by_gender = pd.pivot_table(df, index=["gender_cat"], values=["income_w", "ptax_rev_w"],
                                                aggfunc=[np.sum])
             revenue_by_wage = pd.pivot_table(df, index=["wage_cat"], values=["income_w", "ptax_rev_w"],
                                              aggfunc=[np.sum])
@@ -176,22 +176,22 @@ class ABF:
         # TODO: fix chunkking code - current abf acs sim master is saved as last chunk, not full acs
         append = False
         for df in pd.read_csv(self.acs_file, usecols=self.keepcols, chunksize=chunksize):
-            df['class'] = ''
+            df['class_cat'] = ''
             cleanup = {1: "Private", 2: "Private", 3: "Local Govt.", 4: "State Govt.", 5: "Federal Govt.",
                        6: "Self-Employed", 7: "Self-Employed", 8: "Other", 9: "Other"}
             for i in df.index.values:
                 if not pd.isnull(df.at[i, 'COW']):
-                    df.at[i, 'class'] = cleanup[int(float(df.at[i, 'COW']))]
+                    df.at[i, 'class_cat'] = cleanup[int(float(df.at[i, 'COW']))]
 
             # Create Age Categories for display purposes (need to find out variable specification on the microsim side)
             age_ranges = ["[{0} - {1})".format(AGEP, AGEP + 10) for AGEP in range(0, 100, 10)]
             df['age_cat'] = pd.cut(x=df['age'], bins=list(range(0, 110, 10)), labels=age_ranges, right=False)
 
             # Create Gender Categories for display pruposes
-            df['GENDER_CAT'] = np.where(df['male'] == 1, 'male', 'female')
+            df['gender_cat'] = np.where(df['female'] == 1, 'female', 'male')
 
             # Code missing responses as missing
-            df['GENDER_CAT'] = np.where(np.isnan(df['male']), np.nan, df['GENDER_CAT'])
+            df['gender_cat'] = np.where(np.isnan(df['female']), np.nan, df['gender_cat'])
 
             self.save_results(df, append=append)
             if not append:

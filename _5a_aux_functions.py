@@ -39,10 +39,10 @@ def get_columns(fmla_wave, leave_types):
               'ltHS', 'someCol', 'BA', 'GradSch',
               'black', 'other', 'asian','native','hisp',
               'nochildren']
-        Xs +=['fmla_eligible', 'emp_gov', 'union', 'noelderly', 'hourly']
+        Xs +=['fmla_eligible', 'emp_gov', 'noelderly', 'hourly', 'union'] #
         Xs += ['age',  'agesq', 'faminc', 'wkhours']
         Xs += ['emp_nonprofit', 'low_wage'] + \
-              ['occ_%s' % x for x in range(1, 10)] + ['ind_%s' % x for x in range(1, 13)]
+              ['occ_%s' % x for x in range(1, 11)] + ['ind_%s' % x for x in range(1, 14)]
 
 
         # no job tenure data in CPS or ACS, cannot use as xvars

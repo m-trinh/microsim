@@ -1031,14 +1031,14 @@ class GeneralParamsFrame(Frame):
         self.simulation_method_label = TipLabel(self, tip, text='Simulation Method:', bg=DARK_COLOR,
                                                 fg=LIGHT_COLOR)
         self.simulation_method_input = ttk.Combobox(self, textvariable=self.variables['simulation_method'],
-                                                    state="readonly", width=21, values=self.simulation_methods)
+                                                    state="readonly", width=30, values=self.simulation_methods)
         self.simulation_method_input.current(0)
 
         # ----------------------------------------------- Random Seed -----------------------------------------------
         tip = 'The value that will be used in random number generation. Can be used to recreate results as long ' \
               'as all other parameters are unchanged.'
         self.random_seed_label = TipLabel(self, tip, text="Random Seed:", bg=DARK_COLOR, fg=LIGHT_COLOR)
-        self.random_seed_input = GeneralEntry(self, textvariable=self.variables['random_seed'], width=23)
+        self.random_seed_input = GeneralEntry(self, textvariable=self.variables['random_seed'], width=32)
 
         # ----------------------------------------------- Engine Type -----------------------------------------------
         tip = 'Choose between the Python and R model.'
@@ -1107,8 +1107,8 @@ class GeneralParamsFrame(Frame):
         self.simulation_method_input.grid(column=1, row=9, sticky=W, padx=8, pady=self.row_padding)
         self.random_seed_label.grid(column=0, row=10, sticky=W, pady=self.row_padding)
         self.random_seed_input.grid(column=1, row=10, sticky=W, padx=8, pady=self.row_padding)
-        # self.engine_type_label.grid(column=0, row=11, sticky=W, pady=self.row_padding)
-        # self.engine_type_input.grid(column=1, row=11, sticky=W, padx=8, pady=self.row_padding)
+        self.engine_type_label.grid(column=0, row=11, sticky=W, pady=self.row_padding)
+        self.engine_type_input.grid(column=1, row=11, sticky=W, padx=8, pady=self.row_padding)
         self.toggle_r_path()
 
     def browse_file(self, file_input, filetypes):

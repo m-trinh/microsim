@@ -166,12 +166,6 @@ else:
 
 
 
-
-
-
-
-
-
 types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
 for t in types:
     print(d['take_%s' % t].value_counts())
@@ -218,5 +212,22 @@ acs3 = pd.read_csv(fp3)
 
 # modify R code to match Py
 
+# residence state CA ACS - person and household file merge, SERIALNO is int in 1 file but object in the other
+dh = pd.read_csv('./data/acs/2018/household_files/ss18hca.csv', usecols=['SERIALNO', 'NPF'])
+dp = pd.read_csv('./data/acs/2018/person_files/ss18pca.csv', usecols=['SERIALNO', 'WKW'])
+#pd.merge(dp, dh, how='left', on='SERIALNO')
+for d in pd.read_csv('./data/acs/2018/person_files/ss18pca.csv', usecols=['SERIALNO', 'WKW'], chunksize=100000, low_memory=False):
+    pd.merge(d, dh, how='left', on='SERIALNO')
+dh['SERIALNO'] = dh['SERIALNO'].astype(str)
+dh['idtype'] = [type(x) for x in dh['SERIALNO']]
+dp['SERIALNO'] = dp['SERIALNO'].astype(str)
+dp['idtype'] = [type(x) for x in dp['SERIALNO']]
 
-
+# get total case counts in post-sim acs
+x = 0
+for t in types:
+    print('Total case counts for type %s' % t)
+    print(acs[(acs['takeup_%s' % t]==1)]['PWGTP'].sum())
+    x+=acs[(acs['takeup_%s' % t]==1)]['PWGTP'].sum()
+print('Total case counts for all types:')
+print(x)

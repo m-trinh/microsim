@@ -73,6 +73,8 @@ class DataCleanerACS:
         if self.state_of_work:
             fp_d_hh = self.fp_h + '/h%s_%s_pow.csv' % (self.dct_st[st], st)
         d_hh = pd.read_csv(fp_d_hh, low_memory=False)
+        # SERIALNO to string - chars in this ID from 2017
+        d_hh['SERIALNO'] = d_hh['SERIALNO'].astype(str)
         # Number of dependents
         d_hh['nochildren'] = np.where(d_hh['NOC'] == 0, 1, 0)
         d_hh['nochildren'] = np.where(d_hh['NOC'].isna(), np.nan, d_hh['nochildren'])
@@ -103,6 +105,8 @@ class DataCleanerACS:
     
     def clean_person_state_data(self, st, cps, chunk_size=100000):
         ## First handle CPS data outside the ACS person data chunk loop
+        # fill na in CPS
+        cps = fillna_df(cps, self.random_state)
         # identify industry and occupation CPS codes for creating same cats in ACS in chunk loop
         top_ind = [cps[cps.ind_top1==1].a_mjind.value_counts().index[0]]
         top_ind += [cps[cps.ind_top2==1].a_mjind.value_counts().index[0]]
@@ -115,18 +119,17 @@ class DataCleanerACS:
         # fillna for cps - not needed if use cps_clean_year.csv (preprocessed)
         # cps = fillna_df(cps, self.random_state)
 
-        # weight col
-        w = cps['marsupwt']
         # dict from yvar to impute to xvars
         xvars_in_acs = ['female', 'black', 'asian', 'native', 'other', 'age', 'agesq', 'BA', 'GradSch', 'married']
         xvars_in_acs += ['wage12', 'wkswork', 'wkhours', 'emp_gov']
-        xvars_in_acs += ['ind_top1', 'ind_top2', 'ind_top3', 'ind_other', 'ind_na']
-        xvars_in_acs += ['occ_top1', 'occ_top2', 'occ_top3', 'occ_other', 'occ_na']
+        xvars_in_acs += ['occ_%s' % x for x in range(1, 11)] + ['ind_%s' % x for x in range(1, 14)]
+        # xvars_in_acs += ['ind_top1', 'ind_top2', 'ind_top3', 'ind_other', 'ind_na']
+        # xvars_in_acs += ['occ_top1', 'occ_top2', 'occ_top3', 'occ_other', 'occ_na']
         dct_cps_yx = {
-            'hourly': xvars_in_acs,
+            'hourly': xvars_in_acs, # filter rows to prerelg=1 only
             'empsize': xvars_in_acs,
             'oneemp':xvars_in_acs,
-            'union': xvars_in_acs + ['hourly', 'empsize', 'oneemp']
+            'union': xvars_in_acs + ['hourly', 'empsize', 'oneemp'] # filter rows to prerelg=1 only
            }
         # dict to store CPS-based classifiers
         dct_cps_clfs = {}
@@ -137,8 +140,12 @@ class DataCleanerACS:
         dct_cps_clfs['empsize'] = clf
         # paid hourly, oneemp, union - logit
         for col_y in ['hourly', 'oneemp', 'union']:
-            y = cps[col_y]
-            X = cps[dct_cps_yx[col_y]]
+            ix_train_cps = cps.index
+            if col_y in ['hourly', 'union']: # too many NAs for hourly, union (prerelg=0), use non-NA rows to train
+                ix_train_cps = cps[cps['prerelg']==1].index
+            y = cps.loc[ix_train_cps, col_y]
+            X = cps.loc[ix_train_cps, dct_cps_yx[col_y]]
+            w = cps.loc[ix_train_cps, 'marsupwt']
             clf = sklearn.linear_model.LogisticRegression(solver='liblinear').fit(X, y, sample_weight=w)
             dct_cps_clfs[col_y] = clf
 
@@ -160,6 +167,8 @@ class DataCleanerACS:
 
         # process person data by chunk
         for d in pd.read_csv(fp_d_p, chunksize=chunk_size, low_memory=False):
+            # Convert SERIALNO (merge key) to string - chars in this ID from 2017
+            d['SERIALNO'] = d['SERIALNO'].astype(str)
             # Merge with the household level variables
             d = pd.merge(d, d_hh, on='SERIALNO', how='left')
 
@@ -371,7 +380,14 @@ class DataCleanerACS:
                 clf = dct_cps_clfs[c]
                 if c=='union':
                     Xd = Xd.join(d[['hourly', 'oneemp', 'empsize']])
-                d[c] = pd.Series(clf.predict(Xd), index=d.index)
+                # make prediction
+                if c=='empsize': # ordered logit via mord, predict category directly
+                    d[c] = pd.Series(clf.predict(Xd), index=d.index)
+                else: # simulate from logit phat, not yhat, to avoid loss of predicted minor class (e.g. union=0)
+                    ps = clf.predict_proba(Xd)  # get prob vector ps where each p = (p0, p1)
+                    ps = ps[:, 1]  # get prob=1 for each row
+                    us = np.random.rand(len(ps))  # random number
+                    d[c] = [int(x) for x in ps > us]  # flag 1 if p1 > random number
 
             # get fmla_eligible col based on imputed vars above
             d['fmla_eligible'] = np.where((d['oneemp'] == 1) &
@@ -412,8 +428,8 @@ class DataCleanerACS:
 
             cols += ['INDP'] + ['ind_%s' % x for x in range(1, 14)]
             cols += ['OCCP'] + ['occ_%s' % x for x in range(1, 11)]
-            cols += ['hourly', 'oneemp', 'wkswork', 'empsize', 'fmla_eligible', 'union']
-            cols += ['WKW', 'wkw_min', 'wkw_max']
+            cols += ['hourly', 'oneemp', 'empsize', 'fmla_eligible', 'union']
+            cols += ['WAGP', 'WKW'] #  'wkw_min', 'wkw_max'
             cols += ['PWGTP%s' % x for x in range(1, 81)]
             # reduced ACS chunk to be appended to output df dout
             d_reduced = d[cols]
@@ -430,7 +446,7 @@ class DataCleanerACS:
         '''
         t0 = time()
 
-        # Load CPS data from impute_FMLA_CPS
+        # Load CPS data from impute_fmla_cps in FMLA cleaning class
         cps = pd.read_csv('./data/cps/cps_clean_%s.csv' % (self.yr - 2), low_memory=False) # set CPS year as mid-year of ACS5
         if self.st.lower() == 'all':
             for i, st in enumerate(STATE_CODES):
