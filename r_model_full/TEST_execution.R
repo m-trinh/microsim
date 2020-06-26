@@ -1,5 +1,5 @@
 
-#rm(list=ls())
+#rm(list=ls())0
 cat("\014")  
 #basepath <- rprojroot::find_rstudio_root_file()
 #setwd(basepath)
@@ -36,6 +36,7 @@ d <- policy_simulation(
 		              SELFEMP=FALSE,
 		              place_of_work = TRUE,
 		              dual_receiver = .75,
+		              ABF_enabled=TRUE,
 		              alpha=1,
                   ext_resp_len = TRUE, sens_var = 'resp_len', progalt_post_or_pre ='post',
 		              ext_base_effect=TRUE, extend_prob=.01, extend_days=1, extend_prop=1.01, topoff_rate=.01, topoff_minlength=10,

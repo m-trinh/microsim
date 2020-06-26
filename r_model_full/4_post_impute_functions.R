@@ -821,8 +821,28 @@ check_caps <- function(d,maxlen_own, maxlen_matdis, maxlen_bond, maxlen_illparen
     d <- d %>% mutate(PFL_plen=plen_bond+plen_illparent+plen_illchild+plen_illspouse)
     d <- d %>% mutate(particip_length=DI_plen+ PFL_plen)
   }
+  
+  # also implement caps for max needed length 
+  d['temp_length']=0
+  for (i in leave_types) {
+    len_var=paste("mnl_",i,sep="")
+    d <- d %>% mutate(temp_length=temp_length+get(len_var))
+  }
+  d['temp_length'] <- with(d, ifelse(temp_length>260,260,temp_length))
+  d['reduce'] <- with(d, ifelse(mnl_matdis+mnl_own+mnl_bond+mnl_illparent+mnl_illchild+mnl_illspouse!=0, 
+                                temp_length/(mnl_matdis+mnl_own+mnl_bond+mnl_illparent+mnl_illchild+mnl_illspouse),0))
+    
+  # evenly distributed cap among leave types
+  d['mnl_matdis']=round(d[,'mnl_matdis']*d[,'reduce'])
+  d['mnl_own']=round(d[,'mnl_own']*d[,'reduce'])
+  d['mnl_bond']=round(d[,'mnl_bond']*d[,'reduce'])
+  d['mnl_illchild']=round(d[,'mnl_illchild']*d[,'reduce'])
+  d['mnl_illspouse']=round(d[,'mnl_illspouse']*d[,'reduce'])
+  d['mnl_illparent']=round(d[,'mnl_illparent']*d[,'reduce'])
+  
+  d <- d %>% mutate(mnl_all=mnl_bond+mnl_illchild+mnl_illparent+mnl_illspouse+mnl_matdis+mnl_own)
   # clean up vars
-  d <- d[, !(names(d) %in% c('benefit_prop_temp','reduce'))] 
+  d <- d[, !(names(d) %in% c('benefit_prop_temp','reduce','temp_length'))] 
   return(d)
 }
 # ============================ #
@@ -990,6 +1010,9 @@ TOPOFF <- function(d, topoff_rate, topoff_minlength) {
 
 DEPENDENTALLOWANCE <- function(d,dependent_allow) {
   d <- d %>% mutate(actual_benefits=ifelse(particip==1 & nochildren==0, actual_benefits+(dependent_allow)*particip_length/5,actual_benefits))
+  # placeholder for effective rre
+  # TODO: implement dependent allowance var compatable with GUI
+  d <- d %>% mutate(effective_rrp= benefit_prop)
   return(d)
 }
 
@@ -1110,7 +1133,6 @@ CLEANUP <- function(d, week_bene_cap,week_bene_cap_prop,week_bene_min, maxlen_ow
     d[paste0('emppay_',i)] <- with(d, actual_leave_pay*(get(len_var)/total_length))
     d[paste0('squo_emppay_',i)] <- with(d, squo_leave_pay*(get(squo_var)/squo_total_length))
   }
-  
   return(d)
 }
 

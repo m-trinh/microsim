@@ -34,7 +34,7 @@ clean_fmla <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
   # --------------------------------------------------------------------
   # demographic characteristics
   # --------------------------------------------------------------------
-  browser()
+
   # FMLA eligible worker
   d_fmla <- d_fmla %>% mutate(fmla_eligworker = NA)
   d_fmla <- d_fmla %>% mutate(fmla_eligworker = ifelse(E13 == 1 & (E14 == 1 | (E15_CAT >= 5 & E15_CAT <= 8)),1,NA))
@@ -126,7 +126,7 @@ clean_fmla <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
   d_fmla <- d_fmla %>% mutate(faminc = ifelse(D4_CAT == 8,62500,faminc))
   d_fmla <- d_fmla %>% mutate(faminc = ifelse(D4_CAT == 9,87500,faminc))
   d_fmla <- d_fmla %>% mutate(faminc = ifelse(D4_CAT == 10,130000,faminc))
-  d_fmla <- d_fmla %>% mutate(lnfaminc = log(faminc))
+  d_fmla <- d_fmla %>% mutate(ln_faminc = log(faminc))
   
   # Make more coarse categores
   d_fmla <- d_fmla %>% mutate(faminc_cat = ifelse(D4_CAT >= 3 & D4_CAT <= 5 , 1,NA))
@@ -551,7 +551,7 @@ clean_fmla_2018 <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
   # --------------------------------------------------------------------
   
   # union status
-  d_fmla <- d_fmla %>% mutate(union=d3)
+  d_fmla <- d_fmla %>% mutate(union = ifelse(d3 == 1,1,0))
   
   # Hours worked per week at midpoint of category
   d_fmla <- d_fmla %>% mutate(wkhours = ifelse(e0b_cat == 1,2.5,0))
@@ -677,7 +677,7 @@ clean_fmla_2018 <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
     val <- val + 1
     d_fmla <- d_fmla %>% mutate(faminc = ifelse(nd4_cat == val,i,faminc))
   }
-  d_fmla <- d_fmla %>% mutate(lnfaminc = log(faminc))
+  d_fmla <- d_fmla %>% mutate(ln_faminc = log(faminc))
   
   # Make more coarse categories
   d_fmla <- d_fmla %>% mutate(faminc_cat = ifelse(nd4_cat >= 3 & nd4_cat <= 5 , 1,NA))
@@ -984,9 +984,12 @@ clean_acs <-function(d,d_hh,save_csv=FALSE,POW_weight=FALSE) {
   # number of dependents
   d_hh$ndep_kid <- d_hh$NOC
   d_hh$ndep_old <- d_hh$R65
+  d_hh$ndep_spouse <- d_hh$FES
+  d_hh <- d_hh %>% mutate(ndep_spouse_kid=ndep_kid+ndep_spouse)
+  d_hh <- d_hh %>% mutate(noelderly=ifelse(ndep_old==0, 1, 0))
   
   # cut down vars to save on memory
-  d_hh <- d_hh[c("SERIALNO","nochildren","lnfaminc","faminc", "PARTNER","ndep_kid","ndep_old",'NPF')]
+  d_hh <- d_hh[c("SERIALNO","nochildren","lnfaminc","faminc", "PARTNER","ndep_kid","ndep_old",'NPF','NOC','R65','FES')]
   
   # -------------------------- #
   # ACS Person File
@@ -1070,6 +1073,10 @@ clean_acs <-function(d,d_hh,save_csv=FALSE,POW_weight=FALSE) {
   d <- d %>% mutate(empgov_loc=ifelse(COW==3, 1, 0))
   d <- d %>% mutate(empgov_loc=ifelse(is.na(COW)==TRUE, NA, empgov_loc))
   
+  # placeholder for union for now.
+  # TODO: add union import in CPS imputation
+  d['union']=runif(nrow(d))
+  
   # occupation
   # since there is an actual OCCP variable in ACS file, going to use OCC as our varname going forward
   
@@ -1106,6 +1113,8 @@ clean_acs <-function(d,d_hh,save_csv=FALSE,POW_weight=FALSE) {
   d <- d %>% mutate(empgov_fed = ifelse(COW == 5,1,0))
   d <- d %>% mutate(empgov_st = ifelse(COW == 4,1,0))
   d <- d %>% mutate(empgov_loc = ifelse(COW == 3,1,0))
+  d <- d %>% mutate(emp_gov = ifelse(COW == 3|COW == 4|COW == 5,1,0))
+  d <- d %>% mutate(emp_nonprofit = ifelse(COW == 2,1,0))
   
   # industry
   d <- d %>% mutate(  ind_1 = ifelse(INDP>=170 & INDP<=290 ,1,0),
@@ -1165,6 +1174,10 @@ clean_acs <-function(d,d_hh,save_csv=FALSE,POW_weight=FALSE) {
   # log earnings
   d <- d %>% mutate(wage12=WAGP*(ADJINC/1056030))
   d <- d %>% mutate(lnearn=ifelse(wage12>0, log(wage12), NA))
+  d <- d %>% mutate(wage_hourly= wage12/wkswork/wkhours)
+  
+  d <- d %>% mutate(low_wage=ifelse(wage_hourly<15),1,0)
+  d <- d %>% mutate(low_wage=ifelse(is.na(wage_hourly)),NA,wage_hourly)
   
   # family income
   # Make more coarse categores
@@ -1198,7 +1211,7 @@ clean_acs <-function(d,d_hh,save_csv=FALSE,POW_weight=FALSE) {
            "ind_5", "ind_6", "ind_7", "ind_8", "ind_9", "ind_10", "ind_11", "ind_12", "ind_13", "weeks_worked",
            "WAGP",'wage12',"WKHP","PWGTP", replicate_weights,"FER", "WKW","COW","ESR",'NPF',"partner","ndep_kid",
            "ndep_old",'empgov_fed','empgov_st', 'wkhours', 'empgov_loc', 'ST','POWSP','age_cat','faminc_cat','employed',
-           'married','HSgrad','BAplus')]
+           'married','HSgrad','BAplus','INDP','OCCP','SPORDER','FES','NOC','R65')]
 
   # id variable from SERIALNO [Household ID] and SPORDER [Individual ID within Household]
   d$id <- as.numeric(paste0(as.character(d$SERIALNO),as.character(d$SPORDER)))

@@ -20,6 +20,7 @@ time_elapsed <<- function(msg) {
 # see parameter documentation for details on arguments
 
 policy_simulation <- function(saveCSV=FALSE,
+                              fulloutput=FALSE,
                               FEDGOV=FALSE, 
                               STATEGOV=FALSE,
                               LOCALGOV=FALSE,
@@ -98,6 +99,46 @@ policy_simulation <- function(saveCSV=FALSE,
     cat("", file = log_name, sep="\n", append = TRUE)
     
   }
+  # create parameter meta file 
+  # TODO: some of these params are placeholders 
+  meta_params <- c(
+    'State'=state,
+    'Year'=2014, 
+    'Place of Work' =place_of_work , 
+    'Minimum Annual Wage' = earnings, 
+    'Minimum Annual Work Weeks' = weeks, 
+    'Minimum Annual Work Hours' = ann_hours, 
+    'Minimum Employer Size' = minsize, 
+    'Proposed Wage Replacement Ratio' = base_bene_level, 
+    'Weekly Benefit Cap' = week_bene_cap, 
+    'Include Private Employees' = PRIVATE, 
+    'Include Goverment Employees, Federal' = FEDGOV, 
+    'Include Goverment Employees, State' = STATEGOV, 
+    'Include Goverment Employees, Local' = LOCALGOV, 
+    'Include Self-employed' = SELFEMP, 
+    'Simulation Method' = impute_method, 
+    'Share of Dual Receivers' = dual_receiver, 
+    'Alpha' = alpha, 
+    'Minimum Leave Length Applied' = 1, 
+    'Waiting Period' = wait_period, 
+    'Recollect Benefits of Waiting Period' = 1, 
+    'Minimum Leave Length for Recollection' = wait_period, 
+    'Dependent Allowance' = dependent_allow, 
+    'Dependent Allowance Profile: Increments of Replacement Ratio by Number of Dependants' = '[]', 
+    'Clone Factor' = clone_factor, 
+    'Random Seed' = random_seed
+  )
+  meta_params <- data.frame(meta_params)
+ 
+  write.table(meta_params, sep=',', file='output/prog_para_r_model.csv', col.names = FALSE)
+  bene_take <- data.frame(row.names=c('Maximum Week of Benefit Receiving','Take Up Rates'))
+  leave_types <- c("own","matdis","bond","illchild","illspouse","illparent")
+  for (i in leave_types) {
+    bene_take[i] <- NA
+    bene_take['Maximum Week of Benefit Receiving',i] <- get(paste0('maxlen_',i))/5
+    bene_take['Take Up Rates',i] <- get(paste0(i,'_uptake'))
+  }
+  write.table(bene_take, sep=',', file='output/prog_para_r_model.csv', append=TRUE)
   
   ####################################
   # global libraries used everywhere #
@@ -202,6 +243,7 @@ policy_simulation <- function(saveCSV=FALSE,
   # INPUT: cleaned acs/fmla data, method for imputation, dependent variables 
   #         used for imputation
   d_acs_imp <- impute_fmla_to_acs(d_fmla,d_acs, impute_method, xvars, kval, xvar_wgts)  
+  
   # OUTPUT: ACS data with imputed values for a) leave taking and needing, b) proportion of pay received from
   #         employer while on leave, and c) whether leave needed was not taken due to unaffordability 
   if (runtime_measure==1){
@@ -340,7 +382,7 @@ policy_simulation <- function(saveCSV=FALSE,
   d_acs_imp <- CLEANUP(d_acs_imp, week_bene_cap,week_bene_cap_prop,week_bene_min, maxlen_own, maxlen_matdis, maxlen_bond, 
                        maxlen_illparent, maxlen_illspouse, maxlen_illchild, maxlen_total,maxlen_DI,maxlen_PFL)
   # OUTPUT: ACS file with finalized leave taking, program uptake, and benefits received variables
-
+ 
   # Running ABF module
   if (ABF_enabled==TRUE) {
     d_acs_imp <- run_ABF(d_acs_imp, ABF_elig_size, ABF_max_tax_earn, ABF_bene_tax, ABF_avg_state_tax, 
@@ -352,13 +394,7 @@ policy_simulation <- function(saveCSV=FALSE,
   }
   
   
-  # Options to output final data and summary statistics
-  
-  if (!is.null(output) & saveCSV==TRUE) {
-    write.csv(d_acs_imp, file=paste0('./output/',output,'.csv'))
-  }
-  
-  # -----------obsolete code, now that we impute state of work ------
+   # -----------obsolete code, now that we impute state of work ------
   # if using POW, adjust weights up by .02 because there are some missing POW
   # if (place_of_work==TRUE){
   #   replicate_weights <- paste0('PWGTP',seq(1,80))
@@ -368,6 +404,7 @@ policy_simulation <- function(saveCSV=FALSE,
   #   }  
   # }
   
+  # final output options
   for (i in output_stats) {
     if (i=='standard') {
       standard_summary_stats(d_acs_imp,output) 
@@ -381,6 +418,66 @@ policy_simulation <- function(saveCSV=FALSE,
       take_compar(d_acs_imp, output)
     }  
   }
+  
+  # Options to output final data
+  if (!is.null(output) & saveCSV==TRUE & fulloutput==TRUE) {
+    write.csv(d_acs_imp, file=paste0('./output/',output,'.csv'))
+  }
+  
+  # Clean up vars for Python compatibility
+  # drop intermediate, unneeded variables 
+  d_acs_imp <- d_acs_imp %>% select(-ST.y,-DI_plen, -FER, -OCC, -PFL_plen, -WKHP, 
+                                    -actual_leave_pay, -age_cat, -base_benefits, -base_leave_pay, -bene_DI, -bene_PFL, -bene_effect_flg, 
+                                    -benefit_prop, -emppay_bond, -emppay_illchild, -emppay_illparent, -emppay_illspouse, -emppay_matdis, 
+                                    -emppay_own, -exhausted_by, -extend_flag, -faminc_cat, -fem_c617, -fem_cu6, -fem_cu6and617, -fem_nochild, 
+                                    -fmla_constrain_flag, -id, -longer_leave, -ndep_old, -num_emp, -orig_len_bond, -orig_len_illchild, -orig_len_illparent, 
+                                    -orig_len_illspouse, -orig_len_matdis, -orig_len_own, -pay_schedule, -ptake_DI, -ptake_PFL, -squo_emppay_bond, 
+                                    -squo_emppay_illchild, -squo_emppay_illparent, -squo_emppay_illspouse, -squo_emppay_matdis, -squo_emppay_own, 
+                                    -squo_leave_pay, -squo_take_bond, -squo_take_illchild, -squo_take_illparent, -squo_take_illspouse, -squo_take_matdis, 
+                                    -squo_take_own, -squo_taker, -squo_total_length, -state_abbr, -state_name, -topoff_flg, -total_leaves, -weeks_worked_cat,
+                                    -takes_up_bond, -takes_up_illchild, -takes_up_illparent, -takes_up_illspouse, -takes_up_matdis, -takes_up_own)
+  
+  # rename variables to be consistent with Python
+  d_acs_imp <- d_acs_imp %>% rename(
+    ST = ST.x, 
+    annual_benefit_all = actual_benefits, 
+    cfl_bond=length_bond ,
+    cfl_illchild=length_illchild ,
+    cfl_illparent=length_illparent ,
+    cfl_illspouse=length_illspouse ,
+    cfl_matdis=length_matdis ,
+    cfl_own=length_own ,
+    ln_faminc=lnfaminc ,
+    hourly=paid_hrly ,
+    takeup_any=particip ,
+    cpl_all=particip_length ,
+    cpl_bond=plen_bond ,
+    cpl_illchild=plen_illchild ,
+    cpl_illparent=plen_illparent ,
+    cpl_illspouse=plen_illspouse ,
+    cpl_matis=plen_matdis ,
+    cpl_own=plen_own ,
+    takeup_bond=ptake_bond ,
+    takeup_illchild=ptake_illchild ,
+    takeup_illparent=ptake_illparent ,
+    takeup_illspouse=ptake_illspouse ,
+    takeup_matdis=ptake_matdis ,
+    takeup_own=ptake_own ,
+    len_bond=squo_length_bond ,
+    len_illchild=squo_length_illchild ,
+    len_illparent=squo_length_illparent ,
+    len_illspouse=squo_length_illspouse ,
+    len_matdis=squo_length_matdis ,
+    len_own=squo_length_own ,
+    cfl_all=total_length ,
+    wkswork=weeks_worked ,
+  )
+  
+  if (!is.null(output) & saveCSV==TRUE) {
+    write.csv(d_acs_imp, file=paste0('./output/',output,'_py_compatable.csv'))
+  }  
+  
+  
   print('=====================================')
   print('Simulation successfully completed')
   print('=====================================')

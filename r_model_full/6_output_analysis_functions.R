@@ -157,6 +157,21 @@ state_compar_stats <-function(d, output) {
   colnames(d_out) <- c("Variable","Mean", "Standard Error of Mean", "Confidence Interval","Population Total", "Pop Total Standard Error", "Pop Total CI")
   write.csv(d_out,file=paste0('./output/',output,"_roundstats.csv"), row.names= FALSE)
   
+  # meta output file for leave costs 
+  meta_cost <- data.frame(row.names = leave_types)
+  for (i in leave_types)  {
+    var <- paste0('bene_',i)
+    temp <- replicate_weights_SE(d, var)
+    meta_cost[i, 'cost'] <- temp[7]
+    meta_cost[i, 'ci_lower'] <- temp[[7]] + temp[[8]] *1.96 
+    meta_cost[i, 'ci_upper'] <- temp[[7]] - temp[[8]] *1.96
+  }
+  temp <- replicate_weights_SE(d, 'actual_benefits')
+  meta_cost['actual_benefits', 'cost'] <- temp[7]
+  meta_cost['actual_benefits', 'ci_lower'] <-  temp[[7]] + temp[[8]] *1.96 
+  meta_cost['actual_benefits', 'ci_upper'] <-  temp[[7]] + temp[[8]] *1.96
+  write.csv(meta_cost,file='output/program_cost_r_model.csv')
+  
   if (makelog==TRUE) {
     
     
