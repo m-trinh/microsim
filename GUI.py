@@ -494,6 +494,12 @@ class MicrosimGUI(Tk):
         if state_of_work:
             fp_acsh_in = self.general_params.acs_directory + '/%s/pow_household_files' % yr
             fp_acsp_in = self.general_params.acs_directory + '/%s/pow_person_files' % yr
+        worker_class = dict(zip(['private', 'self_emp', 'gov_fed', 'gov_st', 'gov_loc'],
+                                [self.default_params.private,
+                                 self.default_params.self_employed,
+                                 self.default_params.fed_employees,
+                                 self.default_params.state_employees,
+                                 self.default_params.local_employees]))
         fp_fmla_out = './data/fmla/fmla_%s/fmla_clean_%s.csv' % (fmla_wave, fmla_wave)
         fp_dir_out = self.general_params.output_directory
         fp_cps_out = './data/cps/cps_for_acs_sim.csv'
@@ -505,7 +511,7 @@ class MicrosimGUI(Tk):
         clf_name = self.general_params.simulation_method
         random_seed = self.general_params.random_seed
         return SimulationEngine(st, yr, fmla_wave, fps_in, fps_out, clf_name=clf_name, random_state=random_seed,
-                                state_of_work=state_of_work, q=q)
+                                state_of_work=state_of_work, worker_class=worker_class, q=q)
 
     def add_engine_params(self, parameters):
         """Add additional engine parameters from an OtherParameters object

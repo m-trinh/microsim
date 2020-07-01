@@ -19,10 +19,11 @@ import statsmodels.genmod
 from bisect import bisect_right, bisect_left
 
 # a function to get columns
-def get_columns(fmla_wave, leave_types):
+def get_columns(fmla_wave, leave_types, gov_workers_only=False):
     '''
     fmla_wave: 2012 or 2018
     leave_types: ['own', 'matdis', ...]
+    gov_workers_only: if True, then emp_gov not added to xvars
     '''
     if fmla_wave==2012:
         Xs = ['widowed', 'divorced', 'separated', 'nevermarried',
@@ -30,7 +31,7 @@ def get_columns(fmla_wave, leave_types):
               'ltHS', 'someCol', 'BA', 'GradSch',
               'black', 'other', 'asian','native','hisp',
               'nochildren']
-        Xs += ['fmla_eligible', 'emp_gov', 'union', 'noelderly', 'hourly']
+        Xs += ['fmla_eligible', 'union', 'noelderly', 'hourly']
         Xs += ['age',  'agesq', 'faminc', 'wkhours']
 
     elif fmla_wave==2018:
@@ -39,7 +40,7 @@ def get_columns(fmla_wave, leave_types):
               'ltHS', 'someCol', 'BA', 'GradSch',
               'black', 'other', 'asian','native','hisp',
               'nochildren']
-        Xs +=['fmla_eligible', 'emp_gov', 'noelderly', 'hourly', 'union'] #
+        Xs +=['fmla_eligible', 'noelderly', 'hourly', 'union'] #
         Xs += ['age',  'agesq', 'faminc', 'wkhours']
         Xs += ['emp_nonprofit', 'low_wage'] + \
               ['occ_%s' % x for x in range(1, 11)] + ['ind_%s' % x for x in range(1, 14)]
@@ -49,6 +50,9 @@ def get_columns(fmla_wave, leave_types):
         # Xs += ['job_tenure_0_1', 'job_tenure_1_3', 'job_tenure_3_5', 'job_tenure_5_10']
         # FMLA 18 has no weeks worked over a year, consider CPS-impute
 
+    # only include emp_gov if gov_workers_only=False
+    if not gov_workers_only:
+        Xs += ['emp_gov']
     # same weight column and yvars for wave 2012 and 2018
     w = 'weight'
     ys = ['take_' + l for l in leave_types] + ['need_' + l for l in leave_types] + ['resp_len']
