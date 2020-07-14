@@ -4,7 +4,6 @@ args = commandArgs(trailingOnly=TRUE)
 if (length(args) != 60) {
   stop("Incorrect number of arguments supplied", call.=FALSE)
 } else {
-	print(as.logical(args[24]))
 	d <- policy_simulation(
 		saveCSV=TRUE,
 		FEDGOV=as.logical(args[6]),

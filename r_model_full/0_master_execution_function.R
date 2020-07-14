@@ -395,7 +395,7 @@ policy_simulation <- function(saveCSV=FALSE,
   }
   
   # OUTPUT: ACS file with base employer pay and program benefit calculation variables
-    
+
   # INPUT: ACS file
   d_acs_imp <- BENEFITEFFECT(d_acs_imp, bene_effect)
   # OUTPUT: ACS file with leave taking variables modified to account for behavioral cost of applying to program
@@ -517,7 +517,7 @@ policy_simulation <- function(saveCSV=FALSE,
   )
   
   if (!is.null(output) & saveCSV==TRUE) {
-    write.csv(d_acs_imp, file=paste0(out_dir,output,'_py_compatable.csv'))
+    write.csv(d_acs_imp, file=paste0(out_dir,output,'_py_compatible.csv'))
   }  
   
   

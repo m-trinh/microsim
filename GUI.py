@@ -310,8 +310,8 @@ class MicrosimGUI(Tk):
         # Display progress window and update with current engine progress
         progress_window = ProgressWindow(self)
         self.progress_windows.append(progress_window)  # Keep track of all progress windows
-        with open(progress_file, 'r') as f:
-            progress_window.update_progress_r(f)
+        f = open(progress_file, 'r')
+        progress_window.update_progress_r(f)
 
     def show_results(self, engine='Python'):
         """Display the results of the simulation"""
@@ -325,9 +325,8 @@ class MicrosimGUI(Tk):
             main_output_dir = self.sim_engine.output_directories[0]
             results_files = self.sim_engine.get_results_files()
         else:
+            results_files = [os.path.join('output', 'output_py_compatible.csv')]
             costs = pd.read_csv('./output/output_20200220_130425_main simulation/program_cost_ri_20200220_130425.csv')
-            main_output_dir = os.path.join('r_engine', 'output')
-            results_files = [os.path.join(main_output_dir, 'output.csv')]
 
         # Calculate total benefits paid
         total_benefits = list(costs.loc[costs['type'] == 'total', 'cost'])[0]
@@ -2763,16 +2762,18 @@ class ProgressWindow(Toplevel):
             The file to be read to get engine progress. Progress messages are separated by newlines.
         :return: None
         """
-        while True:
-            line = progress_file.readline()   # Get update from text file
-            if line == '':  # If there are no updates in the queue, do nothing and check again in 0.5 seconds
+
+        line = progress_file.readline()   # Get update from text file
+        if line == '':  # If there are no updates in the queue, do nothing and check again in 0.5 seconds
+            self.after(500, self.update_progress_r, progress_file)
+        else:
+            update = ast.literal_eval(line)  # Convert string update to a dictionary
+            complete = self.parse_update(update, engine='R')  # Parse the update message
+            if not complete:
+                # If engine is still running, check for progress again after 0.5 seconds.
                 self.after(500, self.update_progress_r, progress_file)
             else:
-                update = ast.literal_eval(line)  # Convert string update to a dictionary
-                complete = self.parse_update(update, engine='R')  # Parse the update message
-                if not complete:
-                    # If engine is still running, check for progress again after 0.5 seconds.
-                    self.after(500, self.update_progress_r, progress_file)
+                progress_file.close()
 
     def parse_update(self, update, engine='Python'):
         """Perform certain action depending on update from simulation engine

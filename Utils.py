@@ -481,3 +481,7 @@ def check_dependency(package_name, min_version):
             return False
 
     return True
+
+
+def get_costs_r(df):
+    pass
