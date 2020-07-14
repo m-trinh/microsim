@@ -296,11 +296,12 @@ class MicrosimGUI(Tk):
     def run_simulation_r(self):
         """Run R Engine"""
         # Create progress text file to update progress window
-        progress_file = './r_engine/progress/progress_{}.txt'.format(datetime.datetime.now().strftime('%Y%m%d%H%M%S%f'))
+        progress_file = './r_model_full/progress/progress_{}.txt'.format(datetime.datetime.now().strftime('%Y%m%d%H%M%S%f'))
         open(progress_file, 'w+').close()
 
         # Generate command to run R engine from terminal
         command = create_r_command(self.general_params, self.all_params[0], progress_file)
+        print(command)
 
         # Run command in new process
         self.engine_process = multiprocessing.Process(None, target=run_engine_r, args=(command,))
@@ -1106,8 +1107,8 @@ class GeneralParamsFrame(Frame):
         self.simulation_method_input.grid(column=1, row=9, sticky=W, padx=8, pady=self.row_padding)
         self.random_seed_label.grid(column=0, row=10, sticky=W, pady=self.row_padding)
         self.random_seed_input.grid(column=1, row=10, sticky=W, padx=8, pady=self.row_padding)
-        # self.engine_type_label.grid(column=0, row=11, sticky=W, pady=self.row_padding)
-        # self.engine_type_input.grid(column=1, row=11, sticky=W, padx=8, pady=self.row_padding)
+        self.engine_type_label.grid(column=0, row=11, sticky=W, pady=self.row_padding)
+        self.engine_type_input.grid(column=1, row=11, sticky=W, padx=8, pady=self.row_padding)
         self.toggle_r_path()
 
     def browse_file(self, file_input, filetypes):
@@ -3131,4 +3132,4 @@ def run_engine_r(command):
     """
 
     # Run the engine as a command in a new process
-    subprocess.call(command, shell=True, cwd='./r_engine')
+    subprocess.call(command, shell=True, cwd='./r_model_full')

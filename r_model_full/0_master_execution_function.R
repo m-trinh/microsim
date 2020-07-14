@@ -49,13 +49,27 @@ policy_simulation <- function(saveCSV=FALSE,
                               place_of_work = FALSE,
                               state = '',
                               dual_receiver = 1,
-                              ext_base_effect=TRUE, extend_prob=0, extend_days=0, extend_prop=1,
-                              maxlen_own =60, maxlen_matdis =60, maxlen_bond =60, maxlen_illparent =60, maxlen_illspouse =60, maxlen_illchild =60,
+                              ext_base_effect=TRUE,
+                              extend_prob=0,
+                              extend_days=0,
+                              extend_prop=1,
+                              maxlen_own =60,
+                              maxlen_matdis =60,
+                              maxlen_bond =60,
+                              maxlen_illparent =60,
+                              maxlen_illspouse =60,
+                              maxlen_illchild =60,
                               maxlen_PFL=maxlen_illparent+maxlen_illspouse+maxlen_illchild+maxlen_bond, maxlen_DI=maxlen_bond+maxlen_matdis,
                               maxlen_total=maxlen_DI+maxlen_PFL, week_bene_cap=1000000, week_bene_min=0, week_bene_cap_prop=NULL,
-                              fmla_protect=TRUE, earnings=NULL, weeks= NULL, ann_hours=NULL, minsize= NULL, 
+                              fmla_protect=TRUE,
+                              earnings=NULL,
+                              weeks= NULL,
+                              ann_hours=NULL,
+                              minsize= NULL,
                               elig_rule_logic= '(earnings & weeks & ann_hours & minsize)',
-                              formula_prop_cuts=NULL, formula_value_cuts=NULL, formula_bene_levels=NULL,
+                              formula_prop_cuts=NULL,
+                              formula_value_cuts=NULL,
+                              formula_bene_levels=NULL,
                               ABF_enabled=FALSE,
                               ABF_elig_size=0,
                               ABF_max_tax_earn=0,
@@ -67,7 +81,13 @@ policy_simulation <- function(saveCSV=FALSE,
                               acs_dir=NULL,
                               fmla_dir=NULL,
                               out_dir="output/",
-                              output='output', output_stats=NULL, random_seed=123, runtime_measure=0) { 
+                              output='output',
+                              output_stats=NULL,
+                              random_seed=123,
+                              runtime_measure=0,
+                              engine_type='Main',
+                              progress_file=NULL,
+                              log_directory='./logs/') {
   
   
   ####################################
@@ -84,7 +104,7 @@ policy_simulation <- function(saveCSV=FALSE,
     params['params'] <- NULL
     
     # create log file and record starting parameters 
-    log_name <<- paste0('./logs/',format(Sys.time(), "%Y-%m-%d %H.%M.%S"), '_',output, '.log')
+    log_name <<- paste0(log_directory, format(Sys.time(), "%Y-%m-%d %H.%M.%S"), '_',output, '.log')
     file.create(log_name)
     cat("==============================", file = log_name, sep="\n")
     cat("Microsim Log File", file = log_name, sep="\n", append = TRUE)
@@ -130,7 +150,7 @@ policy_simulation <- function(saveCSV=FALSE,
   )
   meta_params <- data.frame(meta_params)
  
-  write.table(meta_params, sep=',', file='output/prog_para_r_model.csv', col.names = FALSE)
+  write.table(meta_params, sep=',', file=paste0(out_dir, '/prog_para_r_model.csv'), col.names = FALSE)
   bene_take <- data.frame(row.names=c('Maximum Week of Benefit Receiving','Take Up Rates'))
   leave_types <- c("own","matdis","bond","illchild","illspouse","illparent")
   for (i in leave_types) {
@@ -138,7 +158,7 @@ policy_simulation <- function(saveCSV=FALSE,
     bene_take['Maximum Week of Benefit Receiving',i] <- get(paste0('maxlen_',i))/5
     bene_take['Take Up Rates',i] <- get(paste0(i,'_uptake'))
   }
-  write.table(bene_take, sep=',', file='output/prog_para_r_model.csv', append=TRUE)
+  write.table(bene_take, sep=',', file=paste0(out_dir, '/prog_para_r_model.csv'), append=TRUE)
   
   ####################################
   # global libraries used everywhere #
@@ -206,6 +226,13 @@ policy_simulation <- function(saveCSV=FALSE,
   
   # set derived parameters
   weightfactor=1/clone_factor
+
+  if (!is.null(progress_file)) {
+    message <- paste0('{"type": "message", "engine": "', engine_type, '", "value": "Cleaned data files before CPS imputation."}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+    message <- paste0('{"type": "progress", "engine": "', engine_type, '", "value": 10}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+  }
    
   #========================================
   # 2. Pre-imputation 
@@ -230,6 +257,13 @@ policy_simulation <- function(saveCSV=FALSE,
   if (progalt_post_or_pre == 'pre') {
     d_fmla <-LEAVEPROGRAM(d_fmla, sens_var,dual_receiver)
   }
+
+  if (!is.null(progress_file)) {
+    message <- paste0('{"type": "message", "engine": "', engine_type, '", "value": "Applied leave-taking behavioral updates."}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+    message <- paste0('{"type": "progress", "engine": "', engine_type, '", "value": 20}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+  }
   # OUTPUT: FMLA data with adjusted take_leave columns to include 1s
   #         for those that would have taken leave if they could afford it
   
@@ -248,6 +282,13 @@ policy_simulation <- function(saveCSV=FALSE,
   #         employer while on leave, and c) whether leave needed was not taken due to unaffordability 
   if (runtime_measure==1){
     time_elapsed('finished fmla to acs imputation')
+  }
+
+  if (!is.null(progress_file)) {
+    message <- paste0('{"type": "message", "engine": "', engine_type, '", "value": "Finished FMLA to ACS imputation."}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+    message <- paste0('{"type": "progress", "engine": "', engine_type, '", "value": 80}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
   }
 
   # -------------Post-imputation functions-----------------
@@ -279,6 +320,13 @@ policy_simulation <- function(saveCSV=FALSE,
   # OUTPUT: ACS data with lengths for leaves imputed
   if (runtime_measure==1){
     time_elapsed('finished imputing leave length')
+  }
+
+  if (!is.null(progress_file)) {
+    message <- paste0('{"type": "message", "engine": "', engine_type, '", "value": "Imputed leave lengths"}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+    message <- paste0('{"type": "progress", "engine": "', engine_type, '", "value": 90}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
   }
   # function interactions description (may not be complete, just writing as they come to me):
   # ELIGIBILITYRULES: eligibility rules defined, and participation initially set 
@@ -349,6 +397,7 @@ policy_simulation <- function(saveCSV=FALSE,
   # OUTPUT: ACS file with base employer pay and program benefit calculation variables
   
   if (bene_effect==TRUE) {
+      print(bene_effect)
     # INPUT: ACS file
     d_acs_imp <- BENEFITEFFECT(d_acs_imp)
     # OUTPUT: ACS file with leave taking variables modified to account for behavioral cost of applying to program
@@ -421,7 +470,7 @@ policy_simulation <- function(saveCSV=FALSE,
   
   # Options to output final data
   if (!is.null(output) & saveCSV==TRUE & fulloutput==TRUE) {
-    write.csv(d_acs_imp, file=paste0('./output/',output,'.csv'))
+    write.csv(d_acs_imp, file=paste0(out_dir,output,'.csv'))
   }
   
   # Clean up vars for Python compatibility
@@ -474,13 +523,21 @@ policy_simulation <- function(saveCSV=FALSE,
   )
   
   if (!is.null(output) & saveCSV==TRUE) {
-    write.csv(d_acs_imp, file=paste0('./output/',output,'_py_compatable.csv'))
+    write.csv(d_acs_imp, file=paste0(out_dir,output,'_py_compatable.csv'))
   }  
   
   
   print('=====================================')
   print('Simulation successfully completed')
   print('=====================================')
+  if (!is.null(progress_file)) {
+    message <- paste0('{"type": "message", "engine": "', engine_type, '", "value": "Output saved"}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+    message <- paste0('{"type": "progress", "engine": "', engine_type, '", "value": 100}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+    message <- paste0('{"type": "done", "engine": "', engine_type, '", "value": None}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+  }
   return(d_acs_imp)
 }
 
