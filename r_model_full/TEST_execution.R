@@ -40,7 +40,7 @@ d <- policy_simulation(
 		              alpha=1,
                   ext_resp_len = TRUE, sens_var = 'resp_len', progalt_post_or_pre ='post',
 		              ext_base_effect=TRUE, extend_prob=.01, extend_days=1, extend_prop=1.01, topoff_rate=.01, topoff_minlength=10,
-                  bene_effect=TRUE, full_particip=FALSE, wait_period=5, clone_factor=1, week_bene_cap=1216,
+                  bene_effect=FALSE, full_particip=FALSE, wait_period=5, clone_factor=1, week_bene_cap=1216,
                   own_uptake=.01, matdis_uptake=.01, bond_uptake=.01, illparent_uptake=.01,
                   illspouse_uptake=.01, illchild_uptake=.01,
                   maxlen_own =260, maxlen_matdis =260, maxlen_bond =30, maxlen_illparent =30, 
