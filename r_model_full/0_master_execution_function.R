@@ -348,30 +348,24 @@ policy_simulation <- function(saveCSV=FALSE,
   
   # OUTPUT: ACS file with base employer pay and program benefit calculation variables
   
-  if (bene_effect==TRUE) {
-    # INPUT: ACS file
-    d_acs_imp <- BENEFITEFFECT(d_acs_imp)
-    # OUTPUT: ACS file with leave taking variables modified to account for behavioral cost of applying to program
-    if (runtime_measure==1){
-      time_elapsed('finished calculating benefit effect')
-    }
+  # INPUT: ACS file
+  d_acs_imp <- BENEFITEFFECT(d_acs_imp, bene_effect)
+  # OUTPUT: ACS file with leave taking variables modified to account for behavioral cost of applying to program
+  if (runtime_measure==1){
+    time_elapsed('finished calculating benefit effect')
   }
   
-  if (topoff_rate>0) {
-    # INPUT: ACS file
-    d_acs_imp <- TOPOFF(d_acs_imp,topoff_rate, topoff_minlength)
-    # OUTPUT: ACS file with leave taking variables modified to account for employer top-off effects
-    if (runtime_measure==1){
-      time_elapsed('finished applying topoff effect')
-    }
-    
+  # INPUT: ACS file
+  d_acs_imp <- TOPOFF(d_acs_imp,topoff_rate, topoff_minlength)
+  # OUTPUT: ACS file with leave taking variables modified to account for employer top-off effects
+  if (runtime_measure==1){
+    time_elapsed('finished applying topoff effect')
   }
   
-  if (dependent_allow>0) {
-    # INPUT: ACS file
-    d_acs_imp <- DEPENDENTALLOWANCE(d_acs_imp,dependent_allow)
-    # OUTPUT: ACS file with program benefit amounts including a user-specified weekly dependent allowance
-  }
+  # INPUT: ACS file
+  d_acs_imp <- DEPENDENTALLOWANCE(d_acs_imp,dependent_allow)
+  # OUTPUT: ACS file with program benefit amounts including a user-specified weekly dependent allowance
+
   # Apply type-specific elig adjustments 
   d_acs_imp <- DIFF_ELIG(d_acs_imp, own_elig_adj, illspouse_elig_adj, illchild_elig_adj,
                          illparent_elig_adj, matdis_elig_adj, bond_elig_adj)
@@ -436,6 +430,7 @@ policy_simulation <- function(saveCSV=FALSE,
                                     -squo_leave_pay, -squo_take_bond, -squo_take_illchild, -squo_take_illparent, -squo_take_illspouse, -squo_take_matdis, 
                                     -squo_take_own, -squo_taker, -squo_total_length, -state_abbr, -state_name, -topoff_flg, -total_leaves, -weeks_worked_cat,
                                     -takes_up_bond, -takes_up_illchild, -takes_up_illparent, -takes_up_illspouse, -takes_up_matdis, -takes_up_own)
+  
   
   # rename variables to be consistent with Python
   d_acs_imp <- d_acs_imp %>% rename(

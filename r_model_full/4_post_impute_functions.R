@@ -620,8 +620,8 @@ EXTENDLEAVES <-function(d_train, d_test,wait_period, ext_base_effect,
   # originally were less than 12 weeks in length are constrained to be no longer than
   # 12 weeks in the presence of the program.
   
+  d_test["fmla_constrain_flag"] <- 0
   if (fmla_protect==TRUE) {
-    d_test["fmla_constrain_flag"] <- 0
     for (i in leave_types) {
       len_var=paste("length_",i,sep="")
       take_var=paste("take_",i,sep="")
@@ -876,7 +876,16 @@ BENEFITS <- function(d) {
 # Accounting for some "cost" of applying for the program when deciding between employer paid leave and program
 
 
-BENEFITEFFECT <- function(d) {
+BENEFITEFFECT <- function(d, bene_effect) {
+  # if bene_effect not selected, generate a column of zero's for the flag and stop here
+  
+  if (bene_effect==FALSE){
+    d$bene_effect_flg <- 0
+    return(d)
+  }
+  
+  # otherwise, continue with bene_effect simulation
+  
   # Create uptake probabilities dataframe 
   # obtained from 2001 Westat survey which ACM used for this purpose
   # d_prob <- read.csv("bene_effect_prob.csv")
@@ -963,6 +972,15 @@ BENEFITEFFECT <- function(d) {
 # User can specify percent of employers that engage in this, and minimum length of leave this is required for
 
 TOPOFF <- function(d, topoff_rate, topoff_minlength) {
+  # if topoff rate is 0, just generate a topoff flag =0 and stop there
+  
+  if (topoff_rate==0){
+    d['topoff_flg'] <- 0
+    return(d)
+  }
+  
+  # else continue with simulation
+  
   len_vars <- c("length_own", "length_illspouse", "length_illchild","length_illparent","length_matdis","length_bond")
   d['topoff_rate'] <- topoff_rate
   d['topoff_min'] <- topoff_minlength
