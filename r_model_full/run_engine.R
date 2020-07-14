@@ -68,5 +68,6 @@ if (length(args) != 60) {
 		random_seed=as.numeric(args[57]),
     	progress_file=args[58],
 		log_directory=args[59],
-		out_dir=args[60])
+		out_dir=args[60],
+		output_stats=c('standard', 'state_compar'))
 }

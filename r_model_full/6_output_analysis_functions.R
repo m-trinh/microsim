@@ -19,7 +19,7 @@
 # 2. standard_summary_stats
 # ============================ #
 # function to produce some standard summary statistics of relevant leave taking and other vars in csv format
-standard_summary_stats <-function(d, output) {
+standard_summary_stats <-function(d, output, out_dir) {
   
   ptake_vars=c()
   ptake_names=c()
@@ -57,7 +57,7 @@ standard_summary_stats <-function(d, output) {
   var_names=c('Eligible for leave program', 'Participated in leave program', 'Length of Participation in Days', ptake_names,'Amount of Benefits Received ($)')
   d_out=data.frame(var_names,mean,SE,CI,total, total_SE, total_CI)
   colnames(d_out) <- c("Variable","Mean", "Standard Error of Mean", "Confidence Interval","Population Total", "Pop Total Standard Error", "Pop Total CI")
-  write.csv(d_out,file=paste0('./output/',output,"_stats.csv"), row.names= FALSE)
+  write.csv(d_out,file=file.path(out_dir, paste0(output,'_stats.csv'), fsep = .Platform$file.sep), row.names= FALSE)
 }
 
 # ============================ #
@@ -65,7 +65,7 @@ standard_summary_stats <-function(d, output) {
 # ============================ #
 
 # function to produce summary statistics to compare with actual state of relevant leave taking and other vars in csv format
-state_compar_stats <-function(d, output) {
+state_compar_stats <-function(d, output, out_dir) {
   
   ptake_vars=c()
   ptake_names=c()
@@ -142,7 +142,7 @@ state_compar_stats <-function(d, output) {
   d_out$total_CI= paste("[",format(d_out$total-1.96*d_out$total_SE, digits=2, scientific=FALSE, big.mark=","),",", 
                   format(d_out$total+1.96*d_out$total_SE, digits=2, scientific=FALSE, big.mark=","),"]")
   colnames(d_out) <- c("Variable","Mean", "Standard Error of Mean", "Confidence Interval","Population Total", "Pop Total Standard Error", "Pop Total CI")
-  write.csv(d_out,file=paste0('./output/',output,"_rawstats.csv"), row.names= FALSE)
+  write.csv(d_out,file=file.path(out_dir, paste0(output,'_rawstats.csv'), fsep = .Platform$file.sep), row.names= FALSE)
   
   
   # create rounded results with cleaned up names
@@ -155,7 +155,7 @@ state_compar_stats <-function(d, output) {
   
   d_out=data.frame(var_names,round_mean,round_SE,round_CI,round_total, round_total_SE, round_total_CI)
   colnames(d_out) <- c("Variable","Mean", "Standard Error of Mean", "Confidence Interval","Population Total", "Pop Total Standard Error", "Pop Total CI")
-  write.csv(d_out,file=paste0('./output/',output,"_roundstats.csv"), row.names= FALSE)
+  write.csv(d_out,file=file.path(out_dir, paste0(output,'_roundstats.csv'), fsep = .Platform$file.sep), row.names= FALSE)
   
   # meta output file for leave costs 
   meta_cost <- data.frame(row.names = leave_types)
@@ -167,10 +167,10 @@ state_compar_stats <-function(d, output) {
     meta_cost[i, 'ci_upper'] <- temp[[7]] - temp[[8]] *1.96
   }
   temp <- replicate_weights_SE(d, 'actual_benefits')
-  meta_cost['actual_benefits', 'cost'] <- temp[7]
-  meta_cost['actual_benefits', 'ci_lower'] <-  temp[[7]] + temp[[8]] *1.96 
-  meta_cost['actual_benefits', 'ci_upper'] <-  temp[[7]] + temp[[8]] *1.96
-  write.csv(meta_cost,file='output/program_cost_r_model.csv')
+  meta_cost['total', 'cost'] <- temp[7]
+  meta_cost['total', 'ci_lower'] <-  temp[[7]] + temp[[8]] *1.96
+  meta_cost['total', 'ci_upper'] <-  temp[[7]] - temp[[8]] *1.96
+  write.csv(meta_cost,file=file.path(out_dir, 'program_cost_r_model.csv', fsep = .Platform$file.sep))
   
   if (makelog==TRUE) {
     
@@ -194,7 +194,7 @@ state_compar_stats <-function(d, output) {
 # 3. length_compar
 # ============================ #
 # function to compare status quo and leave taking variables 
-take_compar <- function(d, output) {
+take_compar <- function(d, output, out_dir) {
   length_vars=paste0("length_",leave_types)
   length_names=paste("Counterfactual",leave_types,'leave')
   squo_vars = paste0("squo_", length_vars)
@@ -226,18 +226,18 @@ take_compar <- function(d, output) {
   var_names=c(length_names, squo_names)
   d_out=data.frame(var_names,mean,SE,CI,total, total_SE, total_CI)
   colnames(d_out) <- c("Variable","Mean", "Standard Error of Mean", "Confidence Interval","Population Total", "Pop Total Standard Error", "Pop Total CI")
-  write.csv(d_out,file=paste0('./output/',output,"_takestats.csv"), row.names= FALSE)
+  write.csv(d_out,file=file.path(out_dir, paste0(output,'_takestats.csv'), fsep = .Platform$file.sep), row.names= FALSE)
   
   # graph leave length distributions 
   for (i in length_vars) {
-    png(paste0('./output/',i , '_cfact.png'))
+    png(paste0(out_dir,i , '_cfact.png'))
     if (nrow(d %>% filter(get(i)>0))> 0 ){
       hist(d %>% filter(get(i)>0) %>% pull(get(i)), main = paste('Counterfactual leave distribution', i), xlab = "Length in Days", ylab = "Frequency", breaks=20)  
     }
     dev.off()
   }
   for (i in squo_vars) {
-    png(paste0('./output/',i , '_squo.png'))
+    png(paste0(out_dir,i , '_squo.png'))
     if (nrow(d %>% filter(get(i)>0))> 0 ){
       hist(d %>% filter(get(i)>0) %>% pull(get(i)), main = paste('Status quo leave distribution', i), xlab = "Length in Days", ylab = "Frequency", breaks=20)  
     }
@@ -245,19 +245,19 @@ take_compar <- function(d, output) {
   }
   
   # combine graphs into a single pic file 
-  cfact_img <- image_read(paste0('./output/',length_vars[1] , '_cfact.png'))
+  cfact_img <- image_read(paste0(out_dir,length_vars[1] , '_cfact.png'))
   for (i in length_vars) {
-    img <- image_read(paste0('./output/',i , '_cfact.png'))
+    img <- image_read(paste0(out_dir,i , '_cfact.png'))
     cfact_img <- image_append(c(cfact_img, img), stack = TRUE)
-    file.remove(paste0('./output/',i , '_cfact.png'))
+    file.remove(paste0(out_dir,i , '_cfact.png'))
   }
-  image_write(cfact_img, path = paste0("./output/",output,"_cfact_lengths.png"), format = "png")
+  image_write(cfact_img, path = paste0(out_dir,output,"_cfact_lengths.png"), format = "png")
 
-  squo_img <- image_read(paste0('./output/',squo_vars[1] , '_squo.png'))  
+  squo_img <- image_read(paste0(out_dir,squo_vars[1] , '_squo.png'))
   for (i in squo_vars) {
-    img <- image_read(paste0('./output/',i , '_squo.png'))
+    img <- image_read(paste0(out_dir,i , '_squo.png'))
     squo_img <- image_append(c(squo_img, img), stack = TRUE)
-    file.remove(paste0('./output/',i , '_squo.png'))
+    file.remove(paste0(out_dir,i , '_squo.png'))
   }
-  image_write(squo_img, path = paste0("./output/",output,"_squo_lengths.png"), format = "png")
+  image_write(squo_img, path = paste0(out_dir,output,"_squo_lengths.png"), format = "png")
 }

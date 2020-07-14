@@ -449,21 +449,21 @@ policy_simulation <- function(saveCSV=FALSE,
   # final output options
   for (i in output_stats) {
     if (i=='standard') {
-      standard_summary_stats(d_acs_imp,output) 
+      standard_summary_stats(d_acs_imp,output, out_dir)
     }
     
     if (i=='state_compar') {
-      state_compar_stats(d_acs_imp, output)
+      state_compar_stats(d_acs_imp, output, out_dir)
     }
     
     if (i=='take_compar') {
-      take_compar(d_acs_imp, output)
+      take_compar(d_acs_imp, output, out_dir)
     }  
   }
   
   # Options to output final data
   if (!is.null(output) & saveCSV==TRUE & fulloutput==TRUE) {
-    write.csv(d_acs_imp, file=paste0(out_dir,output,'.csv'))
+    write.csv(d_acs_imp, file=file.path(out_dir, paste0(output,'.csv'), fsep = .Platform$file.sep))
   }
   
   # Clean up vars for Python compatibility
@@ -498,7 +498,7 @@ policy_simulation <- function(saveCSV=FALSE,
     cpl_illchild=plen_illchild ,
     cpl_illparent=plen_illparent ,
     cpl_illspouse=plen_illspouse ,
-    cpl_matis=plen_matdis ,
+    cpl_matdis=plen_matdis ,
     cpl_own=plen_own ,
     takeup_bond=ptake_bond ,
     takeup_illchild=ptake_illchild ,
@@ -517,7 +517,7 @@ policy_simulation <- function(saveCSV=FALSE,
   )
   
   if (!is.null(output) & saveCSV==TRUE) {
-    write.csv(d_acs_imp, file=paste0(out_dir,output,'_py_compatible.csv'))
+    write.csv(d_acs_imp, file=file.path(out_dir, paste0(output,'_py_compatible.csv'), fsep = .Platform$file.sep))
   }  
   
   

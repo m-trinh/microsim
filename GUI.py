@@ -325,8 +325,10 @@ class MicrosimGUI(Tk):
             main_output_dir = self.sim_engine.output_directories[0]
             results_files = self.sim_engine.get_results_files()
         else:
-            results_files = [os.path.join('output', 'output_py_compatible.csv')]
-            costs = pd.read_csv('./output/output_20200220_130425_main simulation/program_cost_ri_20200220_130425.csv')
+            results_files = [os.path.join(self.general_params.output_directory, 'output_py_compatible.csv')]
+            costs = pd.read_csv(os.path.join(self.general_params.output_directory, 'program_cost_r_model.csv'))
+            costs.columns = ['type', 'cost', 'ci_lower', 'ci_upper']
+            main_output_dir = self.general_params.output_directory
 
         # Calculate total benefits paid
         total_benefits = list(costs.loc[costs['type'] == 'total', 'cost'])[0]
