@@ -15,6 +15,7 @@ import sklearn.linear_model
 import mord
 from time import time
 from Utils import STATE_CODES
+import os
 
 
 class DataCleanerACS:
@@ -450,7 +451,7 @@ class DataCleanerACS:
             ichunk += 1
         return dout
 
-    def clean_person_data(self, chunk_size=100000):
+    def clean_person_data(self, cps_fp, chunk_size=100000):
         '''
         clean large ACS 5-year person file
         :return:
@@ -459,7 +460,7 @@ class DataCleanerACS:
 
         # Load CPS data from impute_fmla_cps in FMLA cleaning class
         # set CPS year as mid-year of ACS5
-        cps = pd.read_csv('./data/cps/cps_clean_%s.csv' % (self.yr - 2), low_memory=False)
+        cps = pd.read_csv(cps_fp)  # set CPS year as mid-year of ACS5
         # Process ACS data
         # a single state
         if self.st.lower() != 'all':
@@ -488,6 +489,7 @@ class DataCleanerACS:
         #     dout = self.clean_person_state_data(self.st, self.worker_class, chunk_size=chunk_size)
         #     dout.to_csv(self.fp_out + "ACS_cleaned_forsimulation_%s_%s_gov.csv" % (self.yr, self.st), index=False,
         #                 header=True)
+
 
         t1 = time()
         message = 'ACS data cleaning finished for state %s. Time elapsed = %s seconds' % (self.st.upper(), round((t1 - t0), 0))

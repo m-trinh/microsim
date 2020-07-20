@@ -395,7 +395,7 @@ def create_r_command(general_params, other_params, progress_file):
         False,  # SMOTE
         False,  # ext_resp_len
         'mean',  # len_method
-        'unaffordable',  # sens_var?
+        'resp_len',  # sens_var?
         'post',  # progalt_post_or_pre
         True,  # intra_impute
         True,  # ext_base_effect
@@ -438,7 +438,9 @@ def create_r_command(general_params, other_params, progress_file):
         other_params.leave_probability_factors['Ill Child'],  # illchild_elig_adj
         'output',  # output
         123,  # random_seed
-        progress_file.replace('r_engine/', '')
+        progress_file.replace('r_model_full/', ''),
+        '../log/',
+        general_params.output_directory
     ]
 
     # Convert the list into a string
@@ -479,3 +481,7 @@ def check_dependency(package_name, min_version):
             return False
 
     return True
+
+
+def get_costs_r(df):
+    pass

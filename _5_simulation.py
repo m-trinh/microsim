@@ -228,7 +228,8 @@ class SimulationEngine:
                           'value': 'Cleaning ACS data. State chosen = %s. Chunk size = 100000 ACS rows' % self.st})
         dca = DataCleanerACS(self.st, self.yr, self.fp_acsh_in, self.fp_acsp_in, self.fp_acs_out, self.state_of_work,
                              self.random_state, self.fmla_wave, self.worker_class) # set yr_adjinc = self.fmla_wave to inflation-adjust
-        message = dca.clean_person_data()
+        message = dca.clean_person_data(self.fp_cps_in)
+
         self.__put_queue({'type': 'progress', 'engine': None, 'value': 50})
         self.__put_queue({'type': 'message', 'engine': None, 'value': message})
         self.progress = 50
@@ -243,7 +244,7 @@ class SimulationEngine:
         with open(self.fp_length_distribution_out) as f:
             flen = json.load(f)
 
-        acs_fp_in = self.fp_acs_out + 'ACS_cleaned_forsimulation_%s_%s.csv' % (self.yr, self.st)
+        acs_fp_in = os.path.join(self.fp_acs_out, 'ACS_cleaned_forsimulation_%s_%s.csv' % (self.yr, self.st))
         acs_fp_out = '%s/acs_sim_%s_%s.csv' % (self.output_directories[sim_num], self.st, self.out_id)
         append = False
 

@@ -132,5 +132,35 @@ run_ABF <- function(d, ABF_elig_size, ABF_max_tax_earn, ABF_bene_tax, ABF_avg_st
   colnames(d_out) <- c("Variable","Mean", "Standard Error of Mean", "Confidence Interval","Population Total", "Pop Total Standard Error", "Pop Total CI")
   
   write.csv(d_out,file=paste0('./output/',output,"_ABF_stats.csv"), row.names= FALSE)
+  
+  # output meta summary file
+  # TODO: remove placeholders
+  meta_summ <- c(
+    'Tax Revenue Recouped from Benefits'= recoup_tax_rev,
+    'Income Standard Error' = 1,
+    'Total Income Upper Confidence Interval' = 1,
+    'Total Tax Revenue (Weighted)' = 1,
+    'Tax Revenue Standard Error' = 1,
+    'Total Income Lower Confidence Interval' = 1,
+    'Total Tax Revenue Upper Confidence Interval' = 1,
+    'Total Income (Weighted)' = 1,
+    'Total Tax Revenue Lower Confidence Interval' = 1,
+    'Total Income' = 1
+  )
+  write.csv(data.frame(meta_summ), file='output/abf_summary.csv')
+  
+  # placeholder vars for meta file  
+  # TODO: implement proper coding of these 
+   d_copy <- d
+   for (i in c('class', 'age_cat', 'GENDER_CAT', 'taxable_income_capped', 'income_w', 'wage_cat', 'ptax_rev_final', 'ptax_rev_w')) {
+     if (i %in% names(d_copy) == FALSE) {
+       d_copy[i] <- 0 
+     }
+   }
+   # output meta file 
+   write.csv(d_copy, file=paste0('./output/abf_acs_sim_r_model.csv'))
+   
+   
+  
   return(d)
 }

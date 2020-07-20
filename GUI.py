@@ -296,11 +296,12 @@ class MicrosimGUI(Tk):
     def run_simulation_r(self):
         """Run R Engine"""
         # Create progress text file to update progress window
-        progress_file = './r_engine/progress/progress_{}.txt'.format(datetime.datetime.now().strftime('%Y%m%d%H%M%S%f'))
+        progress_file = './r_model_full/progress/progress_{}.txt'.format(datetime.datetime.now().strftime('%Y%m%d%H%M%S%f'))
         open(progress_file, 'w+').close()
 
         # Generate command to run R engine from terminal
         command = create_r_command(self.general_params, self.all_params[0], progress_file)
+        print(command)
 
         # Run command in new process
         self.engine_process = multiprocessing.Process(None, target=run_engine_r, args=(command,))
@@ -309,8 +310,8 @@ class MicrosimGUI(Tk):
         # Display progress window and update with current engine progress
         progress_window = ProgressWindow(self)
         self.progress_windows.append(progress_window)  # Keep track of all progress windows
-        with open(progress_file, 'r') as f:
-            progress_window.update_progress_r(f)
+        f = open(progress_file, 'r')
+        progress_window.update_progress_r(f)
 
     def show_results(self, engine='Python'):
         """Display the results of the simulation"""
@@ -324,10 +325,10 @@ class MicrosimGUI(Tk):
             main_output_dir = self.sim_engine.output_directories[0]
             results_files = self.sim_engine.get_results_files()
         else:
-            # TODO: port R engine
-            costs = pd.read_csv('./output/output_20200220_130425_main simulation/program_cost_ri_20200220_130425.csv')
-            main_output_dir = os.path.join('r_engine', 'output')
-            results_files = [os.path.join(main_output_dir, 'output.csv')]
+            results_files = [os.path.join(self.general_params.output_directory, 'output_py_compatible.csv')]
+            costs = pd.read_csv(os.path.join(self.general_params.output_directory, 'program_cost_r_model.csv'))
+            costs.columns = ['type', 'cost', 'ci_lower', 'ci_upper']
+            main_output_dir = self.general_params.output_directory
 
         # Calculate total benefits paid
         total_benefits = list(costs.loc[costs['type'] == 'total', 'cost'])[0]
@@ -503,7 +504,7 @@ class MicrosimGUI(Tk):
         fp_fmla_out = './data/fmla/fmla_%s/fmla_clean_%s.csv' % (fmla_wave, fmla_wave)
         fp_dir_out = self.general_params.output_directory
         fp_cps_out = './data/cps/cps_for_acs_sim.csv'
-        fp_acs_out = './data/acs/'
+        fp_acs_out = self.general_params.acs_directory
         fp_length_distribution_out = './data/fmla/fmla_%s/length_distributions_exact_days.json' % fmla_wave
         fps_in = [fp_fmla_in, fp_cps_in, fp_acsh_in, fp_acsp_in]
         fps_out = [fp_dir_out, fp_fmla_out, fp_cps_out, fp_acs_out, fp_length_distribution_out]
@@ -2772,16 +2773,18 @@ class ProgressWindow(Toplevel):
             The file to be read to get engine progress. Progress messages are separated by newlines.
         :return: None
         """
-        while True:
-            line = progress_file.readline()   # Get update from text file
-            if line == '':  # If there are no updates in the queue, do nothing and check again in 0.5 seconds
+
+        line = progress_file.readline()   # Get update from text file
+        if line == '':  # If there are no updates in the queue, do nothing and check again in 0.5 seconds
+            self.after(500, self.update_progress_r, progress_file)
+        else:
+            update = ast.literal_eval(line)  # Convert string update to a dictionary
+            complete = self.parse_update(update, engine='R')  # Parse the update message
+            if not complete:
+                # If engine is still running, check for progress again after 0.5 seconds.
                 self.after(500, self.update_progress_r, progress_file)
             else:
-                update = ast.literal_eval(line)  # Convert string update to a dictionary
-                complete = self.parse_update(update, engine='R')  # Parse the update message
-                if not complete:
-                    # If engine is still running, check for progress again after 0.5 seconds.
-                    self.after(500, self.update_progress_r, progress_file)
+                progress_file.close()
 
     def parse_update(self, update, engine='Python'):
         """Perform certain action depending on update from simulation engine
@@ -3141,4 +3144,4 @@ def run_engine_r(command):
     """
 
     # Run the engine as a command in a new process
-    subprocess.call(command, shell=True, cwd='./r_engine')
+    subprocess.call(command, shell=True, cwd='./r_model_full')

@@ -15,6 +15,7 @@
 # Table of Contents
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 1. clean_fmla
+# 1a. clean_fmla_2018
 # 2. clean_acs
 # 3. clean_cps
 # 4. impute_cps_to_acs
@@ -33,7 +34,7 @@ clean_fmla <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
   # --------------------------------------------------------------------
   # demographic characteristics
   # --------------------------------------------------------------------
-  
+
   # FMLA eligible worker
   d_fmla <- d_fmla %>% mutate(fmla_eligworker = NA)
   d_fmla <- d_fmla %>% mutate(fmla_eligworker = ifelse(E13 == 1 & (E14 == 1 | (E15_CAT >= 5 & E15_CAT <= 8)),1,NA))
@@ -125,7 +126,7 @@ clean_fmla <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
   d_fmla <- d_fmla %>% mutate(faminc = ifelse(D4_CAT == 8,62500,faminc))
   d_fmla <- d_fmla %>% mutate(faminc = ifelse(D4_CAT == 9,87500,faminc))
   d_fmla <- d_fmla %>% mutate(faminc = ifelse(D4_CAT == 10,130000,faminc))
-  d_fmla <- d_fmla %>% mutate(lnfaminc = log(faminc))
+  d_fmla <- d_fmla %>% mutate(ln_faminc = log(faminc))
   
   # Make more coarse categores
   d_fmla <- d_fmla %>% mutate(faminc_cat = ifelse(D4_CAT >= 3 & D4_CAT <= 5 , 1,NA))
@@ -333,13 +334,13 @@ clean_fmla <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
   d_fmla <- d_fmla %>% mutate(anypay = ifelse(A45 == 1, 1, 0))
   
   # proportion of pay received from employer (mid point of ranges provided in FMLA)
-  d_fmla <- d_fmla %>% mutate(prop_pay = ifelse(A50 == 1, .125, NA))
-  d_fmla <- d_fmla %>% mutate(prop_pay = ifelse(A50 == 2, .375, prop_pay))
-  d_fmla <- d_fmla %>% mutate(prop_pay = ifelse(A50 == 3, .5, prop_pay))
-  d_fmla <- d_fmla %>% mutate(prop_pay = ifelse(A50 == 4, .625, prop_pay))
-  d_fmla <- d_fmla %>% mutate(prop_pay = ifelse(A50 == 5, .875, prop_pay))
-  d_fmla <- d_fmla %>% mutate(prop_pay = ifelse(A49 == 1, 1, prop_pay))
-  d_fmla <- d_fmla %>% mutate(prop_pay = ifelse(A45 == 2, NA, prop_pay))
+  d_fmla <- d_fmla %>% mutate(prop_pay_employer = ifelse(A50 == 1, .125, NA))
+  d_fmla <- d_fmla %>% mutate(prop_pay_employer = ifelse(A50 == 2, .375, prop_pay_employer))
+  d_fmla <- d_fmla %>% mutate(prop_pay_employer = ifelse(A50 == 3, .5, prop_pay_employer))
+  d_fmla <- d_fmla %>% mutate(prop_pay_employer = ifelse(A50 == 4, .625, prop_pay_employer))
+  d_fmla <- d_fmla %>% mutate(prop_pay_employer = ifelse(A50 == 5, .875, prop_pay_employer))
+  d_fmla <- d_fmla %>% mutate(prop_pay_employer = ifelse(A49 == 1, 1, prop_pay_employer))
+  d_fmla <- d_fmla %>% mutate(prop_pay_employer = ifelse(A45 == 2, NA, prop_pay_employer))
   
   # Adding values in leave program variables for starting condition (absence of program)
   # Leave Program Participation
@@ -534,6 +535,433 @@ clean_fmla <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
 }
 
 # ============================ #
+# 1a.clean_fmla_2018
+# ============================ #
+# clean 2018 wave of fmla data 
+clean_fmla_2018 <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
+  
+  # some misc cleaning steps
+  # make index start at 0
+  d_fmla$empid <- d_fmla$empid - 1
+  # name weight variable consistently
+  d_fmla <- d_fmla %>% rename(weight = combo_trimmed_weight)
+  
+  # --------------------------------------------------------------------
+  # demographic characteristics
+  # --------------------------------------------------------------------
+  
+  # union status
+  d_fmla <- d_fmla %>% mutate(union = ifelse(d3 == 1,1,0))
+  
+  # Hours worked per week at midpoint of category
+  d_fmla <- d_fmla %>% mutate(wkhours = ifelse(e0b_cat == 1,2.5,0))
+  d_fmla <- d_fmla %>% mutate(wkhours = ifelse(e0b_cat == 2,7,wkhours))
+  d_fmla <- d_fmla %>% mutate(wkhours = ifelse(e0b_cat == 3,12,wkhours))
+  d_fmla <- d_fmla %>% mutate(wkhours = ifelse(e0b_cat == 4,17,wkhours))
+  d_fmla <- d_fmla %>% mutate(wkhours = ifelse(e0b_cat == 5,22,wkhours))
+  d_fmla <- d_fmla %>% mutate(wkhours = ifelse(e0b_cat == 6,27,wkhours))
+  d_fmla <- d_fmla %>% mutate(wkhours = ifelse(e0b_cat == 7,32,wkhours))
+  d_fmla <- d_fmla %>% mutate(wkhours = ifelse(e0b_cat == 8,37,wkhours))
+  d_fmla <- d_fmla %>% mutate(wkhours = ifelse(e0b_cat == 9,42,wkhours))
+  d_fmla <- d_fmla %>% mutate(wkhours = ifelse(e0b_cat == 10,47,wkhours))
+  d_fmla <- d_fmla %>% mutate(wkhours = ifelse(e0b_cat == 11,52,wkhours))
+  d_fmla <- d_fmla %>% mutate(wkhours = ifelse(e0b_cat == 12,57,wkhours))
+  d_fmla <- d_fmla %>% mutate(wkhours = ifelse(e0b_cat == 13,62,wkhours))
+  d_fmla <- d_fmla %>% mutate(wkhours = ifelse(e0b_cat == 14,67,wkhours))
+  d_fmla <- d_fmla %>% mutate(wkhours = ifelse(e0b_cat == 15,77,wkhours))
+  d_fmla <- d_fmla %>% mutate(wkhours = ifelse(e0b_cat == 16,85,wkhours))
+  
+  # hours worked for main job, if 2+ jobs
+  d_fmla <- d_fmla %>% mutate(wkhours_m = ifelse(e0b_cat == 1,2.5,0))
+  d_fmla <- d_fmla %>% mutate(wkhours_m = ifelse(e0b_cat == 2,7,wkhours_m))
+  d_fmla <- d_fmla %>% mutate(wkhours_m = ifelse(e0b_cat == 3,12,wkhours_m))
+  d_fmla <- d_fmla %>% mutate(wkhours_m = ifelse(e0b_cat == 4,17,wkhours_m))
+  d_fmla <- d_fmla %>% mutate(wkhours_m = ifelse(e0b_cat == 5,22,wkhours_m))
+  d_fmla <- d_fmla %>% mutate(wkhours_m = ifelse(e0b_cat == 6,27,wkhours_m))
+  d_fmla <- d_fmla %>% mutate(wkhours_m = ifelse(e0b_cat == 7,32,wkhours_m))
+  d_fmla <- d_fmla %>% mutate(wkhours_m = ifelse(e0b_cat == 8,37,wkhours_m))
+  d_fmla <- d_fmla %>% mutate(wkhours_m = ifelse(e0b_cat == 9,42,wkhours_m))
+  d_fmla <- d_fmla %>% mutate(wkhours_m = ifelse(e0b_cat == 10,47,wkhours_m))
+  d_fmla <- d_fmla %>% mutate(wkhours_m = ifelse(e0b_cat == 11,52,wkhours_m))
+  d_fmla <- d_fmla %>% mutate(wkhours_m = ifelse(e0b_cat == 12,57,wkhours_m))
+  d_fmla <- d_fmla %>% mutate(wkhours_m = ifelse(e0b_cat == 13,62,wkhours_m))
+  d_fmla <- d_fmla %>% mutate(wkhours_m = ifelse(e0b_cat == 14,67,wkhours_m))
+  d_fmla <- d_fmla %>% mutate(wkhours_m = ifelse(e0b_cat == 15,77,wkhours_m))
+  d_fmla <- d_fmla %>% mutate(wkhours_m = ifelse(e0b_cat == 16,85,wkhours_m))
+  
+  # replace wkhours with main job hours, if not missing
+  d_fmla <- d_fmla %>% mutate(wkhours = ifelse(is.na(wkhours_m)==FALSE & is.na(wkhours), wkhours_m, wkhours))
+  d_fmla <- d_fmla %>% select(-wkhours_m)
+  
+    # age at midpoint of category
+  # rename age_cat to something else as age_cat was already a var defined in the cleaning code
+  d_fmla <- d_fmla %>% rename(age_cat_fmla = age_cat)
+  d_fmla <- d_fmla %>% mutate(age = ifelse(age_cat_fmla == 1,21,NA))
+  d_fmla <- d_fmla %>% mutate(age = ifelse(age_cat_fmla == 2,27,age))
+  d_fmla <- d_fmla %>% mutate(age = ifelse(age_cat_fmla == 3,32,age))
+  d_fmla <- d_fmla %>% mutate(age = ifelse(age_cat_fmla == 4,37,age))
+  d_fmla <- d_fmla %>% mutate(age = ifelse(age_cat_fmla == 5,42,age))
+  d_fmla <- d_fmla %>% mutate(age = ifelse(age_cat_fmla == 6,47,age))
+  d_fmla <- d_fmla %>% mutate(age = ifelse(age_cat_fmla == 7,52,age))
+  d_fmla <- d_fmla %>% mutate(age = ifelse(age_cat_fmla == 8,57,age))
+  d_fmla <- d_fmla %>% mutate(age = ifelse(age_cat_fmla == 9,63,age))
+  d_fmla <- d_fmla %>% mutate(age = ifelse(age_cat_fmla == 10,70,age))
+  d_fmla <- d_fmla %>% mutate(agesq = age^2)
+  
+  # make a coarser categorical age var
+  d_fmla <- d_fmla %>% mutate(age_cat = ifelse(age_cat_fmla >= 1 & age_cat_fmla <= 4 , 1,NA))
+  d_fmla <- d_fmla %>% mutate(age_cat = ifelse(age_cat_fmla >= 5 & age_cat_fmla <= 7, 2,age_cat_fmla))
+  d_fmla <- d_fmla %>% mutate(age_cat = ifelse(age_cat_fmla >= 8, 3,age_cat_fmla))
+  
+  # longer leave if more pay
+  d_fmla <- d_fmla %>% mutate(longerLeave = ifelse(a55 == 1, 1, 0))
+  
+  # government employment
+  d_fmla <- d_fmla %>% mutate(emp_gov= ifelse(govt_emp==1, 1,0))
+
+  # nonprofit employment
+  d_fmla <- d_fmla %>% mutate(emp_nonprofit= ifelse(govt_emp==3, 1,0))
+  
+  # sex
+  d_fmla <- d_fmla %>% mutate(male = ifelse(gender_cat == 1,1,0),
+                              female = ifelse(gender_cat == 2,1,0))
+  
+  # dependents
+  d_fmla <- d_fmla %>% mutate(ndep_kid = d7_cat)
+  d_fmla <- d_fmla %>% mutate(ndep_old = d8_cat)
+  
+  # create dummies 
+  # kids 
+  d_dum <- as.data.frame(dummies::dummy('d7_cat',d_fmla))
+  names(d_dum) <- lapply(names(d_dum), gsub, pattern='d7_cat',replacement='ndep_kid_')
+  d_dum <- d_dum %>% select(-ndep_kid_NA)
+  d_fmla <- cbind(d_fmla,d_dum)
+  #elderly
+  d_dum <- as.data.frame(dummies::dummy('d8_cat',d_fmla))
+  names(d_dum) <- lapply(names(d_dum), gsub, pattern='d8_cat',replacement='ndep_old_')
+  d_dum <- d_dum %>% select(-ndep_old_NA)
+  d_fmla <- cbind(d_fmla,d_dum)
+  
+  # no children
+  d_fmla <- d_fmla %>% mutate(nochildren = ifelse(d7_cat==0,1,0))  
+  
+  # no elderly dependents
+  d_fmla <- d_fmla %>% mutate(noelderly = ifelse(d8_cat==0,1,0))  
+  
+  # no spouse 
+  d_fmla <- d_fmla %>% mutate(nospouse= ifelse(d10>=3 | d10<=6, 1, 0))
+  
+  # educational level
+  d_fmla <- d_fmla %>% mutate(ltHS = ifelse(educ_cat == 1,1,0),
+                              someHS = ifelse(educ_cat == 2,1,0),
+                              HSgrad = ifelse(educ_cat == 3,1,0),
+                              someCol = ifelse(educ_cat == 5 | educ_cat == 6,1,0),
+                              BA = ifelse(educ_cat == 7,1,0),
+                              GradSch = ifelse(educ_cat == 8,1,0),
+                              noHSdegree = ifelse(ltHS == 1 | someHS == 1,1,0),
+                              BAplus = ifelse((BA == 1 | GradSch == 1),1,0))
+  
+  # family income using midpoint of category
+  inc_lvls <- c(2500, 7500, 12500, 17500,
+                22500, 27500, 32500, 37500,
+                42500, 47500, 52500, 57500,
+                62500, 67500, 72500, 77500,
+                82500, 87500, 92500, 97500,
+                105000, 115000, 125000, 135000,
+                145000, 150000, 165000, 175000,
+                185000, 195000, 225000, 275000,
+                325000, 375000, 425000, 500000)
+  val <- 1
+  d_fmla <- d_fmla %>% mutate(faminc = ifelse(nd4_cat == 1,2500,NA))
+  for (i in inc_lvls[2:length(inc_lvls)]){
+    val <- val + 1
+    d_fmla <- d_fmla %>% mutate(faminc = ifelse(nd4_cat == val,i,faminc))
+  }
+  d_fmla <- d_fmla %>% mutate(ln_faminc = log(faminc))
+  
+  # Make more coarse categories
+  d_fmla <- d_fmla %>% mutate(faminc_cat = ifelse(nd4_cat >= 3 & nd4_cat <= 5 , 1,NA))
+  d_fmla <- d_fmla %>% mutate(faminc_cat = ifelse(nd4_cat >= 6 & nd4_cat <= 8, 2,faminc_cat))
+  d_fmla <- d_fmla %>% mutate(faminc_cat = ifelse(nd4_cat >= 9, 3,faminc_cat))
+  
+  # marital status
+  d_fmla <- d_fmla %>%  mutate(married = ifelse(d10 == 1,1,0),
+                               partner = ifelse(d10 == 2,1,0),
+                               separated = ifelse(d10 == 3,1,0),
+                               divorced = ifelse(d10 == 4,1,0),
+                               widowed = ifelse(d10 == 5,1,0),
+                               nevermarried = ifelse(d10 == 6,1,0))
+  
+  # race/ethnicity
+  d_fmla <- d_fmla %>% mutate(raceth = ifelse(is.na(d5) == 0 & d5 == 1,7,race_cat),
+                              native = ifelse(raceth == 4,1,0),
+                              asian = ifelse(raceth == 3,1,0),
+                              black = ifelse(raceth == 2,1,0),
+                              white = ifelse(raceth == 1,1,0),
+                              other = ifelse(raceth == 5,1,0),
+                              hisp = ifelse(raceth == 7,1,0))
+  # id var
+  d_fmla$id <- as.numeric(rownames(d_fmla))
+  d_fmla <- d_fmla[order(d_fmla$id),]
+  
+  # --------------------------------------------------------------------
+  # leave characteristics
+  # --------------------------------------------------------------------
+  
+  
+  # length of leave for most recent leave
+  # take mid points in days of categorical leave length questions 
+  # round up/down on tie breaks in alternating fashion
+  
+  leave_lengths <- c(1, 2, 3, 4, 5, 8, 13, 18, 23, 28, 33, 40, 48, 55, 65, 80, 105, 150)
+  
+  val <- 1
+  d_fmla <- d_fmla %>% mutate(length = ifelse(a19_mr_cat == 1,1,NA))
+  for (i in leave_lengths[2:length(leave_lengths)]){
+    val <- val + 1
+    d_fmla <- d_fmla %>% mutate(length = ifelse(a19_mr_cat == val,i,length))
+  }
+  
+  # old longest leave length code
+  # d_fmla <- d_fmla %>% mutate(long_length = ifelse(is.na(A20) == FALSE & A20 == 2, A19_1_CAT_rev, NA))
+  # d_fmla <- d_fmla %>% mutate(long_length = ifelse(long_reason==reason_take,NA,long_length))
+  
+  d_fmla <- d_fmla %>% mutate(lengthsq = length^2,
+                              lnlength = log(length),
+                              lnlengthsq = lnlength^2)
+  
+  # --------------------------
+  # Benefits and pay received
+  # --------------------------
+  
+  # Adding values in leave program variables for starting condition (absence of program)
+  # Leave Program Participation
+  # baseline is absence of program, so this will start as a nonparticipant
+  d_fmla  <- d_fmla  %>% mutate(particip = 0)
+  
+  # Benefits received as proportion of pay
+  # baseline is employer-provided pay: starting at 0, will be imputed
+  d_fmla  <- d_fmla  %>% mutate(benefit_prop = 0)
+  
+  # Cost to program as proportion of pay
+  # baseline is 0
+  d_fmla  <- d_fmla  %>% mutate(cost_prop = 0)
+  
+  # weights
+  # w_emp <- d_fmla %>% filter(LEAVE_CAT == 3) %>% summarise(w_emp = mean(weight))
+  # w_leave <- d_fmla %>% filter(LEAVE_CAT != 3) %>% summarise(w_leave = mean(weight))
+  
+  # d_fmla <- d_fmla %>% mutate(fixed_weight = ifelse(LEAVE_CAT == 3, w_emp, w_leave),
+  #                             freq_weight = round(weight))
+  # 
+  # d_fmla <- d_fmla %>% mutate(fixed_weight = unlist(fixed_weight))
+  
+  # --------------------------
+  # dummies for leave type 
+  # -------------------------- 
+  leave_types <- c("own","illspouse","illchild","illparent","matdis","bond")
+  
+  # there are three variables for each leave type for most recent leave:
+  # (1) taking a leave - take_*
+  # (2) needing a leave - need_*
+  # (3) length of most recent leave - length_*
+  
+  # taking leave
+  d_fmla <- d_fmla %>% mutate(take_own= ifelse(a5_mr_cat==1,1,0))
+  d_fmla <- d_fmla %>% mutate(take_own= ifelse(is.na(a5_mr_cat),NA,take_own))
+  d_fmla <- d_fmla %>% mutate(take_own= ifelse(leave_cat==2 | leave_cat==3, 0,take_own))
+  
+  d_fmla <- d_fmla %>% mutate(take_matdis= ifelse(a5_mr_cat==3 | a5_mr_cat==20,1,0))
+  d_fmla <- d_fmla %>% mutate(take_matdis= ifelse(is.na(a5_mr_cat),NA,take_matdis))
+  d_fmla <- d_fmla %>% mutate(take_matdis= ifelse(leave_cat==2 | leave_cat==3, 0,take_matdis))
+  
+  d_fmla <- d_fmla %>% mutate(take_bond= ifelse(a5_mr_cat==5|a5_mr_cat==8|a5_mr_cat==21,1,0))
+  d_fmla <- d_fmla %>% mutate(take_bond= ifelse(is.na(a5_mr_cat),NA,take_bond))
+  d_fmla <- d_fmla %>% mutate(take_bond= ifelse(leave_cat==2 | leave_cat==3, 0,take_bond))
+  
+  d_fmla <- d_fmla %>% mutate(take_illchild= ifelse(a5_mr_cat==11,1,0))
+  d_fmla <- d_fmla %>% mutate(take_illchild= ifelse(is.na(a5_mr_cat),NA,take_illchild))
+  d_fmla <- d_fmla %>% mutate(take_illchild= ifelse(leave_cat==2 | leave_cat==3, 0,take_illchild))
+  
+  d_fmla <- d_fmla %>% mutate(take_illspouse= ifelse(a5_mr_cat==12 | a5_mr_cat==16,1,0))
+  d_fmla <- d_fmla %>% mutate(take_illspouse= ifelse(is.na(a5_mr_cat),NA,take_illspouse))
+  d_fmla <- d_fmla %>% mutate(take_illspouse= ifelse(leave_cat==2 | leave_cat==3, 0,take_illspouse))
+  
+  d_fmla <- d_fmla %>% mutate(take_illparent= ifelse(a5_mr_cat==13,1,0))
+  d_fmla <- d_fmla %>% mutate(take_illparent= ifelse(is.na(a5_mr_cat),NA,take_illparent))
+  d_fmla <- d_fmla %>% mutate(take_illparent= ifelse(leave_cat==2 | leave_cat==3, 0,take_illparent))
+  
+  # needing leave
+  d_fmla <- d_fmla %>% mutate(need_own= ifelse(b6_cat==1,1,0))
+  d_fmla <- d_fmla %>% mutate(need_own= ifelse(is.na(b6_cat),NA,need_own))
+  d_fmla <- d_fmla %>% mutate(need_own= ifelse(leave_cat==2 | leave_cat==3, 0,need_own))
+  
+  d_fmla <- d_fmla %>% mutate(need_matdis= ifelse(b6_cat==3 | b6_cat==20,1,0))
+  d_fmla <- d_fmla %>% mutate(need_matdis= ifelse(is.na(b6_cat),NA,need_matdis))
+  d_fmla <- d_fmla %>% mutate(need_matdis= ifelse(leave_cat==2 | leave_cat==3, 0,need_matdis))
+  
+  d_fmla <- d_fmla %>% mutate(need_bond= ifelse(b6_cat==5|b6_cat==8|b6_cat==9|b6_cat==21,1,0))
+  d_fmla <- d_fmla %>% mutate(need_bond= ifelse(is.na(b6_cat),NA,need_bond))
+  d_fmla <- d_fmla %>% mutate(need_bond= ifelse(leave_cat==2 | leave_cat==3, 0,need_bond))
+  
+  d_fmla <- d_fmla %>% mutate(need_illchild= ifelse(b6_cat==11,1,0))
+  d_fmla <- d_fmla %>% mutate(need_illchild= ifelse(is.na(b6_cat),NA,need_illchild))
+  d_fmla <- d_fmla %>% mutate(need_illchild= ifelse(leave_cat==2 | leave_cat==3, 0,need_illchild))
+  
+  d_fmla <- d_fmla %>% mutate(need_illspouse= ifelse(b6_cat==12 | b6_cat==16,1,0))
+  d_fmla <- d_fmla %>% mutate(need_illspouse= ifelse(is.na(b6_cat),NA,need_illspouse))
+  d_fmla <- d_fmla %>% mutate(need_illspouse= ifelse(leave_cat==2 | leave_cat==3, 0,need_illspouse))
+  
+  d_fmla <- d_fmla %>% mutate(need_illparent= ifelse(b6_cat==13,1,0))
+  d_fmla <- d_fmla %>% mutate(need_illparent= ifelse(is.na(b6_cat),NA,need_illparent))
+  d_fmla <- d_fmla %>% mutate(need_illparent= ifelse(leave_cat==2 | leave_cat==3, 0,need_illparent))
+  
+  # taking or needing any leave
+  d_fmla['taker']=rowSums(d_fmla[,paste('take',c("own","illspouse","illchild","illparent","matdis","bond"),sep="_")], na.rm=TRUE)
+  d_fmla['needer']=rowSums(d_fmla[,paste('need',c("own","illspouse","illchild","illparent","matdis","bond"),sep="_")], na.rm=TRUE)
+  d_fmla <- d_fmla %>% mutate(taker=ifelse(taker>=1, 1, 0))
+  d_fmla <- d_fmla %>% mutate(needer=ifelse(needer>=1, 1, 0))
+  
+  # whether any pay was received during leave
+  d_fmla <- d_fmla %>% mutate(anypay=ifelse(a43==1 | (a43==2 & a43a==2),1,0))
+  d_fmla <- d_fmla %>% mutate(anypay=ifelse(is.na(a43),NA,anypay))
+  d_fmla <- d_fmla %>% mutate(anypay=ifelse(a43c==4,0,anypay))
+  
+  # proportion of pay - mid point of FMLA ranges
+  d_fmla$prop_pay_employer <- NA
+  d_fmla <- d_fmla %>% mutate(prop_pay_employer=ifelse(anypay==0,0,prop_pay_employer))
+  d_fmla <- d_fmla %>% mutate(receive_no_state_benefit=ifelse(paid_leave_state==0 | # in no-program state
+                                                              (is.na(a43i_d_cat) & is.na(a43i_e_cat)) # received no st benefit
+                                                              ,1, NA))
+  d_fmla <- d_fmla %>% mutate(prop_pay_employer=ifelse(a43c==1 & receive_no_state_benefit==1,1,prop_pay_employer))
+  
+  # length received full pay
+  # set prop in (0,1) for rows that has valid a43g_cat
+  leave_cats=c(1, 2, 3, 4, 5, 8, 13, 18, 23, 28, 33, 38, 43, 48, 55, 75, 120)
+  val <- 1
+  d_fmla <- d_fmla %>% mutate(length_full_pay = ifelse(a43d_cat == 1 & is.na(a43g_cat)==FALSE,1,NA))
+  for (i in leave_cats[2:length(leave_cats)]){
+    val <- val + 1
+    d_fmla <- d_fmla %>% mutate(length_full_pay = ifelse(a43d_cat == val & is.na(a43g_cat)==FALSE,i,length_full_pay))
+  }
+  
+  # length received partial pay
+  leave_cats=c(1, 2, 3, 5, 8, 13, 18, 23, 28, 35, 43, 53, 75, 120)
+  val <- 1
+  d_fmla <- d_fmla %>% mutate(length_partial_pay = ifelse(a43f_cat == 1 & is.na(a43g_cat)==FALSE,1,NA))
+  for (i in leave_cats[2:length(leave_cats)]){
+    val <- val + 1
+    d_fmla <- d_fmla %>% mutate(length_partial_pay = ifelse(a43f_cat == val & is.na(a43g_cat)==FALSE,i,length_partial_pay))
+  }
+  
+  # if length < length full + length partial, allocate proportionally between full/partial days
+  d_fmla <- d_fmla %>% mutate(allocate=ifelse(is.na(a43g_cat)==FALSE & length < length_full_pay + length_partial_pay,1,NA))
+  d_fmla <- d_fmla %>% mutate(length_full_pay=ifelse(allocate==1,length*length_full_pay/(length_full_pay+length_partial_pay),length_full_pay))
+  d_fmla <- d_fmla %>% mutate(length_partial_pay=ifelse(allocate==1,length-length_full_pay,length_partial_pay))
+  
+  
+  # estimate prop pay for rows with valid a43g_cat
+  dct_rre <- c(0.125, 0.375, 0.5, 0.55, 0.635, 0.685, 0.73, 0.78, 0.9)
+  
+  val <- 1
+  d_fmla <- d_fmla %>% mutate(rre_val = ifelse(a43g_cat == 1 & is.na(a43g_cat)==FALSE,.125,NA))
+  for (i in dct_rre[2:length(dct_rre)]){
+    val <- val + 1
+    d_fmla <- d_fmla %>% mutate(rre_val = ifelse(a43g_cat == val & is.na(a43g_cat)==FALSE,i,rre_val))
+  }
+  
+  d_fmla <- d_fmla %>% mutate(prop_pay_employer=ifelse(is.na(a43g_cat)==FALSE,(length_full_pay + length_partial_pay*rre_val)/length,prop_pay_employer))
+  
+  # resp_len
+  # resp_len will flag 0/1 for a worker that will take longer leave if offered financially more generous leave policy
+  d_fmla$resp_len <- NA
+  d_fmla <- d_fmla %>% mutate(resp_len=ifelse(leave_cat==3,0,resp_len))
+  d_fmla <- d_fmla %>% mutate(resp_len=ifelse(a10_mr==2 | a10_mr==3 | a10_mr==4,1,resp_len))
+  d_fmla <- d_fmla %>% mutate(resp_len=ifelse(a10_long_cat==2 | a10_long_cat==3 | a10_long_cat==4,1,resp_len))
+  d_fmla <- d_fmla %>% mutate(resp_len=ifelse(a53g==1,1,resp_len))
+  d_fmla <- d_fmla %>% mutate(resp_len=ifelse(a55==1,1,resp_len))
+  d_fmla <- d_fmla %>% mutate(resp_len=ifelse(na62b==1,1,resp_len))
+  d_fmla <- d_fmla %>% mutate(resp_len=ifelse(na62f==1,0,resp_len))
+  d_fmla <- d_fmla %>% mutate(resp_len=ifelse(b15e==1,1,resp_len))
+  
+  # FMLA coverage - use fmla_eligible
+  # do not use self-perception of eligiblity (ne6) due to possible misunderstanding by worker
+  d_fmla <- d_fmla %>% mutate(coveligd=fmla_eligible)
+  
+  # tenure at job - <1yr, [1, 3), [3, 5), [5, 10), 10yr+
+  # ten0->e0a_cat (single job), ten1->e0f_cat(main if 1+ job), ten2->e0i_cat(second job if 1+ job)
+  dct_tenure=list()
+  dct_tenure[['ten0']] = cbind(mapply(list, seq(1,2), rep('0_1',2)), # <1 year
+                            mapply(list, seq(3,26), rep('1_3',24)), # [1,3)
+                            mapply(list, seq(27,50), rep('3_5',24)), # [3,5)
+                            mapply(list, seq(51,56), rep('5_10',6)), # [5, 10)
+                            mapply(list, seq(57,84), rep('10_up',28))) # 10 year
+  dct_tenure[['ten1']] = cbind(mapply(list, seq(1,2), rep('0_1',2)), # <1 year
+                            mapply(list, seq(3,5), rep('1_3',3)), # [1,3)
+                            mapply(list, seq(6,7), rep('3_5',2)), # [3,5)
+                            mapply(list, seq(8,12), rep('5_10',5)), # [5, 10)
+                            mapply(list, seq(13,26), rep('10_up',14))) # 10 year
+  dct_tenure[['ten2']] = cbind(mapply(list, seq(1,2), rep('0_1',2)), # <1 year
+                            mapply(list, seq(3,5), rep('1_3',3)), # [1,3)
+                            mapply(list, seq(6,7), rep('3_5',2)), # [3,5)
+                            mapply(list, seq(8,12), rep('5_10',5)), # [5, 10)
+                            mapply(list, seq(13,22), rep('10_up',10))) # 10 year
+  
+  d_fmla$job_tenure1 <- sapply(d_fmla$e0a_cat, function (x) {(dct_tenure[['ten0']][2,x])})
+  
+  d_fmla$job_tenure2 <- sapply(d_fmla$e0f_cat, function (x) {(dct_tenure[['ten1']][2,x])})
+   
+  d_fmla$job_tenure3 <- sapply(d_fmla$e0i_cat, function (x) {(dct_tenure[['ten2']][2,x])})
+  
+  d_fmla$job_tenure <- d_fmla$job_tenure1
+  
+  d_fmla <- d_fmla %>% mutate(job_tenure=ifelse(is.na(job_tenure), job_tenure2, job_tenure))
+  d_fmla <- d_fmla %>% mutate(job_tenure=ifelse(is.na(job_tenure), job_tenure3, job_tenure))
+  d_fmla$job_tenure <- lapply(d_fmla$job_tenure, function(x) {x[[1]]})
+  d_fmla$null_tenure <- sapply(d_fmla$job_tenure, is.null) 
+  d_fmla <- d_fmla %>% mutate(job_tenure=ifelse(null_tenure, NA, job_tenure))
+  d_fmla$job_tenure <- unlist(d_fmla$job_tenure)
+  d_fmla <- d_fmla %>% select(-job_tenure1, -job_tenure2, -job_tenure3, -null_tenure)
+  
+  # make categorical variables for job tenure
+  tenure_cats <- as.data.frame(dummies::dummy('job_tenure',d_fmla))
+  for (i in c('job_tenure0_1', 'job_tenure1_3', 'job_tenure10_up', 'job_tenure3_5', 'job_tenure5_10')) {
+    tenure_cats[i] <- with(tenure_cats, ifelse(get('job_tenureNA')==1,NA, get(i)))
+  }
+  
+  
+  tenure_cats <- tenure_cats %>% select(-job_tenureNA)
+  d_fmla <- cbind(d_fmla, tenure_cats)
+ 
+  # paid hourly
+  d_fmla <- d_fmla %>% mutate(hourly= ifelse(e9_cat==2, 1, 0))
+  
+  # occupation - map to CPS code (a_mjocc)
+  occ_codes <- list(c(11,13),c(15,17,19,21,23,25,27,29),c(31,33,35,37,39),41,43,45,47,49,51,53,55)
+  val <- 1
+  for (i in occ_codes) {
+      d_fmla[paste0('occ_',val)] <- with(d_fmla, ifelse(ne16_coded %in% occ_codes[val][[1]],1,0))
+      val <- val + 1
+  }
+
+  # industry - map to CPS code (a_mjind). Note: wave 18 data uses string for ind code
+  ind_codes <- list('11', '21', '23', '31-33', c('42', '44-45'), c('22', '48-49'), '51',
+                     '52', c('53', '54', '55'), c('56', '61'), c('62', '71'), '81', '92')
+  val <- 1
+  for (i in ind_codes) {
+    d_fmla[paste0('ind_',val)] <- with(d_fmla, ifelse(ne15_coded %in% ind_codes[val][[1]],1,0))
+    val <- val + 1
+  }
+  
+  # saving data
+  if (save_csv==TRUE) {
+    write.csv(d_fmla, file = "./csv_inputs/fmla_clean_2018.csv", row.names = FALSE)  
+  }
+  
+  return(d_fmla)
+}
+
+# ============================ #
 # 2. clean_acs
 # ============================ #
 
@@ -556,9 +984,12 @@ clean_acs <-function(d,d_hh,save_csv=FALSE,POW_weight=FALSE) {
   # number of dependents
   d_hh$ndep_kid <- d_hh$NOC
   d_hh$ndep_old <- d_hh$R65
+  d_hh$ndep_spouse <- d_hh$FES
+  d_hh <- d_hh %>% mutate(ndep_spouse_kid=ndep_kid+ndep_spouse)
+  d_hh <- d_hh %>% mutate(noelderly=ifelse(ndep_old==0, 1, 0))
   
   # cut down vars to save on memory
-  d_hh <- d_hh[c("SERIALNO","nochildren","lnfaminc","faminc", "PARTNER","ndep_kid","ndep_old",'NPF')]
+  d_hh <- d_hh[c("SERIALNO","nochildren","lnfaminc","faminc", "PARTNER","ndep_kid","ndep_old",'NPF','NOC','R65','FES')]
   
   # -------------------------- #
   # ACS Person File
@@ -642,6 +1073,10 @@ clean_acs <-function(d,d_hh,save_csv=FALSE,POW_weight=FALSE) {
   d <- d %>% mutate(empgov_loc=ifelse(COW==3, 1, 0))
   d <- d %>% mutate(empgov_loc=ifelse(is.na(COW)==TRUE, NA, empgov_loc))
   
+  # placeholder for union for now.
+  # TODO: add union import in CPS imputation
+  d['union']=runif(nrow(d))
+  
   # occupation
   # since there is an actual OCCP variable in ACS file, going to use OCC as our varname going forward
   
@@ -678,6 +1113,8 @@ clean_acs <-function(d,d_hh,save_csv=FALSE,POW_weight=FALSE) {
   d <- d %>% mutate(empgov_fed = ifelse(COW == 5,1,0))
   d <- d %>% mutate(empgov_st = ifelse(COW == 4,1,0))
   d <- d %>% mutate(empgov_loc = ifelse(COW == 3,1,0))
+  d <- d %>% mutate(emp_gov = ifelse(COW == 3|COW == 4|COW == 5,1,0))
+  d <- d %>% mutate(emp_nonprofit = ifelse(COW == 2,1,0))
   
   # industry
   d <- d %>% mutate(  ind_1 = ifelse(INDP>=170 & INDP<=290 ,1,0),
@@ -737,6 +1174,10 @@ clean_acs <-function(d,d_hh,save_csv=FALSE,POW_weight=FALSE) {
   # log earnings
   d <- d %>% mutate(wage12=WAGP*(ADJINC/1056030))
   d <- d %>% mutate(lnearn=ifelse(wage12>0, log(wage12), NA))
+  d <- d %>% mutate(wage_hourly= wage12/wkswork/wkhours)
+  
+  d <- d %>% mutate(low_wage=ifelse(wage_hourly<15),1,0)
+  d <- d %>% mutate(low_wage=ifelse(is.na(wage_hourly)),NA,wage_hourly)
   
   # family income
   # Make more coarse categores
@@ -770,7 +1211,7 @@ clean_acs <-function(d,d_hh,save_csv=FALSE,POW_weight=FALSE) {
            "ind_5", "ind_6", "ind_7", "ind_8", "ind_9", "ind_10", "ind_11", "ind_12", "ind_13", "weeks_worked",
            "WAGP",'wage12',"WKHP","PWGTP", replicate_weights,"FER", "WKW","COW","ESR",'NPF',"partner","ndep_kid",
            "ndep_old",'empgov_fed','empgov_st', 'wkhours', 'empgov_loc', 'ST','POWSP','age_cat','faminc_cat','employed',
-           'married','HSgrad','BAplus')]
+           'married','HSgrad','BAplus','INDP','OCCP','SPORDER','FES','NOC','R65')]
 
   # id variable from SERIALNO [Household ID] and SPORDER [Individual ID within Household]
   d$id <- as.numeric(paste0(as.character(d$SERIALNO),as.character(d$SPORDER)))

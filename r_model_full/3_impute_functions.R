@@ -6,10 +6,6 @@
 #
 # 9 Sept 2018
 # Luke
-# 
-# TESTING TODO: what happens when filtered test data sets of 0 obs are fed into imputation functions
-#               currently is handled properly by runOrdinalImpute and runRandDraw. 
-#               Should make sure others are as well.
 #
 # """
 
@@ -21,7 +17,7 @@
 
 # 1. impute_fmla_to_acs
 # Modular imputation methods - can be swaped out for one another for FMLA to ACS imputation of:
-# take_* vars, resp_len, prop_pay variables
+# take_* vars, resp_len, prop_pay_employer variables
   # 1A. KNN1_scratch
   # 1B. logit_leave_method
       # 1Ba. runLogitImpute - used in hardcoded methods found elsewhere as well
@@ -76,9 +72,8 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
              need_matdis = "need_matdis",
              need_bond = "need_bond",
              anypay = "anypay",
-             prop_pay = "prop_pay",
-             resp_len= "resp_len",
-             unaffordable = 'unaffordable')
+             prop_pay_employer = "prop_pay_employer",
+             resp_len= "resp_len")
   
   # filters: logical conditionals always applied to filter vraiable imputation 
   filts <- c(own = "TRUE",
@@ -94,9 +89,8 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
                    need_matdis = "female == 1 & nochildren == 0 & age <= 50",
                    need_bond = "nochildren == 0 & age <= 50",
                    anypay = "TRUE",
-                   prop_pay="TRUE",
-                   resp_len="TRUE",
-                  unaffordable = 'TRUE')
+                   prop_pay_employer="TRUE",
+                   resp_len="TRUE")
   
   # weight: if method uses FMLA weights, the weight variable to use
   weights <- c(own = "~ weight",
@@ -112,9 +106,8 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
               need_matdis = "~ weight",
               need_bond = "~ weight",
               anypay = "~ weight",
-              prop_pay = '~ weight',
-              resp_len = "~ weight",
-              unaffordable = "~ weight")
+              prop_pay_employer = '~ weight',
+              resp_len = "~ weight")
   
   # Save ACS and FMLA Dataframes at this point to document format that 
   # alternative imputation methods will need to expect
@@ -210,10 +203,10 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
                                 weights=weights, create_dummies=TRUE)
   }
   
-  # finally, account for two-stage estimation of anypay and prop_pay. Prop_pay has no 0 values, just .125-1.
-  # Two-stage estimation is implemented by giving anypay prescendence - prop_pay set to 0 if anypay==0. 
-  # Prop_pay unchanged if anypay==1.
-  d_acs <- d_acs %>% mutate(prop_pay=ifelse(anypay==0,0,prop_pay))
+  # finally, account for two-stage estimation of anypay and prop_pay_employer. prop_pay_employer has no 0 values, just .125-1.
+  # Two-stage estimation is implemented by giving anypay prescendence - prop_pay_employer set to 0 if anypay==0. 
+  # prop_pay_employer unchanged if anypay==1.
+  d_acs <- d_acs %>% mutate(prop_pay_employer=ifelse(anypay==0,0,prop_pay_employer))
   
   return(d_acs)
 }
@@ -364,11 +357,11 @@ logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, t
   }
  
   
-  # remove prop_pay from lists as we need to use ordinal regression for it
-  train_filts <- list.remove(train_filts, 'prop_pay')
-  test_filts <- list.remove(test_filts, 'prop_pay')
-  yvars <- list.remove(yvars, 'prop_pay')
-  weights <- list.remove(weights, 'prop_pay')
+  # remove prop_pay_employer from lists as we need to use ordinal regression for it
+  train_filts <- list.remove(train_filts, 'prop_pay_employer')
+  test_filts <- list.remove(test_filts, 'prop_pay_employer')
+  yvars <- list.remove(yvars, 'prop_pay_employer')
+  weights <- list.remove(weights, 'prop_pay_employer')
   
   # generate formulas for logistic regression
   # need formula strings to look something like "take_own ~ age + agesq + male + ..." 
@@ -409,15 +402,15 @@ logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, t
   
   # set formula
   if (xvars[1]!="") {
-    formula <- paste("factor(prop_pay) ~", paste(xvars[1],'+', paste(xvars[2:length(xvars)], collapse=" + ")))
+    formula <- paste("factor(prop_pay_employer) ~", paste(xvars[1],'+', paste(xvars[2:length(xvars)], collapse=" + ")))
   }
   else {
-    formula <- paste("factor(prop_pay) ~ 1")
+    formula <- paste("factor(prop_pay_employer) ~ 1")
   }
     
-  # Do an ordinal logit imputation for prop_pay
+  # Do an ordinal logit imputation for prop_pay_employer
   d_filt <- runOrdinalEstimate(d_train=d_train,d_test=d_test, formula=formula,
-                               test_filt="TRUE", train_filt="TRUE", varname='prop_pay')
+                               test_filt="TRUE", train_filt="TRUE", varname='prop_pay_employer')
   
   # old merge code caused memory issues. Using match instead.
   #d_test <- merge(d_filt, d_test, by='id', all.y=TRUE)
@@ -427,13 +420,13 @@ logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, t
     }
   }
   d_test <- d_test_no_imp
-  # replace factor levels with prop_pay proportions
-  d_test <- d_test %>% mutate(prop_pay = ifelse(prop_pay == 1, .125, prop_pay))
-  d_test <- d_test %>% mutate(prop_pay = ifelse(prop_pay == 2, .375, prop_pay))
-  d_test <- d_test %>% mutate(prop_pay = ifelse(prop_pay == 3, .5, prop_pay))
-  d_test <- d_test %>% mutate(prop_pay = ifelse(prop_pay == 4, .625, prop_pay))
-  d_test <- d_test %>% mutate(prop_pay = ifelse(prop_pay == 5, .875, prop_pay))
-  d_test <- d_test %>% mutate(prop_pay = ifelse(prop_pay == 6, 1, prop_pay))
+  # replace factor levels with prop_pay_employer proportions
+  d_test <- d_test %>% mutate(prop_pay_employer = ifelse(prop_pay_employer == 1, .125, prop_pay_employer))
+  d_test <- d_test %>% mutate(prop_pay_employer = ifelse(prop_pay_employer == 2, .375, prop_pay_employer))
+  d_test <- d_test %>% mutate(prop_pay_employer = ifelse(prop_pay_employer == 3, .5, prop_pay_employer))
+  d_test <- d_test %>% mutate(prop_pay_employer = ifelse(prop_pay_employer == 4, .625, prop_pay_employer))
+  d_test <- d_test %>% mutate(prop_pay_employer = ifelse(prop_pay_employer == 5, .875, prop_pay_employer))
+  d_test <- d_test %>% mutate(prop_pay_employer = ifelse(prop_pay_employer == 6, 1, prop_pay_employer))
   
   return(d_test)
 }
@@ -449,8 +442,7 @@ runLogitEstimate <- function(d_train,d_test, formula, test_filt,train_filt, weig
                              varname, create_dummies){
   options(warn=-1)
   des <- svydesign(id = ~1,  weights = as.formula(weight), data = d_train %>% filter_(train_filt))
-  complete <- svyglm(as.formula(formula), data = d_train %>% filter_(train_filt),
-                     family = "quasibinomial",design = des)
+  complete <- svyglm(as.formula(formula), data = d_train %>% filter_(train_filt), family = "quasibinomial",design = des)
   options(warn=0)
   estimate <- complete$coefficients 
   
@@ -649,7 +641,7 @@ runRandDraw <- function(d, yvar, filt, leave_dist, ext_resp_len, rr_sensitive_le
         
         # if leave extension response ratio sensitivity is enabled, interpolate leave length to be somewhere 
         # between the max needed and status quo leave length
-        # prop_pay -> status quo receipt
+        # prop_pay_employer -> status quo receipt
         # first, create maximum need length var or "mnl_" var - will be same as yvar if sensitivity not enabled.
         mnl_var <- sub('length','mnl',yvar)
         est_df[mnl_var] <- est_df[yvar]
@@ -658,7 +650,7 @@ runRandDraw <- function(d, yvar, filt, leave_dist, ext_resp_len, rr_sensitive_le
         if (rr_sensitive_leave_len==TRUE) {
           merge_ids <-match(est_df$id,d_filt$id)
           # load variables from test data needed for interpolation
-          est_df['prop_pay'] <- d_filt[merge_ids, 'prop_pay'] 
+          est_df['prop_pay_employer'] <- d_filt[merge_ids, 'prop_pay_employer'] 
           est_df['resp_len'] <- d_filt[merge_ids, 'resp_len'] 
           est_df['dual_receiver'] <- d_filt[merge_ids, 'dual_receiver'] 
           # set couterfactual leave taking var equal to Z+ (X-Z)*(rrp-rre)/(1-rre), where:
@@ -668,24 +660,24 @@ runRandDraw <- function(d, yvar, filt, leave_dist, ext_resp_len, rr_sensitive_le
           # wage_rr <- wage of program
           est_df['wage_rr'] <- wage_rr
           # rrp is max(wage_rr, rre)
-          est_df['rrp'] <- apply(est_df[c('wage_rr','prop_pay')], 1, max)
+          est_df['rrp'] <- apply(est_df[c('wage_rr','prop_pay_employer')], 1, max)
           # apply formula to estimate couterfactual leave for single receivers
           est_df[yvar] <- with(est_df, ifelse(dual_receiver==0,
-              get(squo_var)+ (get(mnl_var)-get(squo_var))*(rrp-prop_pay)/(1-prop_pay),get(yvar)))
-          # formula for dual receivers is the same, except rrp = min(prop_pay+wage_rr, 1)  
-          est_df['rrp_dual'] <- est_df['prop_pay']+est_df['wage_rr']
+              get(squo_var)+ (get(mnl_var)-get(squo_var))*(rrp-prop_pay_employer)/(1-prop_pay_employer),get(yvar)))
+          # formula for dual receivers is the same, except rrp = min(prop_pay_employer+wage_rr, 1)  
+          est_df['rrp_dual'] <- est_df['prop_pay_employer']+est_df['wage_rr']
           est_df <- est_df %>% mutate(rrp_dual=ifelse(rrp_dual>1,1,rrp_dual))
           est_df[yvar] <- with(est_df, ifelse(dual_receiver==1,
-                                              get(squo_var)+ (get(mnl_var)-get(squo_var))*(rrp_dual-prop_pay)/(1-prop_pay),get(yvar)))
+                                              get(squo_var)+ (get(mnl_var)-get(squo_var))*(rrp_dual-prop_pay_employer)/(1-prop_pay_employer),get(yvar)))
 
           # round to nearest whole day
           est_df[yvar] <- round(est_df[yvar])
           
-          # get nan/infinity for those with prop_pay=1 b/c of dividing by 0; these are already at maximum needed length,
+          # get nan/infinity for those with prop_pay_employer=1 b/c of dividing by 0; these are already at maximum needed length,
           # so we just keep the value the same
           est_df[is.na(est_df[yvar]),yvar] <- est_df[is.na(est_df[yvar]),mnl_var] 
           est_df[!is.finite(est_df[[yvar]]),yvar] <- est_df[!is.finite(est_df[[yvar]]),mnl_var] 
-          est_df <- est_df[, !(names(est_df) %in% c('prop_pay','resp_len','wage_rr','rrp','rrp_dual','dual_receiver'))]
+          est_df <- est_df[, !(names(est_df) %in% c('prop_pay_employer','resp_len','wage_rr','rrp','rrp_dual','dual_receiver'))]
         }
       }
       # if these dataframes are empty, then we only have resp_len = 0 in test and we make the cfact var the same
@@ -858,7 +850,7 @@ Naive_Bayes <- function(d_train, d_test, yvars, train_filts, test_filts, weights
       w_train[,c(j)] <- factor(w_train[,c(j)], levels=levels(w_test[,c(j)]))
     }
     
-    #wanbia <- compute_wanbia_weights('prop_pay', as.data.frame(sapply(w_train, as.factor))) 
+    #wanbia <- compute_wanbia_weights('prop_pay_employer', as.data.frame(sapply(w_train, as.factor))) 
     wanbia <- bnc(dag_learner = 'nb',class=yvars[[i]], dataset=w_train,smooth=0,wanbia=TRUE) 
     
     
@@ -880,15 +872,15 @@ Naive_Bayes <- function(d_train, d_test, yvars, train_filts, test_filts, weights
     
     # Play wheel of fortune with which prop_val to assign to each test obs
     wanbia_imp['rand'] <- runif(nrow(wanbia_imp))
-    if (i == 'prop_pay') {
-      wanbia_imp['prop_pay'] <- NA
+    if (i == 'prop_pay_employer') {
+      wanbia_imp['prop_pay_employer'] <- NA
       wanbia_imp['cum']=0
-      var_vals <- sapply(unname(sort(unlist(c(unique(w_train['prop_pay']))))),toString)
+      var_vals <- sapply(unname(sort(unlist(c(unique(w_train['prop_pay_employer']))))),toString)
       for (j in var_vals) {
-        wanbia_imp['prop_pay'] <- with(wanbia_imp, ifelse(rand > cum & rand<(cum + get(j)), j, prop_pay))
+        wanbia_imp['prop_pay_employer'] <- with(wanbia_imp, ifelse(rand > cum & rand<(cum + get(j)), j, prop_pay_employer))
         wanbia_imp['cum']= wanbia_imp[,'cum'] + wanbia_imp[,j]
       }
-      wanbia_imp['prop_pay'] <- as.numeric(wanbia_imp[,'prop_pay'])
+      wanbia_imp['prop_pay_employer'] <- as.numeric(wanbia_imp[,'prop_pay_employer'])
     }
     else {
       wanbia_imp[yvars[[i]]] <- as.data.frame(ifelse(wanbia_imp[2]>wanbia_imp['rand'],1,0)) 
@@ -945,9 +937,9 @@ ridge_class <- function(d_train, d_test, yvars, train_filts, test_filts, weights
       }
     }
     
-    # as prop_pay is categorical, we need to do ordinal version of ridge regression
+    # as prop_pay_employer is categorical, we need to do ordinal version of ridge regression
     # rest of the vars are handled in this loop
-    if (i!= 'prop_pay') {
+    if (i!= 'prop_pay_employer') {
       
       model <- lm.ridge(formula = formulas[i], data = ftrain[c(yvars[i], temp_xvars)])
       
@@ -974,13 +966,13 @@ ridge_class <- function(d_train, d_test, yvars, train_filts, test_filts, weights
       #d_test <- merge(d_test, impute[c('id', yvars[i])], by='id', all.x = TRUE)
       d_test[yvars[[i]]] <- impute[match(d_test$id, impute$id), yvars[[i]]]
     }
-    # ordinal ridge regression for prop_pay
+    # ordinal ridge regression for prop_pay_employer
     # can't find a package that does an ordinal implementation, so writing one from scratch here
     # TODO: Not exactly ordinal in implementation right now, if there's time to revisit this could be done 
     else {
-      # create dummies for each value of prop_pay
-      dums <- dummy(ftrain$prop_pay)
-      var_vals <- paste0('prop_pay_',sort(unlist(c(unique(ftrain['prop_pay'])))))
+      # create dummies for each value of prop_pay_employer
+      dums <- dummy(ftrain$prop_pay_employer)
+      var_vals <- paste0('prop_pay_employer_',sort(unlist(c(unique(ftrain['prop_pay_employer'])))))
       colnames(dums) <- var_vals
       ftrain <- cbind(ftrain, dums)
       
@@ -1018,11 +1010,11 @@ ridge_class <- function(d_train, d_test, yvars, train_filts, test_filts, weights
       
       # Play wheel of fortune with which prop_val to assign to each test obs
       d_test['rand'] <- runif(nrow(d_test))
-      d_test['prop_pay'] <- NA
+      d_test['prop_pay_employer'] <- NA
       d_test['cum']=0
       for (j in var_vals) {
-        pay_val <- as.numeric(gsub("prop_pay_", "", j))
-        d_test['prop_pay'] <- with(d_test, ifelse(rand > cum & rand<(cum + get(j)), pay_val, prop_pay))
+        pay_val <- as.numeric(gsub("prop_pay_employer_", "", j))
+        d_test['prop_pay_employer'] <- with(d_test, ifelse(rand > cum & rand<(cum + get(j)), pay_val, prop_pay_employer))
         d_test['cum']= d_test[,'cum'] + d_test[,j]
       }
       
@@ -1064,16 +1056,16 @@ random_forest <- function(d_train, d_test, yvars, train_filts, test_filts, weigh
   
     # play wheel of fortune with predicted probabilities to get imputed value
     impute['rand'] <- runif(nrow(impute))
-    # do this differently for prop_pay as a non-binary categorical var
-    if (i=='prop_pay'){
-      impute['prop_pay'] <- NA
+    # do this differently for prop_pay_employer as a non-binary categorical var
+    if (i=='prop_pay_employer'){
+      impute['prop_pay_employer'] <- NA
       impute['cum']=0
-      var_vals <- sapply(unname(sort(unlist(c(unique(ftrain['prop_pay']))))),toString)
+      var_vals <- sapply(unname(sort(unlist(c(unique(ftrain['prop_pay_employer']))))),toString)
       for (j in var_vals) {
-        impute['prop_pay'] <- with(impute, ifelse(rand > cum & rand<(cum + get(j)), j, prop_pay))
+        impute['prop_pay_employer'] <- with(impute, ifelse(rand > cum & rand<(cum + get(j)), j, prop_pay_employer))
         impute['cum']= impute[,'cum'] + impute[,j]
       }
-      impute['prop_pay'] <- as.numeric(impute[,'prop_pay'])
+      impute['prop_pay_employer'] <- as.numeric(impute[,'prop_pay_employer'])
     }
     # rest of vars are binary
     else {
@@ -1214,7 +1206,7 @@ xg_boost_impute <- function(d_train, d_test, yvars, train_filts, test_filts, wei
     colnames(impute)[1] <- yvars[i]
     
     # if a binary variable, play wheel of fortune to assign value based on estimated probability
-    if (i != 'prop_pay') {
+    if (i != 'prop_pay_employer') {
       impute['rand'] <- runif(nrow(impute))
       impute[yvars[[i]]] <- as.data.frame(ifelse(impute[1]>impute['rand'],1,0))
     }

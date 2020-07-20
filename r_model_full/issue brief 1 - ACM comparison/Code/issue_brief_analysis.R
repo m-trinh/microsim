@@ -8,7 +8,7 @@ options(error=recover)
 #options(error=NULL)
 library('stringr')
 library('ggplot2')
-source("5_output_analysis_functions.R")
+source("6_output_analysis_functions.R")
 
 # load simulated csvs for each state
 ri <- read.csv('output/RI_logitissue_brief_1.csv')
@@ -21,7 +21,7 @@ leave_types <- c("own","illspouse","illchild","illparent","matdis","bond")
 vars <- append(c(),values=c(paste0('ptake_', leave_types),c('ptake_DI','ptake_PFL'), paste0('plen_', leave_types), 
                             c('DI_plen','PFL_plen','bene_DI','bene_PFL','actual_benefits','eligworker')))
 results <- data.frame(row.names = vars)
-for (i in vars)
+#for (i in vars)
 results['CA'] <- NA
 results['NJ'] <- NA
 results['RI'] <- NA
@@ -75,6 +75,6 @@ for (v in vars) {
   }
 }
 results['source'] <- 'IMPAQ'
-write.csv(results,file='output/issue_brief_1 nums.csv')
+write.csv(results,file='output/issue_brief_1 nums 5_21.csv')
 
 
