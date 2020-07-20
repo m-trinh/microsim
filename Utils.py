@@ -380,71 +380,72 @@ def create_r_command(general_params, other_params, progress_file):
     """
 
     # Create a list of parameter values
-    params = [
-        other_params.replacement_ratio,  # base_bene_level
-        'KNN1',  # settings.simulation_method,  # impute_method
-        True,  # makelog
-        1,  # sample_prop?
-        general_params.state,  # state
-        other_params.fed_employees,  # FEDGOV
-        other_params.state_employees,  # STATEGOV
-        other_params.local_employees,  # LOCALGOV
-        other_params.self_employed,  # SELFEMP
-        general_params.state_of_work,  # place_of_work
-        True,  # exclusive_particip
-        False,  # SMOTE
-        False,  # ext_resp_len
-        'mean',  # len_method
-        'resp_len',  # sens_var?
-        'post',  # progalt_post_or_pre
-        True,  # intra_impute
-        True,  # ext_base_effect
-        0.01,  # extend_prob
-        1,  # extend_days
-        1.01,  # extend_prop
-        other_params.top_off_rate,  # topoff_rate
-        other_params.top_off_min_length,  # topoff_minlength
-        other_params.benefit_effect,  # bene_effect
-        0,  # dependent_allow
-        other_params.needers_fully_participate,  # fill_particip_needer
-        5,  # wait_period
-        other_params.clone_factor,  # clone_factor
-        other_params.weekly_ben_cap,  # week_bene_cap
-        0,  # weekly_ben_min
-        other_params.take_up_rates['Own Health'],  # own_uptake
-        other_params.take_up_rates['Maternity'],  # matdis_uptake
-        other_params.take_up_rates['New Child'],  # bond_uptake
-        other_params.take_up_rates['Ill Parent'],  # illparent_uptake
-        other_params.take_up_rates['Ill Spouse'],  # illspouse_uptake
-        other_params.take_up_rates['Ill Child'],  # illchild_uptake
-        other_params.max_weeks['Own Health'] * 5,  # maxlen_own
-        other_params.max_weeks['Maternity'] * 5,  # maxlen_matdis
-        other_params.max_weeks['New Child'] * 5,  # maxlen_bond
-        other_params.max_weeks['Ill Parent'] * 5,  # maxlen_illparent
-        other_params.max_weeks['Ill Spouse'] * 5,  # maxlen_illspouse
-        other_params.max_weeks['Ill Child'] * 5,  # maxlen_illchild
-        260,  # maxlen_total
-        30,  # maxlen_PFL
-        260,  # maxlen_DI
-        other_params.eligible_earnings,  # earnings
-        other_params.eligible_weeks,  # weeks
-        other_params.eligible_hours,  # ann_hours
-        other_params.eligible_size,  # minsize
-        other_params.leave_probability_factors['Own Health'],  # own_elig_adj
-        other_params.leave_probability_factors['Maternity'],  # matdis_elig_adj
-        other_params.leave_probability_factors['New Child'],  # bond_elig_adj
-        other_params.leave_probability_factors['Ill Parent'],  # illspouse_elig_adj
-        other_params.leave_probability_factors['Ill Spouse'],  # illparent_elig_adj
-        other_params.leave_probability_factors['Ill Child'],  # illchild_elig_adj
-        'output',  # output
-        123,  # random_seed
-        progress_file.replace('r_model_full/', ''),
-        '../log/',
-        general_params.output_directory
-    ]
+    params = {
+        'base_bene_level': other_params.replacement_ratio,  # base_bene_level
+        'impute_method': general_params.simulation_method.replace(' ', '_'),  # impute_method
+        'makelog': True,  # makelog
+        'state': general_params.state,  # state
+        'FEDGOV': other_params.fed_employees,  # FEDGOV
+        'STATEGOV': other_params.state_employees,  # STATEGOV
+        'LOCALGOV': other_params.local_employees,  # LOCALGOV
+        'SELFEMP': other_params.self_employed,  # SELFEMP
+        'place_of_work': general_params.state_of_work,  # place_of_work
+        'dependent_allow': 0,  # dependent_allow
+        'needers_fully_participate': other_params.needers_fully_participate,  # fill_particip_needer
+        'clone_factor': other_params.clone_factor,  # clone_factor
+        'week_bene_cap': other_params.weekly_ben_cap,  # week_bene_cap
+        'own_uptake': other_params.take_up_rates['Own Health'],  # own_uptake
+        'matdis_uptake': other_params.take_up_rates['Maternity'],  # matdis_uptake
+        'bond_uptake': other_params.take_up_rates['New Child'],  # bond_uptake
+        'illparent_uptake': other_params.take_up_rates['Ill Parent'],  # illparent_uptake
+        'illspouse_uptake': other_params.take_up_rates['Ill Spouse'],  # illspouse_uptake
+        'illchild_uptake': other_params.take_up_rates['Ill Child'],  # illchild_uptake
+        'maxlen_own': other_params.max_weeks['Own Health'] * 5,  # maxlen_own
+        'maxlen_matdis': other_params.max_weeks['Maternity'] * 5,  # maxlen_matdis
+        'maxlen_bond': other_params.max_weeks['New Child'] * 5,  # maxlen_bond
+        'maxlen_illparent': other_params.max_weeks['Ill Parent'] * 5,  # maxlen_illparent
+        'maxlen_illspouse': other_params.max_weeks['Ill Spouse'] * 5,  # maxlen_illspouse
+        'maxlen_illchild': other_params.max_weeks['Ill Child'] * 5,  # maxlen_illchild
+        'maxlen_total': 260,  # maxlen_total
+        'maxlen_PFL': 30,  # maxlen_PFL
+        'maxlen_DI': 260,  # maxlen_DI
+        'earnings': other_params.eligible_earnings,  # earnings
+        'weeks': other_params.eligible_weeks,  # weeks
+        'ann_hours': other_params.eligible_hours,  # ann_hours
+        'minsize': other_params.eligible_size,  # minsize
+        'output': 'output',  # output
+        'random_seed': general_params.random_seed,  # random_seed
+        'progress_file': progress_file.replace('r_model_full/', ''),
+        'log_directory': '../log/',
+        'out_dir': general_params.output_directory,
+        'alpha': other_params.alpha,
+        # '': 1,  # sample_prop?
+        # '': True,  # exclusive_particip
+        # '': False,  # SMOTE
+        # '': False,  # ext_resp_len
+        # '': 'mean',  # len_method
+        # '': 'resp_len',  # sens_var?
+        # '': 'post',  # progalt_post_or_pre
+        # '': True,  # intra_impute
+        # '': True,  # ext_base_effect
+        # '': 0.01,  # extend_prob
+        # '': 1,  # extend_days
+        # '': 1.01,  # extend_prop
+        # 'topoff_rate': other_params.top_off_rate,  # topoff_rate
+        # 'topoff_minlength': other_params.top_off_min_length,  # topoff_minlength
+        # 'bene_effect': other_params.benefit_effect,  # bene_effect
+        # '': 5,  # wait_period
+        # '': 0,  # week_ben_min
+        # '': other_params.leave_probability_factors['Own Health'],  # own_elig_adj
+        # '': other_params.leave_probability_factors['Maternity'],  # matdis_elig_adj
+        # '': other_params.leave_probability_factors['New Child'],  # bond_elig_adj
+        # '': other_params.leave_probability_factors['Ill Parent'],  # illspouse_elig_adj
+        # '': other_params.leave_probability_factors['Ill Spouse'],  # illparent_elig_adj
+        # '': other_params.leave_probability_factors['Ill Child'],  # illchild_elig_adj
+    }
 
     # Convert the list into a string
-    params = [str(p) for p in params]
+    params = ['--{}={}'.format(k, v) for k, v in params.items()]
     command = '{} --vanilla run_engine.R {}'.format(general_params.r_path, ' '.join(params))
     return command
 

@@ -138,13 +138,13 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
   }
   
   # Logit estimation of leave taking to compare with Chris' results in Python
-  if (impute_method=="logit") {
+  if (impute_method=="Logistic Regression Regularized") {
     d_acs <- logit_leave_method(d_test=d_acs, d_train=d_fmla, xvars=xvars, 
                                 yvars=yvars, test_filts=filts, train_filts=filts, 
                                 weights=weights, create_dummies=TRUE)
   }
   
-  if (impute_method=="KNN_multi") {
+  if (impute_method=="K Nearest Neighbor") {
     # INPUTS: variable to be imputed, conditionals to filter training and test data on, FMLA data (training), and
     #         ACS data (test), id variable, and dependent variables to use in imputation, number of nbors
     impute <- mapply(KNN_multi, imp_var=yvars,train_filt=filts, test_filt=filts,
@@ -163,7 +163,7 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
     }
     
   }
-  if (impute_method=="Naive_Bayes") {
+  if (impute_method=="Naive Bayes") {
     options(warn=-1)
     d_acs <- Naive_Bayes(d_test=d_acs, d_train=d_fmla, xvars=xvars, 
                          yvars=yvars, test_filts=filts, train_filts=filts, 
@@ -171,24 +171,24 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
     options(warn=0)
   }
   
-  if (impute_method=="ridge_class") {
+  if (impute_method=="Ridge Classifier") {
     d_acs <- ridge_class(d_test=d_acs, d_train=d_fmla, xvars=xvars, 
                          yvars=yvars, test_filts=filts, train_filts=filts, 
                          weights=weights)
   }
   
-  if (impute_method=="random_forest") {
+  if (impute_method=="Random Forest") {
     d_acs <- random_forest(d_test=d_acs, d_train=d_fmla, xvars=xvars, 
                          yvars=yvars, test_filts=filts, train_filts=filts, 
                          weights=weights)
   }
   
-  if (impute_method=="svm") {
+  if (impute_method=="Support Vector Machine") {
     d_acs <- svm_impute(d_test=d_acs, d_train=d_fmla, xvars=xvars, 
                            yvars=yvars, test_filts=filts, train_filts=filts, 
                            weights=weights)
   }
-  if (impute_method=="xg_boost") {
+  if (impute_method=="XGBoost") {
     d_acs <- xg_boost_impute(d_test=d_acs, d_train=d_fmla, xvars=xvars, 
                         yvars=yvars, test_filts=filts, train_filts=filts, 
                         weights=weights)

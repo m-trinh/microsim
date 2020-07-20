@@ -46,9 +46,7 @@ from Utils import check_dependency, get_sim_name, create_cost_chart, STATE_CODES
 
 class SimulationEngine:
     def __init__(self, st, yr, fmla_wave, fps_in, fps_out, clf_name='Logistic Regression Regularized',
-                 state_of_work=True,
-                 worker_class={'private':True, 'self_emp':False, 'gov_fed': False, 'gov_st': False, 'gov_loc': False},
-                 random_state=None, pow_pop_multiplier=1.02, q=None):
+                 state_of_work=True, random_state=None, pow_pop_multiplier=1.02, q=None):
         """
         :param st: state name, 'ca', 'ma', etc.
         :param yr: end year of 5-year ACS
@@ -73,7 +71,6 @@ class SimulationEngine:
         self.fp_length_distribution_out = fps_out[4]
         self.clf_name = clf_name
         self.state_of_work = state_of_work
-        self.worker_class = worker_class
         self.random_seed = random_state
         print('Random seed:', self.random_seed)
         self.random_state = np.random.RandomState(self.random_seed)
