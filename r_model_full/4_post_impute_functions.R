@@ -304,7 +304,6 @@ ELIGIBILITYRULES <- function(d, earnings=NULL, weeks=NULL, ann_hours=NULL, minsi
                              formula_bene_levels=NULL, elig_rule_logic, FEDGOV, STATEGOV, LOCALGOV, SELFEMP,PRIVATE, dual_receiver) {
   
   # ----- apply eligibility rules logic to calculate initial participation ---------------
-  # TODO: This should be redone in a more simple fashion once the input expected from the GUI is hammered out.
   # strip terms from those criteria in elig_rule_logic that have corresponding NULL values
   for (i in c('earnings', 'weeks', 'ann_hours', 'minsize')) {
     if (is.null(get(i))) {
@@ -384,7 +383,6 @@ ELIGIBILITYRULES <- function(d, earnings=NULL, weeks=NULL, ann_hours=NULL, minsi
 # ============================ #
 # subfunction to implement formulaic benefit payouts by wage, 
 # rather than a flat proportion for all participants
-# TODO: There might be a simpler way to do this once the input expected from the GUI is hammered out.
 
 FORMULA <- function(d, formula_prop_cuts=NULL, formula_value_cuts=NULL, formula_bene_levels) {
   
@@ -658,10 +656,14 @@ EXTENDLEAVES <-function(d_train, d_test,wait_period, ext_base_effect,
 
 
 UPTAKE <- function(d, own_uptake, matdis_uptake, bond_uptake, illparent_uptake, 
-                   illspouse_uptake, illchild_uptake, full_particip, wait_period, 
+                   illspouse_uptake, illchild_uptake, full_particip, wait_period, wait_period_recollect,
                    maxlen_own, maxlen_matdis, maxlen_bond, maxlen_illparent, maxlen_illspouse, maxlen_illchild,
                    maxlen_total, maxlen_DI, maxlen_PFL,dual_receiver,min_takeup_cpl,alpha) {
   
+  # if wait_period_recollect is true, essentially wait_period is zero for this purpose
+  if (wait_period_recollect) {
+    wait_period=0
+  }
   # calculate uptake -> days of leave that program benefits are collected
   d['particip_length']=0
   for (i in leave_types) {
@@ -918,8 +920,6 @@ BENEFITEFFECT <- function(d, bene_effect) {
   d <- d %>% mutate(bene_diff=ifelse(is.na(bene_diff), 0, bene_diff))
   d['bene_diff']=as.integer(d[,'bene_diff'])
   
-  # PLACEHOLDER dealing with missing faminc values for the test ACS data set.
-  # need to come up with systematic way of addressing missing values in ACS eventually
   d <- d %>% mutate(faminc=ifelse(is.na(faminc),wage12,faminc))
   
   # define family income to match 2001 Westat survey categories
@@ -1024,12 +1024,27 @@ TOPOFF <- function(d, topoff_rate, topoff_minlength) {
 # ============================ #
 # 10. DEPENDENTALLOWANCE
 # ============================ #
-# include a flat weekly dependent allowance for families with children
+# include a weekly dependent allowance for families with children
+# dependent_allow expected to be a number (all families with children get benefit), or vector of numbers (each element is the marginal increase of an
+# additional child up n children, where n = length of vector)
 
 DEPENDENTALLOWANCE <- function(d,dependent_allow) {
-  d <- d %>% mutate(actual_benefits=ifelse(particip==1 & nochildren==0, actual_benefits+(dependent_allow)*particip_length/5,actual_benefits))
-  # placeholder for effective rre
-  # TODO: implement dependent allowance var compatable with GUI
+  d$dep_bene_allow <- 0
+  kid_count <- 1
+  for (x in dependent_allow) {
+    d <- d %>% mutate(dep_bene_allow=ifelse(ndep_kid>=kid_count,dep_bene_allow+x,dep_bene_allow))
+    kid_count <- kid_count + 1
+  }
+  d <- d %>% mutate(benefit_prop=benefit_prop + dep_bene_allow)
+  # cap at full salary
+  d <- d %>% mutate(benefit_prop=pmin(1,benefit_prop))
+
+  # recalculate benefits based on updated benefit_prop
+  # actual benefits received from program
+  d <- d %>% mutate(actual_benefits=wage12/(round(weeks_worked*5))*particip_length*benefit_prop)
+  d <- d %>% mutate(actual_benefits=ifelse(is.na(actual_benefits),0,actual_benefits))
+  
+  # create overall effective rrp
   d <- d %>% mutate(effective_rrp= benefit_prop)
   return(d)
 }

@@ -1174,10 +1174,10 @@ clean_acs <-function(d,d_hh,save_csv=FALSE,POW_weight=FALSE) {
   # log earnings
   d <- d %>% mutate(wage12=WAGP*(ADJINC/1056030))
   d <- d %>% mutate(lnearn=ifelse(wage12>0, log(wage12), NA))
-  d <- d %>% mutate(wage_hourly= wage12/wkswork/wkhours)
+  d <- d %>% mutate(wage_hourly= wage12/weeks_worked/wkhours)
   
-  d <- d %>% mutate(low_wage=ifelse(wage_hourly<15),1,0)
-  d <- d %>% mutate(low_wage=ifelse(is.na(wage_hourly)),NA,wage_hourly)
+  d <- d %>% mutate(low_wage=ifelse(wage_hourly<15,1,0))
+  d <- d %>% mutate(low_wage=ifelse(is.na(wage_hourly),NA,wage_hourly))
   
   # family income
   # Make more coarse categores
