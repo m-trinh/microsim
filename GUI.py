@@ -495,7 +495,13 @@ class MicrosimGUI(Tk):
         if state_of_work:
             fp_acsh_in = self.general_params.acs_directory + '/%s/pow_household_files' % yr
             fp_acsp_in = self.general_params.acs_directory + '/%s/pow_person_files' % yr
-        fp_fmla_out = './data/cps/fmla_clean_%s.csv' % fmla_wave
+        worker_class = dict(zip(['private', 'self_emp', 'gov_fed', 'gov_st', 'gov_loc'],
+                                [self.default_params.private,
+                                 self.default_params.self_employed,
+                                 self.default_params.fed_employees,
+                                 self.default_params.state_employees,
+                                 self.default_params.local_employees]))
+        fp_fmla_out = './data/fmla/fmla_%s/fmla_clean_%s.csv' % (fmla_wave, fmla_wave)
         fp_dir_out = self.general_params.output_directory
         fp_cps_out = './data/cps/cps_for_acs_sim.csv'
         fp_acs_out = self.general_params.acs_directory
@@ -505,8 +511,11 @@ class MicrosimGUI(Tk):
 
         clf_name = self.general_params.simulation_method
         random_seed = self.general_params.random_seed
+
+        print('----------------------------------------------------------1111111111111111111111111111111')
+        print(worker_class)
         return SimulationEngine(st, yr, fmla_wave, fps_in, fps_out, clf_name=clf_name, random_state=random_seed,
-                                state_of_work=state_of_work, q=q)
+                                state_of_work=state_of_work, worker_class=worker_class, q=q)
 
     def add_engine_params(self, parameters):
         """Add additional engine parameters from an OtherParameters object
@@ -952,7 +961,7 @@ class GeneralParamsFrame(Frame):
                        'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY')
 
         # Currently implemented simulation methods
-        self.simulation_methods = ('Logistic Regression GLM', 'Logistic Regression', 'Ridge Classifier',
+        self.simulation_methods = ('Logistic Regression GLM', 'Logistic Regression Regularized', 'Ridge Classifier',
                                    'K Nearest Neighbor', 'Naive Bayes', 'Support Vector Machine',
                                    'Random Forest', 'XGBoost')
         self.cwd = os.getcwd()  # Current working directory
@@ -1032,14 +1041,14 @@ class GeneralParamsFrame(Frame):
         self.simulation_method_label = TipLabel(self, tip, text='Simulation Method:', bg=DARK_COLOR,
                                                 fg=LIGHT_COLOR)
         self.simulation_method_input = ttk.Combobox(self, textvariable=self.variables['simulation_method'],
-                                                    state="readonly", width=21, values=self.simulation_methods)
+                                                    state="readonly", width=30, values=self.simulation_methods)
         self.simulation_method_input.current(0)
 
         # ----------------------------------------------- Random Seed -----------------------------------------------
         tip = 'The value that will be used in random number generation. Can be used to recreate results as long ' \
               'as all other parameters are unchanged.'
         self.random_seed_label = TipLabel(self, tip, text="Random Seed:", bg=DARK_COLOR, fg=LIGHT_COLOR)
-        self.random_seed_input = GeneralEntry(self, textvariable=self.variables['random_seed'], width=23)
+        self.random_seed_input = GeneralEntry(self, textvariable=self.variables['random_seed'], width=32)
 
         # ----------------------------------------------- Engine Type -----------------------------------------------
         tip = 'Choose between the Python and R model.'

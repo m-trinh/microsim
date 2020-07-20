@@ -166,12 +166,6 @@ else:
 
 
 
-
-
-
-
-
-
 types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
 for t in types:
     print(d['take_%s' % t].value_counts())
@@ -218,5 +212,61 @@ acs3 = pd.read_csv(fp3)
 
 # modify R code to match Py
 
+# residence state CA ACS - person and household file merge, SERIALNO is int in 1 file but object in the other
+dh = pd.read_csv('./data/acs/2018/household_files/ss18hca.csv', usecols=['SERIALNO', 'NPF'])
+dp = pd.read_csv('./data/acs/2018/person_files/ss18pca.csv', usecols=['SERIALNO', 'WKW'])
+#pd.merge(dp, dh, how='left', on='SERIALNO')
+for d in pd.read_csv('./data/acs/2018/person_files/ss18pca.csv', usecols=['SERIALNO', 'WKW'], chunksize=100000, low_memory=False):
+    pd.merge(d, dh, how='left', on='SERIALNO')
+dh['SERIALNO'] = dh['SERIALNO'].astype(str)
+dh['idtype'] = [type(x) for x in dh['SERIALNO']]
+dp['SERIALNO'] = dp['SERIALNO'].astype(str)
+dp['idtype'] = [type(x) for x in dp['SERIALNO']]
 
+# get total case counts in post-sim acs
+x = 0
+for t in types:
+    print('Total case counts for type %s' % t)
+    print(acs[(acs['takeup_%s' % t]==1)]['PWGTP'].sum())
+    x+=acs[(acs['takeup_%s' % t]==1)]['PWGTP'].sum()
+print('Total case counts for all types:')
+print(x)
 
+# IB6 - back of envelope calculation of top-coding sum of cpl_matdis and cpl_bond at 60 days, and allocate benefits
+fp_acs = 'output/_ib6_v2/output_20200624_222132_main simulation_fed_rf/acs_sim_all_20200624_222132.csv'
+fp_acs1250 = 'output/_ib6_v2/output_20200625_155900_main simulation_fed_rf_1250/acs_sim_all_20200625_155900.csv'
+acs = pd.read_csv(fp_acs)
+acs1250 = pd.read_csv(fp_acs1250)
+
+def get_outlay(acs):
+    # all takeup_type = 1 for matdis, bond since assumed takeup rates = 1 for federal parental leave program
+    # verify annual_benefit cols add up to GUI results
+    outlay_matdis = round(((acs.annual_benefit_matdis)*(acs.PWGTP)).sum()/10**6, 1)
+    print('Outlay matdis = $%s million' % outlay_matdis)
+    outlay_bond = round(((acs.annual_benefit_bond)*(acs.PWGTP)).sum()/10**6, 1)
+    print('Outlay bond = $%s million' % outlay_bond)
+    print(' --- Total outlay = %s' % (outlay_matdis + outlay_bond))
+    return None
+get_outlay(acs)
+get_outlay(acs1250)
+
+## below checks why acs and acs1250 merge results in unique rows in BOTH side -
+## - caused by ACS-CPS impute logit missing seed control
+# cols = ['SERIALNO', 'SPORDER', 'annual_benefit_matdis', 'annual_benefit_bond', 'wage12', 'cpl_matdis', 'cpl_bond', 'wkhours']
+# acsm = pd.merge(acs[cols], acs1250[cols], on=['SERIALNO', 'SPORDER'], how='outer', indicator=True)
+# acsm[acsm['_merge']=='left_only'].sort_values(by=['SERIALNO', 'SPORDER']).wkhours_x.describe()
+
+# get scale-down factor if total cpl>60
+acs['cpl_matdis_bond'] = acs['cpl_matdis'] + acs['cpl_bond']
+acs['cpl_matdis_bond_capped'] = [min(x, 60) for x in acs['cpl_matdis_bond']]
+acs['scale_down'] = acs['cpl_matdis_bond_capped']/acs['cpl_matdis_bond']
+# apply scale-down factor to annual benefit of each type
+for t in ['matdis', 'bond']:
+    acs['annual_benefit_%s_allocate' % t] = acs['annual_benefit_%s' % t] * acs['scale_down']
+# get annual benefit with 60-day cap applied
+
+outlay_matdis_capped = round(((acs.annual_benefit_matdis_allocate)*(acs.PWGTP)).sum()/10**6, 1)
+print('Outlay matdis capped = $%s million' % outlay_matdis_capped)
+outlay_bond_capped = round(((acs.annual_benefit_bond_allocate)*(acs.PWGTP)).sum()/10**6, 1)
+print('Outlay bond capped = $%s million' % outlay_bond_capped)
+print(' --- Total outlay = %s' % (outlay_matdis_capped + outlay_bond_capped))
