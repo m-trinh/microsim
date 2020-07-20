@@ -138,7 +138,7 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
   }
   
   # Logit estimation of leave taking to compare with Chris' results in Python
-  if (impute_method=="Logistic Regression Regularized") {
+  if (impute_method=="Logistic Regression GLM") {
     d_acs <- logit_leave_method(d_test=d_acs, d_train=d_fmla, xvars=xvars, 
                                 yvars=yvars, test_filts=filts, train_filts=filts, 
                                 weights=weights, create_dummies=TRUE)
