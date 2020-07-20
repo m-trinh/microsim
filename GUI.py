@@ -251,6 +251,37 @@ class MicrosimGUI(Tk):
             else:
                 self.variables[param_key].set(param_val)
 
+    def check_all_states(self):
+        if not self.check_all_states_employees():
+            return False
+
+        params = self.all_params[0]
+        main_eligibility = [params.private, params.self_employed, params.fed_employees, params.state_employees,
+                            params.local_employees]
+        if self.current_state == 'All' and main_eligibility != [False, False, True, True, True]:
+            return messagebox.askokcancel('Warning', 'Running the model on all states will take a very long time and '
+                                                     'could exceed the system\'s memory. Would you like to proceed?')
+
+        return True
+
+    def check_all_states_employees(self):
+        if self.general_params.state != 'All' or not self.comparing:
+            return True
+
+        params = self.all_params[0]
+        main_eligibility = [params.private, params.self_employed, params.fed_employees, params.state_employees,
+                            params.local_employees]
+        for i in range(1, len(self.all_params)):
+            params = self.all_params[i]
+            eligibility = [params.private, params.self_employed, params.fed_employees, params.state_employees,
+                           params.local_employees]
+            if main_eligibility != eligibility:
+                messagebox.showinfo('Error', message='When comparing programs for All States, Eligible Employee Types '
+                                                     'must be the same across all programs')
+                return False
+
+        return True
+
     def run_simulation(self):
         """Run the simulation from the parameters that user provides"""
         # Before running simulation, check for input errors
@@ -267,11 +298,8 @@ class MicrosimGUI(Tk):
         self.save_params()
         self.current_state = self.general_params.state
 
-        if self.current_state == 'All':
-            run = messagebox.askokcancel('Warning', 'Running the model on all states will take a very long time and '
-                                                    'could exceed the system\'s memory. Would you like to proceed?')
-            if not run:
-                return
+        if not self.check_all_states():
+            return
 
         self.currently_running = True
         self.run_button.disable()  # Prevent user from running another simulation when one is already running
@@ -2873,6 +2901,7 @@ class ProgressWindow(Toplevel):
         if self.engine_process.is_alive():
             print('Terminating simulation')
             self.engine_process.terminate()
+            self.parent.run_button.enable()
 
         self.destroy()
 

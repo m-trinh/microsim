@@ -223,10 +223,12 @@ class SimulationEngine:
 
         self.__put_queue({'type': 'message', 'engine': None,
                           'value': 'Cleaning ACS data. State chosen = %s. Chunk size = 100000 ACS rows' % self.st})
+        # set yr_adjinc = self.fmla_wave to inflation-adjust
         dca = DataCleanerACS(self.st, self.yr, self.fp_acsh_in, self.fp_acsp_in, self.fp_acs_out, self.state_of_work,
-                             self.random_state, self.fmla_wave, self.worker_class) # set yr_adjinc = self.fmla_wave to inflation-adjust
+                             self.random_state, self.fmla_wave, self.prog_para[0]['incl_private'],
+                             self.prog_para[0]['incl_empgov_fed'], self.prog_para[0]['incl_empgov_st'],
+                             self.prog_para[0]['incl_empgov_loc'], self.prog_para[0]['incl_empself'])
         message = dca.clean_person_data(self.fp_cps_in)
-
         self.__put_queue({'type': 'progress', 'engine': None, 'value': 50})
         self.__put_queue({'type': 'message', 'engine': None, 'value': message})
         self.progress = 50
@@ -304,7 +306,7 @@ class SimulationEngine:
             # Train models using FMLA, and simulate on ACS workers
             t0 = time()
             gov_workers_only = False
-            if (not self.worker_class['private']) and (not self.worker_class['self_emp']):
+            if not params['incl_private'] and not params['incl_empself']:
                 gov_workers_only = True
             col_Xs, col_ys, col_w =get_columns(self.fmla_wave, params['leave_types'], gov_workers_only=gov_workers_only)
             X = d[col_Xs]

@@ -21,8 +21,7 @@ import os
 class DataCleanerACS:
 
     def __init__(self, st, yr, fp_h, fp_p, fp_out, state_of_work, random_state, yr_adjinc,
-                 worker_class={'private':True, 'self_emp':False, 'gov_fed': False, 'gov_st': False, 'gov_loc': False}
-                 ):
+                 private, self_emp, gov_fed, gov_st, gov_loc):
         '''
         :param st: state name, e.g.'ma'
         :param yr: end year of 5-year ACS, e.g. 2016
@@ -42,7 +41,11 @@ class DataCleanerACS:
         self.state_of_work = state_of_work
         self.random_state = random_state
         self.yr_adjinc = yr_adjinc
-        self.worker_class = worker_class
+        self.private = private
+        self.self_emp = self_emp
+        self.gov_fed = gov_fed
+        self.gov_st = gov_st
+        self.gov_loc = gov_loc
         # a dict from fmla_wave, acs yr to adjinc
         # to get 2012 dollars, convert dollor to lowest ACS year then use ACS12-16 ADJINC
         # to get 2018 dollars, convert dollar to greatest ACS year then use ACS14-18 ADJINC
@@ -67,7 +70,7 @@ class DataCleanerACS:
              "41", "42", "44", "45", "46", "47", "48", "49", "50", "51", "53", "54", "55", "56"]
                                ))
 
-    def load_hh_data(self, st, worker_class):
+    def load_hh_data(self, st):
         '''
         load and prepare ACS household data needed for merging to large ACS 5-year person file
         :return: reduced ACS household data for merging to ACS person data
@@ -75,17 +78,15 @@ class DataCleanerACS:
 
         # Load ACS household data and create some variables
         # a single state
-        if self.st.lower()!='all':
+        if self.st.lower() == 'all' and not self.private and not self.self_emp and \
+                (self.gov_fed or self.gov_st or self.gov_loc):
+            print('\n\n\n~~~~~~~~ Reading gov worker master data ~~~~~~~~~~~~\n\n\n')
+            fp_d_hh = self.fp_h + '/gov_workers_us_household_%s_fed_state_local.csv' % (str(self.yr))
+        # national gov workers only
+        else:
             fp_d_hh = self.fp_h + '/ss%sh%s.csv' % (str(self.yr)[-2:], st)
             if self.state_of_work:
                 fp_d_hh = self.fp_h + '/h%s_%s_pow.csv' % (self.dct_st[st], st)
-        # national gov workers only
-        elif not self.worker_class['self_emp'] and \
-                (worker_class['gov_fed'] or worker_class['gov_st'] or worker_class['gov_loc']):
-            print('\n\n\n~~~~~~~~ Reading gov worker master data ~~~~~~~~~~~~\n\n\n')
-            fp_d_hh = self.fp_h + '/gov_workers_us_household_%s_fed_state_local.csv' % (str(self.yr))
-
-
 
         d_hh = pd.read_csv(fp_d_hh, low_memory=False)
         # SERIALNO to string - chars in this ID from 2017
@@ -107,7 +108,7 @@ class DataCleanerACS:
         return d_hh[['SERIALNO', 'NPF', 'nochildren', 'noelderly', 'faminc', 'ln_faminc', 'PARTNER'] +
                     ['ndep_kid', 'ndep_spouse', 'ndep_spouse_kid']]
     
-    def clean_person_state_data(self, st, worker_class, cps, chunk_size=100000):
+    def clean_person_state_data(self, st, cps, chunk_size=100000):
         ## First handle CPS data outside the ACS person data chunk loop
         # fill na in CPS
         cps = fillna_df(cps, self.random_state)
@@ -155,7 +156,7 @@ class DataCleanerACS:
             dct_cps_clfs[col_y] = clf
 
         ## Get household data for merging to person data chunks
-        d_hh = self.load_hh_data(st, worker_class)
+        d_hh = self.load_hh_data(st)
 
         ## Work on ACS person data in chunks
         # initiate output master person data to store cleaned up chunks
@@ -167,15 +168,15 @@ class DataCleanerACS:
 
         # set file path to person file, per state_of_work and worker_class filter values
         # a single state
-        if self.st.lower()!='all':
+        if self.st.lower() == 'all' and not self.private and not self.self_emp and \
+                (self.gov_fed or self.gov_st or self.gov_loc):
+            print('\n\n\n~~~~~~~~ Reading gov worker master data ~~~~~~~~~~~~\n\n\n')
+            fp_d_p = self.fp_p + '/gov_workers_us_person_%s_fed_state_local.csv' % (str(self.yr))
+        # national gov workers only
+        else:
             fp_d_p = self.fp_p + "/ss%sp%s.csv" % (str(self.yr)[-2:], st)
             if self.state_of_work:
                 fp_d_p = self.fp_p + '/p%s_%s_pow.csv' % (self.dct_st[st], st)
-        # national gov workers only
-        elif not worker_class['self_emp'] and \
-                (worker_class['gov_fed'] or worker_class['gov_st'] or worker_class['gov_loc']):
-            print('\n\n\n~~~~~~~~ Reading gov worker master data ~~~~~~~~~~~~\n\n\n')
-            fp_d_p = self.fp_p + '/gov_workers_us_person_%s_fed_state_local.csv' % (str(self.yr))
 
         # process person data by chunk
         for d in pd.read_csv(fp_d_p, chunksize=chunk_size, low_memory=False):
@@ -464,13 +465,13 @@ class DataCleanerACS:
         # Process ACS data
         # a single state
         if self.st.lower() != 'all':
-            dout = self.clean_person_state_data(self.st, self.worker_class, cps, chunk_size=chunk_size)
+            dout = self.clean_person_state_data(self.st, cps, chunk_size=chunk_size)
             dout.to_csv(self.fp_out + "ACS_cleaned_forsimulation_%s_%s.csv" % (self.yr, self.st), index=False,
                         header=True)
         # TODO: GUI's default_params.private etc. not updated per user input, not passed to worker_class in GUI
         # TODO: temp solution below - if st=ALL, do it for US Fed gov workers... need a formal fix
         else:
-            dout = self.clean_person_state_data(self.st, self.worker_class, cps, chunk_size=chunk_size)
+            dout = self.clean_person_state_data(self.st, cps, chunk_size=chunk_size)
             dout.to_csv(self.fp_out + "ACS_cleaned_forsimulation_%s_%s_gov.csv" % (self.yr, self.st), index=False,
                         header=True)
         # # all states, private workers eligible
