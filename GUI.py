@@ -510,6 +510,9 @@ class MicrosimGUI(Tk):
 
         clf_name = self.general_params.simulation_method
         random_seed = self.general_params.random_seed
+
+        print('----------------------------------------------------------1111111111111111111111111111111')
+        print(worker_class)
         return SimulationEngine(st, yr, fmla_wave, fps_in, fps_out, clf_name=clf_name, random_state=random_seed,
                                 state_of_work=state_of_work, worker_class=worker_class, q=q)
 
