@@ -218,6 +218,7 @@ class MicrosimGUI(Tk):
 
     def on_close(self):
         """When the main window is closed, destroy all progress and result windows. Also destroy main window."""
+        self.terminate_engine()
         for w in self.progress_windows:
             w.quit()
             w.destroy()
@@ -226,6 +227,10 @@ class MicrosimGUI(Tk):
             w.destroy()
         self.quit()
         self.destroy()
+
+    def terminate_engine(self):
+        if self.engine_process is not None and self.engine_process.is_alive():
+            self.engine_process.terminate()
 
     def set_existing_parameters(self, *_):
         """Changes all relevant parameters to match an existing state program"""
@@ -262,7 +267,14 @@ class MicrosimGUI(Tk):
         self.save_params()
         self.current_state = self.general_params.state
 
+        if self.current_state == 'All':
+            run = messagebox.askokcancel('Warning', 'Running the model on all states will take a very long time and '
+                                                    'could exceed the system\'s memory. Would you like to proceed?')
+            if not run:
+                return
+
         self.currently_running = True
+        self.run_button.disable()  # Prevent user from running another simulation when one is already running
 
         # Run either to Python or R engine
         if self.general_params.engine_type == 'Python':
@@ -283,13 +295,12 @@ class MicrosimGUI(Tk):
             if not self.comparing:
                 break
 
-        self.run_button.disable()  # Prevent user from running another simulation when one is already running
-        progress_window = ProgressWindow(self)  # Create progress window
-        self.progress_windows.append(progress_window)  # Keep track of all progress windows
-
         # Run model
         self.engine_process = multiprocessing.Process(None, target=run_engine_python, args=(self.sim_engine, q))
         self.engine_process.start()
+
+        progress_window = ProgressWindow(self, self.engine_process)  # Create progress window
+        self.progress_windows.append(progress_window)  # Keep track of all progress windows
 
         progress_window.update_progress_python(q)  # Update progress window with messages in queue
 
@@ -308,7 +319,7 @@ class MicrosimGUI(Tk):
         self.engine_process.start()
 
         # Display progress window and update with current engine progress
-        progress_window = ProgressWindow(self)
+        progress_window = ProgressWindow(self, self.engine_process)
         self.progress_windows.append(progress_window)  # Keep track of all progress windows
         f = open(progress_file, 'r')
         progress_window.update_progress_r(f)
@@ -495,12 +506,6 @@ class MicrosimGUI(Tk):
         if state_of_work:
             fp_acsh_in = self.general_params.acs_directory + '/%s/pow_household_files' % yr
             fp_acsp_in = self.general_params.acs_directory + '/%s/pow_person_files' % yr
-        worker_class = dict(zip(['private', 'self_emp', 'gov_fed', 'gov_st', 'gov_loc'],
-                                [self.default_params.private,
-                                 self.default_params.self_employed,
-                                 self.default_params.fed_employees,
-                                 self.default_params.state_employees,
-                                 self.default_params.local_employees]))
         fp_fmla_out = './data/fmla/fmla_%s/fmla_clean_%s.csv' % (fmla_wave, fmla_wave)
         fp_dir_out = self.general_params.output_directory
         fp_cps_out = './data/cps/cps_for_acs_sim.csv'
@@ -512,10 +517,8 @@ class MicrosimGUI(Tk):
         clf_name = self.general_params.simulation_method
         random_seed = self.general_params.random_seed
 
-        print('----------------------------------------------------------1111111111111111111111111111111')
-        print(worker_class)
         return SimulationEngine(st, yr, fmla_wave, fps_in, fps_out, clf_name=clf_name, random_state=random_seed,
-                                state_of_work=state_of_work, worker_class=worker_class, q=q)
+                                state_of_work=state_of_work, q=q)
 
     def add_engine_params(self, parameters):
         """Add additional engine parameters from an OtherParameters object
@@ -2721,7 +2724,7 @@ class ABFParamsPopup(Frame):
 
 
 class ProgressWindow(Toplevel):
-    def __init__(self, parent):
+    def __init__(self, parent, engine_process):
         """Window to show realtime progress of simulation engine"""
 
         super().__init__(parent)
@@ -2732,6 +2735,7 @@ class ProgressWindow(Toplevel):
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
         self.parent = parent
+        self.engine_process = engine_process
 
         # Frame to hold all of window's contents
         self.content = Frame(self, width=100)
@@ -2866,6 +2870,10 @@ class ProgressWindow(Toplevel):
 
     def on_close(self):
         """Destroy this window when it is closed"""
+        if self.engine_process.is_alive():
+            print('Terminating simulation')
+            self.engine_process.terminate()
+
         self.destroy()
 
 
@@ -3144,4 +3152,4 @@ def run_engine_r(command):
     """
 
     # Run the engine as a command in a new process
-    subprocess.call(command, shell=True, cwd='./r_model_full')
+    subprocess.run(command, shell=True, cwd='./r_model_full')
