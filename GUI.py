@@ -118,6 +118,8 @@ class MicrosimGUI(Tk):
         style.configure('DarkCheckbutton.TCheckbutton', background=DARK_COLOR, foreground=LIGHT_COLOR, font='-size 12')
         style.configure('MSNotebook.TNotebook', background=VERY_LIGHT_COLOR)
         style.configure('MSNotebook.TNotebook.Tab', font='-size 12', padding=(4, 0))
+        # style.configure('DarkNotebook.TNotebook', background=DARK_COLOR)
+        # style.configure('DarkNotebook.TNotebook.Tab', font='-size 12', padding=(4, 0))
         style.configure('MSLabelframe.TLabelframe', background=VERY_LIGHT_COLOR)
         style.configure('MSLabelframe.TLabelframe.Label', background=VERY_LIGHT_COLOR, foreground=THEME_COLOR,
                         font='-size 12')
@@ -336,6 +338,8 @@ class MicrosimGUI(Tk):
         """Run R Engine"""
         # Create progress text file to update progress window
         progress_file = './r_model_full/progress/progress_{}.txt'.format(datetime.datetime.now().strftime('%Y%m%d%H%M%S%f'))
+        if not os.path.exists('./r_model_full/progress'):
+            os.makedirs('./r_model_full/progress')
         open(progress_file, 'w+').close()
 
         # Generate command to run R engine from terminal
@@ -443,7 +447,7 @@ class MicrosimGUI(Tk):
         # First, save the changes that users have made to to current program
         if save:
             self.save_params()
-
+        self.parameter_notebook.simulation_frame.existing_program_input.current(0)
         # Switch to the new program
         self.current_sim_num = sim_num
         self.change_comparison_parameters(sim_num)
@@ -1427,7 +1431,7 @@ class ParameterNotebook(ttk.Notebook):
 
 
 class ScrollFrame(Frame):
-    def __init__(self, parent=None, **kwargs):
+    def __init__(self, parent=None, content_bg=VERY_LIGHT_COLOR, **kwargs):
         """A frame with a vertical scroll bar that allows scrolling through the frame's content"""
         super().__init__(parent, **kwargs)
 
@@ -1440,7 +1444,7 @@ class ScrollFrame(Frame):
                              yscrollcommand=self.scroll_bar.set)
         self.canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
 
-        self.content = Frame(self, padx=10, pady=10, bg=VERY_LIGHT_COLOR, width=600)  # Frame holds the actual content
+        self.content = Frame(self, padx=10, pady=10, bg=content_bg, width=600)  # Frame holds the actual content
         self.canvas.create_window((0, 0), window=self.content, anchor='nw')  # Add frame to canvas
         self.scroll_bar.config(command=self.canvas.yview)
 
@@ -2129,23 +2133,23 @@ class ResultsWindow(Toplevel):
         self.tk.call('wm', 'iconphoto', self._w, self.icon)
 
         self.parent = parent
-        self.content = Frame(self, bg=DARK_COLOR)
+        self.content = Frame(self)
 
         # Notebook will be used to separate the different types of result visualizations
-        self.notebook = ttk.Notebook(self.content, style='MSNotebook.TNotebook')
+        self.notebook = ttk.Notebook(self.content, style='MSNotebook.TNotebook', height=600)
         self.notebook.bind('<Button-1>', self.change_current_tab)
         self.current_tab = 0
 
         # Summary tab will display the costs of the each leave type of the main simulation
-        self.summary_frame = ResultsSummary(self, costs, state)
+        self.summary_frame = ResultsSummary(self, costs, state, content_bg=DARK_COLOR)
         self.notebook.add(self.summary_frame, text='Summary')
 
         # ABF tab wil display the revenue information and functionalities
-        self.abf = ABFResults(self.notebook, abf_module, bg=VERY_LIGHT_COLOR)
+        self.abf = ABFResults(self.notebook, abf_module, content_bg=DARK_COLOR)
         self.notebook.add(self.abf, text="Benefit Financing")
 
         # Population analysis tab will display the information and functionalities of leave taken
-        self.population_analysis = PopulationAnalysis(self.notebook, results_files)
+        self.population_analysis = PopulationAnalysis(self.notebook, results_files, content_bg=DARK_COLOR)
         self.notebook.add(self.population_analysis, text='Population Analysis')
 
         # Add the content and notebook frame to the window
@@ -2159,7 +2163,8 @@ class ResultsWindow(Toplevel):
 
         # Set the notebook size to fit its contents
         self.update_idletasks()
-        self.notebook.config(width=self.abf.content.winfo_width() + 25)
+        self.notebook.config(width=self.abf.content.winfo_width() + 18)
+        self.summary_frame.update_scroll_region()
         self.abf.update_scroll_region()
         self.population_analysis.update_scroll_region()
         self.resizable(False, False)
@@ -2176,7 +2181,9 @@ class ResultsWindow(Toplevel):
             move_unit = 2
 
         # Only scroll the tab that is currently visible.
-        if self.current_tab == 1:
+        if self.current_tab == 0:
+            self.summary_frame.canvas.yview_scroll(move_unit, 'units')
+        elif self.current_tab == 1:
             self.abf.canvas.yview_scroll(move_unit, 'units')
         elif self.current_tab == 2:
             self.population_analysis.canvas.yview_scroll(move_unit, 'units')
@@ -2201,7 +2208,7 @@ class ResultsWindow(Toplevel):
 
 
 class PopulationAnalysis(ScrollFrame):
-    def __init__(self, parent, results_files):
+    def __init__(self, parent, results_files, **kwargs):
         """Frame holds widgets related to leave days taken based on population characteristics
 
         :param parent: Tk widget, required
@@ -2209,12 +2216,13 @@ class PopulationAnalysis(ScrollFrame):
             File paths to the CSV results of main simulation as well as comparison simulations
         """
 
-        super().__init__(parent)
+        super().__init__(parent, **kwargs)
         self.results_files = results_files
 
         # Frame to hold inputs for population characteristics
-        self.parameters_frame = Frame(self.content, padx=4, pady=4, bg=DARK_COLOR)
-        self.parameters_frame.pack(fill=X, pady=(0, 4))
+        self.parameters_frame = Frame(self.content, highlightcolor='white', highlightthickness=1, pady=6, padx=8,
+                                      bg=DARK_COLOR)
+        self.parameters_frame.pack(padx=10, pady=10)
 
         # Gender input
         self.gender = StringVar()
@@ -2231,8 +2239,8 @@ class PopulationAnalysis(ScrollFrame):
                                fg=LIGHT_COLOR)
         self.age_min_label = Label(self.parameters_frame, text='Min', bg=DARK_COLOR, fg=LIGHT_COLOR)
         self.age_max_label = Label(self.parameters_frame, text='Max', bg=DARK_COLOR, fg=LIGHT_COLOR)
-        self.age_min_input = GeneralEntry(self.parameters_frame, textvariable=self.age_min)
-        self.age_max_input = GeneralEntry(self.parameters_frame, textvariable=self.age_max)
+        self.age_min_input = GeneralEntry(self.parameters_frame, textvariable=self.age_min, width=10)
+        self.age_max_input = GeneralEntry(self.parameters_frame, textvariable=self.age_max, width=10)
 
         # Wage input (max and min)
         self.wage_min = DoubleVar()
@@ -2241,8 +2249,8 @@ class PopulationAnalysis(ScrollFrame):
                                 fg=LIGHT_COLOR)
         self.wage_min_label = Label(self.parameters_frame, text='Min', bg=DARK_COLOR, fg=LIGHT_COLOR)
         self.wage_max_label = Label(self.parameters_frame, text='Max', bg=DARK_COLOR, fg=LIGHT_COLOR)
-        self.wage_min_input = GeneralEntry(self.parameters_frame, textvariable=self.wage_min)
-        self.wage_max_input = GeneralEntry(self.parameters_frame, textvariable=self.wage_max)
+        self.wage_min_input = GeneralEntry(self.parameters_frame, textvariable=self.wage_min, width=18)
+        self.wage_max_input = GeneralEntry(self.parameters_frame, textvariable=self.wage_max, width=18)
 
         # Parameter submission button
         self.submit_button = BorderButton(self.parameters_frame, text='Submit',
@@ -2431,8 +2439,8 @@ class PopulationAnalysis(ScrollFrame):
         format_chart(fig, ax, title, DARK_COLOR, 'white')  # Change chart's style
 
 
-class ResultsSummary(Frame):
-    def __init__(self, parent, costs, state):
+class ResultsSummary(ScrollFrame):
+    def __init__(self, parent, costs, state, **kwargs):
         """Frame to hold summary results from main simulation
 
         :param parent: Tk widget, required
@@ -2442,39 +2450,47 @@ class ResultsSummary(Frame):
             State that was analyzed in the simulation
         """
 
-        super().__init__(parent)
+        super().__init__(parent, **kwargs)
+        self.frame = Frame(self.content, bg=DARK_COLOR)
+        self.frame.pack(fill=BOTH, expand=True)
 
         # Create summary chart
-        self.chart = create_cost_chart(costs, state)
-        self.chart_container = Frame(self)
+        cost_chart = create_cost_chart(costs, state)
+        self.cost_chart_container = ChartContainer(self.frame, cost_chart, DARK_COLOR, height=400)
+        self.cost_chart_container.pack()
 
-        # Create canvas for summary chart
-        canvas = FigureCanvasTkAgg(self.chart, self.chart_container)
-        canvas.draw()
-        canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True)
-        self.chart_container.pack(fill=X, padx=15, pady=15)
+        # Create leave chart
+        leave_chart = create_leave_chart(costs, state)
+        self.leave_chart_container = ChartContainer(self.frame, leave_chart, DARK_COLOR, height=400)
+        self.leave_chart_container.pack()
 
-        # Create button to save chart
-        save_button = BorderButton(self.chart_container, text='Save Figure', width=10, pady=1,
-                                   command=lambda: self.save_file())
-        save_button.pack(side=RIGHT, padx=10, pady=10)
+        # # Create canvas for summary chart
+        # canvas = FigureCanvasTkAgg(self.chart, self.chart_container)
+        # canvas.draw()
+        # canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=True)
+        # self.chart_container.pack(fill=X, padx=15, pady=15)
+        #
+        # # Create button to save chart
+        # save_button = BorderButton(self.chart_container, text='Save Figure', width=10, pady=1,
+        #                            command=lambda: self.save_file())
+        # save_button.pack(side=RIGHT, padx=10, pady=10)
 
-    def save_file(self):
-        """Saves matplotlib chart"""
-        filename = filedialog.asksaveasfilename(
-            defaultextension='.png', initialdir=os.getcwd(),
-            filetypes=[('PNG', '.png'), ('PDF', '*.pdf'), ('PGF', '*.pgf'), ('EPS', '*.eps'), ('PS', '*.ps'),
-                       ('Raw', '*.raw'), ('RGBA', '*.rgba'), ('SVG', '*.svg'), ('SVGZ', '*.svgz')]
-        )
-
-        # Don't save if user cancels
-        if filename is None or filename == '':
-            return
-        self.chart.savefig(filename, facecolor='#333333', edgecolor='white')
+    # def save_file(self):
+    #     """Saves matplotlib chart"""
+    #     filename = filedialog.asksaveasfilename(
+    #         defaultextension='.png', initialdir=os.getcwd(),
+    #         filetypes=[('PNG', '.png'), ('PDF', '*.pdf'), ('PGF', '*.pgf'), ('EPS', '*.eps'), ('PS', '*.ps'),
+    #                    ('Raw', '*.raw'), ('RGBA', '*.rgba'), ('SVG', '*.svg'), ('SVGZ', '*.svgz')]
+    #     )
+    #
+    #     # Don't save if user cancels
+    #     if filename is None or filename == '':
+    #         return
+    #     self.chart.savefig(filename, facecolor='#333333', edgecolor='white')
 
 
 class ChartContainer(Frame):
-    def __init__(self, parent, chart, bg_color):
+    def __init__(self, parent, chart, bg_color, height=300):
         """Container that displays a matplotlib chart
 
         :param parent: Tk widget, required
@@ -2491,7 +2507,7 @@ class ChartContainer(Frame):
         # Create canvas for to hold chart
         self.canvas = FigureCanvasTkAgg(chart, self)
         self.canvas.draw()
-        self.canvas.get_tk_widget().config(height=300)
+        self.canvas.get_tk_widget().config(height=height)
         self.canvas.get_tk_widget().pack(side=TOP, fill=X)
 
         # Create button to save chart
@@ -2534,7 +2550,7 @@ class ABFResults(ScrollFrame):
 
         # Create frame to hold pivot tables for ABF results
         self.abf_pivot_tables = Frame(self.content, bg=DARK_COLOR)
-        self.abf_pivot_tables.pack(fill=X, expand=True)
+        self.abf_pivot_tables.pack(fill=BOTH, expand=True)
         self.display_abf_bar_graphs(pivot_tables)
 
         # Create frame to hold widgets used to rerun ABF module

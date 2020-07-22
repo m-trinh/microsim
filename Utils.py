@@ -22,6 +22,7 @@ DEFAULT_STATE_PARAMS = {
         'weekly_ben_cap': 1144,
         'fmla_protection_constraint': True,
         'eligible_earnings': 300,
+        'private': True,
         'government_employees': False,
         'fed_employees': False,
         'state_employees': False,
@@ -51,6 +52,7 @@ DEFAULT_STATE_PARAMS = {
         'weekly_ben_cap': 617,
         'fmla_protection_constraint': True,
         'eligible_earnings': 8400,
+        'private': True,
         'government_employees': False,
         'fed_employees': False,
         'state_employees': True,
@@ -82,6 +84,7 @@ DEFAULT_STATE_PARAMS = {
         'weekly_ben_cap': 804,
         'fmla_protection_constraint': True,
         'eligible_earnings': 3840,
+        'private': True,
         'government_employees': False,
         'fed_employees': False,
         'state_employees': False,
@@ -275,6 +278,7 @@ def generate_default_state_params(parameters=None, state='RI'):
     return state_params
 
 
+
 def create_cost_chart(data, state):
     """Create a matplotlib bar chart with benefits paid for each type
 
@@ -315,6 +319,46 @@ def create_cost_chart(data, state):
     format_chart(fig, ax, title)
     return fig
 
+
+def create_leave_chart(data, state):
+    """Create a matplotlib bar chart with benefits paid for each type
+
+    :param data: pd.DataFrame, required
+        Summary results from simulation
+    :param state: str, reauired
+        The state that was simulated
+    :return: matplotlib.figure.Figure
+    """
+
+    leave_type_translation = {
+        'own': 'Own Health',
+        'matdis': 'Maternity',
+        'bond': 'New Child',
+        'illchild': 'Ill Child',
+        'illspouse': 'Ill Spouse',
+        'illparent': 'Ill Parent'
+    }
+    leave_types = [leave_type_translation[l] for l in data['type'].tolist()[:-1]]
+
+    # Get total cost of program, in millions and rounded to 1 decimal point
+    # total_cost = round(list(data.loc[data['type'] == 'total', 'cost'])[0] / 10 ** 6, 1)
+    # spread = round((list(data.loc[data['type'] == 'total', 'ci_upper'])[0] -
+    #                 list(data.loc[data['type'] == 'total', 'ci_lower'])[0]) / 10 ** 6, 1)
+    title = 'State: %s. Total Leave Takers = %s (\u00B1%s).' % (state.upper(), 'x', 'y')
+
+    # Create chart to display benefit cost for each leave type
+    fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
+    ind = np.arange(len(leave_types))
+    ys = data[:-1]['cost'] / 10 ** 6
+    es = 0.5 * (data[:-1]['ci_upper'] - data[:-1]['ci_lower']) / 10 ** 6  # Used for confidence intervals
+    width = 0.5
+    ax.bar(ind, ys, width, yerr=es, align='center', capsize=5, color='#1aff8c', ecolor='white')
+    ax.set_ylabel('Leave Takers')
+    ax.set_xticks(ind)
+    ax.set_xticklabels(leave_types)
+    ax.yaxis.grid(False)
+    format_chart(fig, ax, title)
+    return fig
 
 def format_chart(fig, ax, title, bg_color='#333333', fg_color='#ffffff'):
     """Visually format matplotlib Figure
