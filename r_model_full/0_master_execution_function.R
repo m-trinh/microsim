@@ -23,10 +23,9 @@ policy_simulation <- function(
                               # input data parameters
                               loadRDS=FALSE,
                               loadCSV=TRUE,
-                              do_cleaning=FALSE,
-                              acs_dir='csv_inputs/',
-                              cps_dir='csv_inputs/CPS/',
-                              fmla_file='csv_inputs/fmla_2012_employee_puf.csv',
+                              acs_dir='data/',
+                              cps_dir='data/cps/',
+                              fmla_file='data/fmla/fmla_2012/fmla_2012_employee_puf.csv',
                               fmla_year=2012,
                               acs_year=2016,
                               
@@ -87,7 +86,7 @@ policy_simulation <- function(
                               
                               # FMLA -> ACS imputation params
                               impute_method="Logistic Regression GLM",
-                              kval= 3,
+                              kval= 5,
                               xvars=c("widowed", "divorced", "separated", "nevermarried", "female", 
                                          'age',"agesq", "ltHS", "someCol", "BA", "GradSch", "black", 
                                          "other", "asian",'native', "hisp","nochildren",'faminc','coveligd'),
@@ -137,11 +136,17 @@ policy_simulation <- function(
   # Parameter standardization
   ####################################
   # read in state codes data set
-  d_states <- read.csv("csv_inputs/ACS_state_codes.csv")
+  d_states <- read.csv("data/ACS_state_codes.csv")
   # make two digit abbreviation of year
   year_2dig <- toString(acs_year - 2000)
+  if (nchar(year_2dig)==1) {
+    year_2dig <- paste0('0',year_2dig)
+  }
   # set derived parameters
   weightfactor=1/clone_factor
+  # create required folders for logs and output, if they don't exist
+  dir.create(log_directory, showWarnings = FALSE)
+  dir.create(out_dir, showWarnings = FALSE)
   
   ####################################
   # Option to create execution log
@@ -262,8 +267,8 @@ policy_simulation <- function(
   if (loadCSV) {
     # if loadCSV, look for csvs and conduct cleaning
     # Load and clean CPS
-    d_cps <- read.csv(paste0(cps_dir,'CPS',acs_year-2,'extract.csv'))
-    d_cps <- clean_cps(d_cps)
+    d_cps <- read.csv(paste0(cps_dir,'cps_clean_',acs_year-2,'.csv'))
+    #d_cps <- clean_cps(d_cps)
   
     # Load and clean FMLA 
     d_fmla <- read.csv(fmla_file)
