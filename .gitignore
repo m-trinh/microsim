@@ -27,12 +27,17 @@ r_model_full/R_dataframes.zip
 r_model_full/restricted_data
 r_model_full/output
 r_model_full/logs
+r_model_full/log
 r_model_full/.Rproj.user
 r_model_full/.Rhistory
 meta_output/
 r_model_full/.RData
 r_model_full/.Ruserdata
 r_model_full/csv_inputs/states
+r_model_full/csv_inputs/2016
+r_model_full/csv_inputs/2017
+r_model_full/csv_inputs/2018
+r_model_full/csv_inputs/CPS
 r_model_full/10312019_R_Microsim_Model
 r_model_full/R_dataframes/resid_states/CA_resid.rds
 r_model_full/R_dataframes/resid_work/CA_work.rds

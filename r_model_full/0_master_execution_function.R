@@ -19,76 +19,129 @@ time_elapsed <<- function(msg) {
 # ----------master function that sets policy scenario, and calls functions to alter FMLA data to match policy scenario---------------------
 # see parameter documentation for details on arguments
 
-policy_simulation <- function(saveCSV=FALSE,
+policy_simulation <- function(
+                              # input data parameters
+                              loadRDS=FALSE,
+                              loadCSV=TRUE,
+                              do_cleaning=FALSE,
+                              acs_dir='csv_inputs/',
+                              cps_dir='csv_inputs/CPS/',
+                              fmla_file='csv_inputs/fmla_2012_employee_puf.csv',
+                              fmla_year=2012,
+                              acs_year=2016,
+                              
+                              # output/logging params
+                              makelog=TRUE,
+                              log_directory='./log/',
+                              progress_file=NULL,
                               fulloutput=FALSE,
+                              saveCSV=FALSE,
+                              out_dir="output/",
+                              output='output',
+                              output_stats=NULL,
+                              
+                              # simulation runtime modification params
+                              sample_prop=NULL, 
+                              sample_num=NULL,
+                              clone_factor=1,  
+                              progalt_post_or_pre ='post',
+                              random_seed=123,
+                              engine_type='Main',
+                              runtime_measure=0,
+                              
+                              # program eligibility params
                               FEDGOV=FALSE, 
                               STATEGOV=FALSE,
                               LOCALGOV=FALSE,
                               SELFEMP=FALSE, 
                               PRIVATE=TRUE,
-                              impute_method="logit",
-                              kval= 3,
-                              makelog=TRUE,
-                              xvars=c("widowed", "divorced", "separated", "nevermarried", "female", 
-                                         'age',"agesq", "ltHS", "someCol", "BA", "GradSch", "black", 
-                                         "other", "asian",'native', "hisp","nochildren",'faminc','coveligd'),
-
-                              # default is 1's for everything
-                              xvar_wgts = rep(1,length(xvars)),
-                              base_bene_level=1, topoff_rate=0, topoff_minlength=0, sample_prop=NULL, sample_num=NULL,
-                              bene_effect=FALSE, dependent_allow=0, full_particip=FALSE, 
-                              own_uptake=.01, matdis_uptake=.01, bond_uptake=.01, 
-                              illparent_uptake=.01, illspouse_uptake=.01, illchild_uptake=.01, wait_period=0,
-                              own_elig_adj=1, illspouse_elig_adj=1, illchild_elig_adj=1, 
-                              illparent_elig_adj=1, matdis_elig_adj=1, bond_elig_adj=1,
-                              clone_factor=1, sens_var = 'resp_len', progalt_post_or_pre ='post',
-                              ext_resp_len = TRUE,  
-                              rr_sensitive_leave_len=TRUE,
-                              min_takeup_cpl = 5,
-                              alpha=0,
+                              wait_period=0,
+                              wait_period_recollect=FALSE,
                               place_of_work = FALSE,
                               state = '',
                               dual_receiver = 1,
-                              ext_base_effect=TRUE,
-                              extend_prob=0,
-                              extend_days=0,
-                              extend_prop=1,
+                              earnings=NULL,
+                              weeks= NULL,
+                              ann_hours=NULL,
+                              minsize= NULL,
+                              elig_rule_logic= '(earnings & weeks & ann_hours & minsize)',
+                              
+                              # program benefit params
+                              base_bene_level=1, 
+                              dependent_allow=0,
                               maxlen_own =60,
                               maxlen_matdis =60,
                               maxlen_bond =60,
                               maxlen_illparent =60,
                               maxlen_illspouse =60,
                               maxlen_illchild =60,
-                              maxlen_PFL=maxlen_illparent+maxlen_illspouse+maxlen_illchild+maxlen_bond, maxlen_DI=maxlen_bond+maxlen_matdis,
-                              maxlen_total=maxlen_DI+maxlen_PFL, week_bene_cap=1000000, week_bene_min=0, week_bene_cap_prop=NULL,
-                              fmla_protect=TRUE,
-                              earnings=NULL,
-                              weeks= NULL,
-                              ann_hours=NULL,
-                              minsize= NULL,
-                              elig_rule_logic= '(earnings & weeks & ann_hours & minsize)',
+                              maxlen_PFL=max(maxlen_illparent,maxlen_illspouse,maxlen_illchild,maxlen_bond), 
+                              maxlen_DI=max(maxlen_bond,maxlen_matdis),
+                              maxlen_total=max(maxlen_DI,maxlen_PFL), 
+                              week_bene_cap=1000000, 
+                              week_bene_min=0, 
+                              week_bene_cap_prop=NULL,
                               formula_prop_cuts=NULL,
                               formula_value_cuts=NULL,
                               formula_bene_levels=NULL,
+                              
+                              # FMLA -> ACS imputation params
+                              impute_method="Logistic Regression GLM",
+                              kval= 3,
+                              xvars=c("widowed", "divorced", "separated", "nevermarried", "female", 
+                                         'age',"agesq", "ltHS", "someCol", "BA", "GradSch", "black", 
+                                         "other", "asian",'native', "hisp","nochildren",'faminc','coveligd'),
+                              # default xvar weights is 1's for everything
+                              xvar_wgts = rep(1,length(xvars)),
+                              
+                              # behavioral simulation params
+                              topoff_rate=0, 
+                              topoff_minlength=0, 
+                              bene_effect=FALSE, 
+                              full_particip=FALSE, 
+                              own_uptake=.01, 
+                              matdis_uptake=.01, 
+                              bond_uptake=.01, 
+                              illparent_uptake=.01, 
+                              illspouse_uptake=.01, 
+                              illchild_uptake=.01, 
+                              own_elig_adj=1, 
+                              illspouse_elig_adj=1, 
+                              illchild_elig_adj=1, 
+                              illparent_elig_adj=1, 
+                              matdis_elig_adj=1, 
+                              bond_elig_adj=1,
+                              sens_var = 'resp_len',
+                              ext_resp_len = TRUE,  
+                              rr_sensitive_leave_len=TRUE,
+                              min_takeup_cpl = 5,
+                              alpha=0,
+                              ext_base_effect=TRUE,
+                              extend_prob=0,
+                              extend_days=0,
+                              extend_prop=1,
+                              fmla_protect=FALSE,
+                              
+                              # ABF Params
                               ABF_enabled=FALSE,
                               ABF_elig_size=0,
                               ABF_max_tax_earn=0,
                               ABF_bene_tax=TRUE,
                               ABF_avg_state_tax=0,
                               ABF_payroll_tax=0,
-                              ABF_bene=NULL,
-                              do_cleaning=FALSE,
-                              acs_dir=NULL,
-                              fmla_dir=NULL,
-                              out_dir="output/",
-                              output='output',
-                              output_stats=NULL,
-                              random_seed=123,
-                              runtime_measure=0,
-                              engine_type='Main',
-                              progress_file=NULL,
-                              log_directory='./logs/') {
+                              ABF_bene=NULL
+                            ) {
   
+  
+  ####################################
+  # Parameter standardization
+  ####################################
+  # read in state codes data set
+  d_states <- read.csv("csv_inputs/ACS_state_codes.csv")
+  # make two digit abbreviation of year
+  year_2dig <- toString(acs_year - 2000)
+  # set derived parameters
+  weightfactor=1/clone_factor
   
   ####################################
   # Option to create execution log
@@ -120,10 +173,10 @@ policy_simulation <- function(saveCSV=FALSE,
     
   }
   # create parameter meta file 
-  # TODO: some of these params are placeholders 
   meta_params <- c(
+    # 2 letter postal abbreviation of state
     'State'=state,
-    'Year'=2014, 
+    'Year'= acs_year, 
     'Place of Work' =place_of_work , 
     'Minimum Annual Wage' = earnings, 
     'Minimum Annual Work Weeks' = weeks, 
@@ -139,12 +192,12 @@ policy_simulation <- function(saveCSV=FALSE,
     'Simulation Method' = impute_method, 
     'Share of Dual Receivers' = dual_receiver, 
     'Alpha' = alpha, 
-    'Minimum Leave Length Applied' = 1, 
+    'Minimum Leave Length Applied' = min_takeup_cpl, 
     'Waiting Period' = wait_period, 
-    'Recollect Benefits of Waiting Period' = 1, 
+    'Recollect Benefits of Waiting Period' = wait_period_recollect, 
     'Minimum Leave Length for Recollection' = wait_period, 
-    'Dependent Allowance' = dependent_allow, 
-    'Dependent Allowance Profile: Increments of Replacement Ratio by Number of Dependants' = '[]', 
+    'Dependent Allowance' = is.null(dependent_allow) == FALSE & all(dependent_allow!=0), 
+    'Dependent Allowance Profile: Increments of Replacement Ratio by Number of Dependants' = dependent_allow, 
     'Clone Factor' = clone_factor, 
     'Random Seed' = random_seed
   )
@@ -192,25 +245,53 @@ policy_simulation <- function(saveCSV=FALSE,
   #========================================
   # 1. Cleaning 
   #========================================
-  # load files from a dataframe
-   d_fmla <- readRDS(paste0("./R_dataframes/","d_fmla.rds"))
-   d_cps <- readRDS(paste0("./R_dataframes/","d_cps.rds"))
-   # load from residence ACS if state is a 
-   if (place_of_work==TRUE) {
-     d_acs <- readRDS(paste0("./R_dataframes/work_states/",state,"_work.rds"))  
-   }
-   else {
-     d_acs <- readRDS(paste0("./R_dataframes/resid_states/",state,"_resid.rds"))  
-   }
-   
-  #-----CPS to ACS Imputation-----
-   #already done on R_dataframes, don't need to run here any more
-   
-  # Impute hourly worker, weeks worked, and firm size variables from CPS into ACS. 
-  # These are needed for leave program eligibilitly determination
-  # INPUT: cleaned acs, cps files
-  # d_acs <- impute_cps_to_acs(d_acs, d_cps)
-  # OUTPUT: cleaned acs with imputed weeks worked, employer size, and hourly worker status
+  # make sure either loadRDS or loadCSV are specified 
+  stopifnot(loadRDS | loadCSV)
+  if (loadRDS) {
+    # if loadRDS, then load files from a dataframe
+    d_fmla <- readRDS(paste0("./R_dataframes/","d_fmla.rds"))
+    d_cps <- readRDS(paste0("./R_dataframes/","d_cps.rds"))
+    # load from residence ACS if state is a 
+    if (place_of_work==TRUE) {
+      d_acs <- readRDS(paste0("./R_dataframes/work_states/",state,"_work.rds"))  
+    }
+    else {
+      d_acs <- readRDS(paste0("./R_dataframes/resid_states/",state,"_resid.rds"))  
+    }
+  }
+  if (loadCSV) {
+    # if loadCSV, look for csvs and conduct cleaning
+    # Load and clean CPS
+    d_cps <- read.csv(paste0(cps_dir,'CPS',acs_year-2,'extract.csv'))
+    d_cps <- clean_cps(d_cps)
+  
+    # Load and clean FMLA 
+    d_fmla <- read.csv(fmla_file)
+    stopifnot(fmla_year == 2012 | fmla_year == 2018)
+    if (fmla_year == 2012) {
+      d_fmla <- clean_fmla(d_fmla)
+    }
+    if (fmla_year == 2018) {
+      d_fmla <- clean_fmla_2018(d_fmla)
+    }
+    
+    # Load and clean ACS
+    st_code <- d_states[d_states$state_abbr==toupper(state),'ST']
+    if (place_of_work==TRUE) {
+      d_acs_hh <- read.csv(paste0(acs_dir,'/',acs_year,'/pow_household_files/h',st_code,'_',tolower(state),'_pow.csv'))
+      d_acs_p <- read.csv(paste0(acs_dir,'/',acs_year,'/pow_person_files/p',st_code,'_',tolower(state),'_pow.csv')) 
+    }
+    else {
+      d_acs_hh <- read.csv(paste0(acs_dir,'/',acs_year,'/pow_household_files/ss',year_2dig,'p',tolower(state),'.csv'))
+      d_acs_p <- read.csv(paste0(acs_dir,'/',acs_year,'/pow_person_files/ss',year_2dig,'h',tolower(state),'.csv')) 
+    }
+    
+    d_acs <- clean_acs(d_acs_p, d_acs_hh, save_csv=FALSE)
+    # Impute hourly worker, weeks worked, and firm size variables from CPS into ACS. 
+    # These are needed for leave program eligibility determination
+    d_acs <- impute_cps_to_acs(d_acs, d_cps)
+    
+  }
   
   # sample ACS
   # user option to sample ACS data
@@ -224,9 +305,6 @@ policy_simulation <- function(saveCSV=FALSE,
     d_acs <- sample_acs(d_acs, sample_prop=sample_prop, sample_num=sample_num)  
   }
   
-  # set derived parameters
-  weightfactor=1/clone_factor
-
   if (!is.null(progress_file)) {
     message <- paste0('{"type": "message", "engine": "', engine_type, '", "value": "Cleaned data files before CPS imputation."}')
     cat(message, file = progress_file, sep = "\n", append = TRUE)
@@ -378,7 +456,7 @@ policy_simulation <- function(saveCSV=FALSE,
 
   # INPUT: ACS file
   d_acs_imp <-UPTAKE(d_acs_imp, own_uptake, matdis_uptake, bond_uptake, illparent_uptake, 
-                     illspouse_uptake, illchild_uptake, full_particip, wait_period,
+                     illspouse_uptake, illchild_uptake, full_particip, wait_period, wait_period_recollect,
                      maxlen_own, maxlen_matdis, maxlen_bond, maxlen_illparent, maxlen_illspouse, maxlen_illchild,
                      maxlen_total,maxlen_DI,maxlen_PFL,dual_receiver, min_takeup_cpl,alpha)
   # OUTPUT: ACS file with modified leave program variables based on user-specified program restrictions
@@ -468,16 +546,20 @@ policy_simulation <- function(saveCSV=FALSE,
   
   # Clean up vars for Python compatibility
   # drop intermediate, unneeded variables 
-  d_acs_imp <- d_acs_imp %>% select(-ST.y,-DI_plen, -FER, -OCC, -PFL_plen, -WKHP, 
-                                    -actual_leave_pay, -age_cat, -base_benefits, -base_leave_pay, -bene_DI, -bene_PFL, -bene_effect_flg, 
-                                    -benefit_prop, -emppay_bond, -emppay_illchild, -emppay_illparent, -emppay_illspouse, -emppay_matdis, 
-                                    -emppay_own, -exhausted_by, -extend_flag, -faminc_cat, -fem_c617, -fem_cu6, -fem_cu6and617, -fem_nochild, 
-                                    -fmla_constrain_flag, -id, -longer_leave, -ndep_old, -num_emp, -orig_len_bond, -orig_len_illchild, -orig_len_illparent, 
-                                    -orig_len_illspouse, -orig_len_matdis, -orig_len_own, -pay_schedule, -ptake_DI, -ptake_PFL, -squo_emppay_bond, 
-                                    -squo_emppay_illchild, -squo_emppay_illparent, -squo_emppay_illspouse, -squo_emppay_matdis, -squo_emppay_own, 
-                                    -squo_leave_pay, -squo_take_bond, -squo_take_illchild, -squo_take_illparent, -squo_take_illspouse, -squo_take_matdis, 
-                                    -squo_take_own, -squo_taker, -squo_total_length, -state_abbr, -state_name, -topoff_flg, -total_leaves, -weeks_worked_cat,
-                                    -takes_up_bond, -takes_up_illchild, -takes_up_illparent, -takes_up_illspouse, -takes_up_matdis, -takes_up_own)
+  for (i in c('ST.y','DI_plen', 'FER', 'OCC', 'PFL_plen', 'WKHP', 
+              'actual_leave_pay', 'age_cat', 'base_benefits', 'base_leave_pay', 'bene_DI', 'bene_PFL', 'bene_effect_flg', 
+              'benefit_prop', 'emppay_bond', 'emppay_illchild', 'emppay_illparent', 'emppay_illspouse', 'emppay_matdis', 
+              'emppay_own', 'exhausted_by', 'extend_flag', 'faminc_cat', 'fem_c617', 'fem_cu6', 'fem_cu6and617', 'fem_nochild', 
+              'fmla_constrain_flag', 'id', 'longer_leave', 'ndep_old', 'num_emp', 'orig_len_bond', 'orig_len_illchild', 'orig_len_illparent', 
+              'orig_len_illspouse', 'orig_len_matdis', 'orig_len_own', 'pay_schedule', 'ptake_DI', 'ptake_PFL', 'squo_emppay_bond', 
+              'squo_emppay_illchild', 'squo_emppay_illparent', 'squo_emppay_illspouse', 'squo_emppay_matdis', 'squo_emppay_own', 
+              'squo_leave_pay', 'squo_take_bond', 'squo_take_illchild', 'squo_take_illparent', 'squo_take_illspouse', 'squo_take_matdis', 
+              'squo_take_own', 'squo_taker', 'squo_total_length', 'state_abbr', 'state_name', 'topoff_flg', 'total_leaves', 'weeks_worked_cat',
+              'takes_up_bond', 'takes_up_illchild', 'takes_up_illparent', 'takes_up_illspouse', 'takes_up_matdis', 'takes_up_own')) {
+    if (i %in% names(d_acs_imp)){
+      d_acs_imp[i] <- NULL
+    }
+  }
   
   
   # rename variables to be consistent with Python

@@ -79,7 +79,7 @@ state_compar_stats <-function(d, output, out_dir) {
   }
   
   # define columns of csv
-  vars=c('eligworker',ptake_vars, 'ptake_DI','ptake_PFL', 'particip',plen_vars,'DI_plen','PFL_plen','bene_DI','bene_PFL', 'actual_benefits')
+  vars=c('eligworker',ptake_vars, 'particip',plen_vars, 'actual_benefits')
   mean=c()
   SE=c()
   CI=c()
@@ -108,11 +108,7 @@ state_compar_stats <-function(d, output, out_dir) {
   total_SE=unname(unlist(total_SE))
   total_CI=unname(unlist(total_CI))
   
-  var_names=c('Workers eligible for leave program',
-      ptake_names, 'Participated for own illness or maternal disability leave', 'Participated for ill relative or child bonding leave', 'Participated for any reason',
-      plen_names, 'Num of Days Participated for own illness or maternal disability leave', 'Num of Days Participated for ill relative or child bonding leave', 
-      'Benefits Received ($), for own illness or maternal disability leave','Benefits Received ($), for for ill relative or child bonding leave',
-              'Benefits Received ($), total')
+  var_names=c('Workers eligible for leave program', ptake_names, 'Participated for any reason', plen_names, 'Benefits Received ($), total')
   d_out=data.frame(var_names,mean,SE,CI,total, total_SE, total_CI)
   # manipulate the length ofparticipation vars
   # divide by 5 to match format of state actual data output
@@ -120,20 +116,12 @@ state_compar_stats <-function(d, output, out_dir) {
     for (i in leave_types ) {
       d_out[d_out$var_names==paste('Num of Days Participated for', i, 'leave'),j] <- d_out[d_out$var_names==paste('Num of Days Participated for', i, 'leave'),j]/5
     }
-    d_out[d_out$var_names=='Num of Days Participated for own illness or maternal disability leave',j] <- 
-      d_out[d_out$var_names=='Num of Days Participated for own illness or maternal disability leave',j]/5
-    d_out[d_out$var_names=='Num of Days Participated for ill relative or child bonding leave',j] <- 
-      d_out[d_out$var_names=='Num of Days Participated for ill relative or child bonding leave',j]/5
   }
   # transform pop nums to weeks as well
   for (j in c('total','total_SE')) {
     for (i in leave_types ) {
       d_out[d_out$var_names==paste('Num of Days Participated for', i, 'leave'),j] <- d_out[d_out$var_names==paste('Num of Days Participated for', i, 'leave'),j]/5
     }
-    d_out[d_out$var_names=='Num of Days Participated for own illness or maternal disability leave',j] <- 
-      d_out[d_out$var_names=='Num of Days Participated for own illness or maternal disability leave',j]/5
-    d_out[d_out$var_names=='Num of Days Participated for ill relative or child bonding leave',j] <- 
-      d_out[d_out$var_names=='Num of Days Participated for ill relative or child bonding leave',j]/5
   }
   
   # regenerate CI's with new SE's, means
