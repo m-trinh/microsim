@@ -23,7 +23,7 @@ policy_simulation <- function(
                               # input data parameters
                               loadRDS=FALSE,
                               loadCSV=TRUE,
-                              acs_dir='data/',
+                              acs_dir='data/acs',
                               cps_dir='data/cps/',
                               fmla_file='data/fmla/fmla_2012/fmla_2012_employee_puf.csv',
                               fmla_year=2012,
@@ -87,9 +87,7 @@ policy_simulation <- function(
                               # FMLA -> ACS imputation params
                               impute_method="Logistic Regression GLM",
                               kval= 5,
-                              xvars=c("widowed", "divorced", "separated", "nevermarried", "female", 
-                                         'age',"agesq", "ltHS", "someCol", "BA", "GradSch", "black", 
-                                         "other", "asian",'native', "hisp","nochildren",'faminc','coveligd'),
+                              xvars=NULL,
                               # default xvar weights is 1's for everything
                               xvar_wgts = rep(1,length(xvars)),
                               
@@ -147,6 +145,25 @@ policy_simulation <- function(
   # create required folders for logs and output, if they don't exist
   dir.create(log_directory, showWarnings = FALSE)
   dir.create(out_dir, showWarnings = FALSE)
+  
+  # If xvars is null, set to be defaults based on fmla wave 
+  if (is.null(xvars) & fmla_year==2012) {
+    xvars <-c("widowed", "divorced", "separated", "nevermarried", "female", 
+              "ltHS", "someCol", "BA", "GradSch", "black", 
+              "other", "asian",'native', "hisp","nochildren",'fmla_eligible',
+              'union','hourly',
+              'age',"agesq",'wkhours','faminc')
+  }
+  if (is.null(xvars) & fmla_year==2018) {
+    xvars <-c("widowed", "divorced", "separated", "nevermarried", "female", 
+              "ltHS", "someCol", "BA", "GradSch", "black", 
+              "other", "asian",'native', "hisp","nochildren",'fmla_eligible',
+              'union','noelderly','hourly',
+              'age',"agesq",'wkhours','faminc',
+              'emp_nonprofit','low_wage','occ_1','occ_2','occ_3','occ_4','occ_5','occ_6'
+              ,'occ_7','occ_8','occ_9','occ_10','ind_1','ind_2','ind_3','ind_4','ind_5','ind_6'
+              ,'ind_7','ind_8','ind_9','ind_10','ind_11','ind_12','ind_13')
+  }
   
   ####################################
   # Option to create execution log
@@ -578,7 +595,6 @@ policy_simulation <- function(
     cfl_matdis=length_matdis ,
     cfl_own=length_own ,
     ln_faminc=lnfaminc ,
-    hourly=paid_hrly ,
     takeup_any=particip ,
     cpl_all=particip_length ,
     cpl_bond=plen_bond ,
@@ -600,7 +616,6 @@ policy_simulation <- function(
     len_matdis=squo_length_matdis ,
     len_own=squo_length_own ,
     cfl_all=total_length ,
-    wkswork=weeks_worked ,
   )
   
   if (!is.null(output) & saveCSV==TRUE) {

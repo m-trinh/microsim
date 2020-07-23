@@ -316,7 +316,7 @@ ELIGIBILITYRULES <- function(d, earnings=NULL, weeks=NULL, ann_hours=NULL, minsi
   elig_rule_logic <- gsub('earnings','wage12>=earnings',elig_rule_logic)
   elig_rule_logic <- gsub('weeks','weeks_worked>=weeks',elig_rule_logic)
   elig_rule_logic <- gsub('ann_hours','weeks_worked*WKHP>=ann_hours',elig_rule_logic)
-  elig_rule_logic <- gsub('minsize','emp_size>=minsize',elig_rule_logic)
+  elig_rule_logic <- gsub('minsize','empsize>=minsize',elig_rule_logic)
   
   # create elig_worker flag based on elig_rule_logic
   d <- d %>% mutate(eligworker= ifelse(eval(parse(text=elig_rule_logic)), 1,0))
