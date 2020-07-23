@@ -164,6 +164,10 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
     
   }
   if (impute_method=="Naive Bayes") {
+    # xvars must be all categorical vars for naive bayes
+    xvars=c("widowed", "divorced", "separated", "nevermarried", "female", 
+            'age_cat', "ltHS", "someCol", "BA", "GradSch", "black", 
+            "other", "asian",'native', "hisp","nochildren",'faminc_cat','coveligd')
     options(warn=-1)
     d_acs <- Naive_Bayes(d_test=d_acs, d_train=d_fmla, xvars=xvars, 
                          yvars=yvars, test_filts=filts, train_filts=filts, 
@@ -715,7 +719,7 @@ KNN_multi <- function(d_train, d_test, imp_var, train_filt, test_filt, xvars, kv
   
   # filter dataset and keep just the variables of interest
   options(warn=-1)
-  train <-  d_train %>% filter(complete.cases(dplyr::select(d_train, 'id', imp_var,xvars))) %>% 
+  train <-  d_train %>% filter(complete.cases(dplyr::select(d_train, 'id', all_of(imp_var),all_of(xvars)))) %>% 
     filter_(train_filt) %>%
     dplyr::select(imp_var, xvars) %>%
     mutate(id = NULL)
@@ -851,7 +855,7 @@ Naive_Bayes <- function(d_train, d_test, yvars, train_filts, test_filts, weights
     }
     d_train[,yvars[[i]]] <- factor(d_train[,yvars[[i]]])
     w_train[,yvars[[i]]] <- factor(w_train[,yvars[[i]]])
-    
+
     #wanbia <- compute_wanbia_weights('prop_pay_employer', as.data.frame(sapply(w_train, as.factor))) 
     wanbia <- bnc(dag_learner = 'nb',class=yvars[[i]], dataset=w_train,smooth=0,wanbia=TRUE) 
     
