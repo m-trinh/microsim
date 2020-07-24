@@ -17,9 +17,17 @@
 # function to generate SE for an ACS variable using replicate weights
 # following method specified by this document from Census:
 # https://www2.census.gov/programs-surveys/acs/tech_docs/pums/accuracy/2012_2016AccuracyPUMS.pdf
-replicate_weights_SE <- function(d, var, filt=TRUE) {
+replicate_weights_SE <- function(d, var, place_of_work, filt=TRUE) {
   # filter d by specified filter
   d <- d[filt,]
+  # if place of work, multiply weight by 2% to adjust for missing values
+  if (place_of_work){
+    d$PWGTP <- d$PWGTP*1.02
+    replicate_weights <- paste0('PWGTP',seq(1,80))
+    for (i in replicate_weights) {
+      d[,i] <- d[,i] * 1.02 
+    }  
+  }
   # base estimate of population mean, total
   x= weighted.mean(d[,var], d[,'PWGTP'], na.rm=TRUE)
   tot=sum(d[,var]* d[,'PWGTP'], na.rm=TRUE)
@@ -60,7 +68,7 @@ replicate_weights_SE <- function(d, var, filt=TRUE) {
 # master ABF execution function
 
 run_ABF <- function(d, ABF_elig_size, ABF_max_tax_earn, ABF_bene_tax, ABF_avg_state_tax, 
-                    ABF_payroll_tax, ABF_bene,output) {
+                    ABF_payroll_tax, ABF_bene,output,place_of_work,ABF_detail_out) {
 
   if (ABF_max_tax_earn>0) {
     d <- d %>% mutate(taxable_income_capped=ifelse(wage12>ABF_max_tax_earn,
@@ -108,7 +116,7 @@ run_ABF <- function(d, ABF_elig_size, ABF_max_tax_earn, ABF_bene_tax, ABF_avg_st
   total_SE=c()
   total_CI=c()
   for (i in vars) {
-    temp=replicate_weights_SE(d, i)
+    temp=replicate_weights_SE(d, i, place_of_work)
     mean=c(mean, temp[2])
     SE=c(SE, temp[3])
     CI=c(CI, temp[4])
@@ -131,7 +139,9 @@ run_ABF <- function(d, ABF_elig_size, ABF_max_tax_earn, ABF_bene_tax, ABF_avg_st
   d_out <- rbind(d_out, recoup_row)
   colnames(d_out) <- c("Variable","Mean", "Standard Error of Mean", "Confidence Interval","Population Total", "Pop Total Standard Error", "Pop Total CI")
   
-  write.csv(d_out,file=paste0('./output/',output,"_ABF_stats.csv"), row.names= FALSE)
+  if (ABF_detail_out){
+    write.csv(d_out,file=paste0('./output/',output,"_ABF_stats.csv"), row.names= FALSE)
+  }
   
   # output meta summary file
   # TODO: remove placeholders

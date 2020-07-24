@@ -969,15 +969,20 @@ clean_fmla_2018 <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
 # -------------------------- #
 # ACS Household File
 # -------------------------- #
-clean_acs <-function(d,d_hh,save_csv=FALSE,POW_weight=FALSE) {
+clean_acs <-function(d,d_hh,fmla_year,save_csv=FALSE,POW_weight=FALSE) {
 
   # create variables
   
   d_hh$nochildren <- as.data.frame(dummy("FPARC",d_hh))$FPARC4
-  # adjust to 2012 dollars to conform with FMLA 2012 data
+  # adjust  dollars to FMLA year
   # don't multiple ADJINC directly to faminc to avoid integer overflow issue in R
-  d_hh$adjinc_2012 <- d_hh$ADJINC / 1056030 
-  d_hh$faminc <- d_hh$FINCP * d_hh$adjinc_2012 
+  if (fmla_year==2012){
+    d_hh$adjinc <- d_hh$ADJINC / 1056030 
+  }
+  if (fmla_year==2018) {
+    d_hh$adjinc <- d_hh$ADJINC / 1022342
+  }
+  d_hh$faminc <- d_hh$FINCP * d_hh$adjinc 
   d_hh <- d_hh %>% mutate(faminc=ifelse(is.na(faminc)==FALSE & faminc<=0, 0.01, faminc)) # force non-positive income to be epsilon to get meaningful log-income
   d_hh$lnfaminc <- log(d_hh$faminc)
   
@@ -1175,7 +1180,12 @@ clean_acs <-function(d,d_hh,save_csv=FALSE,POW_weight=FALSE) {
   d <- d %>% mutate(hiemp=ifelse(HINS1==1,1,0))
   
   # log earnings
-  d <- d %>% mutate(wage12=WAGP*(ADJINC/1056030))
+  if (fmla_year==2012){
+    d <- d %>% mutate(wage12=WAGP*(ADJINC/1056030))
+  }
+  if (fmla_year==2018) {
+    d <- d %>% mutate(wage12=WAGP*(ADJINC/1022342))
+  }
   d <- d %>% mutate(lnearn=ifelse(wage12>0, log(wage12), NA))
   d <- d %>% mutate(wage_hourly= wage12/weeks_worked/wkhours)
   

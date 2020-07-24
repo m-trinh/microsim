@@ -168,7 +168,7 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
     xvars <-c("widowed", "divorced", "separated", "nevermarried", "female", 
               "ltHS", "someCol", "BA", "GradSch", "black", 
               "other", "asian",'native', "hisp","nochildren",'fmla_eligible',
-              'union','noelderly','hourly')
+              'union','hourly')
     
     options(warn=-1)
     d_acs <- Naive_Bayes(d_test=d_acs, d_train=d_fmla, xvars=xvars, 
