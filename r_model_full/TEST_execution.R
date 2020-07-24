@@ -22,12 +22,9 @@ source("0_master_execution_function.R")
 
 
 # subsequent times, can run from saved r data frames to save time.
-meth <- 'Naive Bayes'
+meth <- 'Logistic Regression GLM'
 timestart <<- Sys.time()
 d <- policy_simulation(
-                  xvars=c("widowed", "divorced", "separated", "nevermarried", "female", 
-                          'age_cat', "ltHS", "someCol", "BA", "GradSch", "black", 
-                          "other", "asian",'native', "hisp","nochildren",'faminc_cat','coveligd'),
                   base_bene_level=.55,
                   impute_method = meth,
 		              makelog = FALSE,

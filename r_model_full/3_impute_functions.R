@@ -723,7 +723,7 @@ KNN_multi <- function(d_train, d_test, imp_var, train_filt, test_filt, xvars, kv
   options(warn=-1)
   train <-  d_train %>% filter(complete.cases(dplyr::select(d_train, 'id', all_of(imp_var),all_of(xvars)))) %>% 
     filter_(train_filt) %>%
-    dplyr::select(imp_var, xvars) %>%
+    dplyr::select(imp_var, all_of(xvars)) %>%
     mutate(id = NULL)
   options(warn=0)
   train ['nbor_id'] <- as.numeric(rownames(train))
@@ -732,7 +732,7 @@ KNN_multi <- function(d_train, d_test, imp_var, train_filt, test_filt, xvars, kv
   # This is a dataframe just with the variables in the acs that will be used to compute distance
   options(warn=-1)
   test <- d_test %>% filter_(test_filt) %>%
-    dplyr::select(id, xvars) %>%
+    dplyr::select(id, all_of(xvars)) %>%
     filter(complete.cases(.))
   options(warn=0)
   # Initial checks
@@ -843,9 +843,9 @@ Naive_Bayes <- function(d_train, d_test, yvars, train_filts, test_filts, weights
   # predict each yvar 
   for (i in names(yvars)) {
     # # generate NB model from training data
-    w_train <- as.data.frame(sapply(d_train %>% filter(complete.cases(dplyr::select(d_train, yvars[[i]], xvars))) 
-                                    %>% filter_(train_filts[i]) %>% dplyr::select(xvars, yvars[[i]]), as.factor))
-    w_test <- as.data.frame(sapply(d_test %>% filter(complete.cases(dplyr::select(d_test, xvars))) %>% filter_(test_filts[i])%>% dplyr::select(xvars),as.factor))
+    w_train <- as.data.frame(sapply(d_train %>% filter(complete.cases(dplyr::select(d_train, yvars[[i]], all_of(xvars)))) 
+                                    %>% filter_(train_filts[i]) %>% dplyr::select(all_of(xvars), yvars[[i]]), as.factor))
+    w_test <- as.data.frame(sapply(d_test %>% filter(complete.cases(dplyr::select(d_test, all_of(xvars)))) %>% filter_(test_filts[i])%>% dplyr::select(all_of(xvars)),as.factor))
     
     # make sure that testing and training sets have same factor levels and are factors
     for (j in xvars) {
@@ -863,7 +863,7 @@ Naive_Bayes <- function(d_train, d_test, yvars, train_filts, test_filts, weights
     
     
     # apply model to test data 
-    w_test_ids <- d_test %>% filter(complete.cases(dplyr::select(d_test, xvars))) %>% filter_(test_filts[i])%>% dplyr::select(id)
+    w_test_ids <- d_test %>% filter(complete.cases(dplyr::select(d_test, all_of(xvars)))) %>% filter_(test_filts[i])%>% dplyr::select(id)
     wanbia_imp <- as.data.frame(predict(object=wanbia, newdata = w_test, prob=TRUE)) 
     
     # Play wheel of fortune with which prop_val to assign to each test obs
@@ -912,7 +912,7 @@ ridge_class <- function(d_train, d_test, yvars, train_filts, test_filts, weights
   for (i in names(yvars)) {
     # generate Ridge Regression model from training data
     options(warn=-1)
-    ftrain <- d_train %>% filter(complete.cases(dplyr::select(d_train, yvars[i], xvars))) %>% filter_(train_filts[i])  
+    ftrain <- d_train %>% filter(complete.cases(dplyr::select(d_train, yvars[i], all_of(xvars)))) %>% filter_(train_filts[i])  
     options(warn=0)
     # normalize training data to equally weight differences between variables
     for (j in xvars) {
@@ -974,7 +974,7 @@ ridge_class <- function(d_train, d_test, yvars, train_filts, test_filts, weights
       
       # prep test data
       options(warn=-1)
-      ftest <- d_test %>% filter(complete.cases(dplyr::select(d_test, temp_xvars))) %>% filter_(test_filts[i]) 
+      ftest <- d_test %>% filter(complete.cases(dplyr::select(d_test, all_of(temp_xvars)))) %>% filter_(test_filts[i]) 
       options(warn=0)
       # normalize test data to equally weight differences between variables
       for (j in temp_xvars) {
@@ -1041,12 +1041,12 @@ random_forest <- function(d_train, d_test, yvars, train_filts, test_filts, weigh
   for (i in names(yvars)) {
     # generate model from training data 
     options(warn=-1)
-    ftrain <- d_train %>% filter(complete.cases(dplyr::select(d_train, yvars[i], xvars))) %>% filter_(train_filts[i])  
+    ftrain <- d_train %>% filter(complete.cases(dplyr::select(d_train, yvars[i], all_of(xvars)))) %>% filter_(train_filts[i])  
     options(warn=0)
     model <- randomForest(x = ftrain[xvars], y = factor(ftrain[,yvars[i]]))
     # apply model to test data 
     options(warn=-1)
-    ftest <- d_test %>% filter(complete.cases(dplyr::select(d_test, xvars))) %>% filter_(test_filts[i]) 
+    ftest <- d_test %>% filter(complete.cases(dplyr::select(d_test, all_of(xvars)))) %>% filter_(test_filts[i]) 
     options(warn=0)
     impute <- as.data.frame(predict(object=model, newdata = ftest[xvars], type='prob'))
   
@@ -1099,7 +1099,7 @@ svm_impute <- function(d_train, d_test, yvars, train_filts, test_filts, weights,
     
     # generate model from training data 
     options(warn=-1)
-    ftrain <- d_train %>% filter(complete.cases(dplyr::select(d_train, yvars[i], xvars))) %>% filter_(train_filts[i])  
+    ftrain <- d_train %>% filter(complete.cases(dplyr::select(d_train, yvars[i], all_of(xvars)))) %>% filter_(train_filts[i])  
     options(warn=0)
     # normalize training data to equally weight differences between variables
     for (j in xvars) {
@@ -1120,7 +1120,7 @@ svm_impute <- function(d_train, d_test, yvars, train_filts, test_filts, weights,
     model <- svm(x = ftrain[temp_xvars], y = factor(ftrain[,yvars[i]]), scale = FALSE , type='one-classification')
     # apply model to test data 
     options(warn=-1)
-    ftest <- d_test %>% filter(complete.cases(dplyr::select(d_test, temp_xvars))) %>% filter_(test_filts[i]) 
+    ftest <- d_test %>% filter(complete.cases(dplyr::select(d_test, all_of(temp_xvars)))) %>% filter_(test_filts[i]) 
     options(warn=0)
     # normalize test data to equally weight differences between variables
     for (j in temp_xvars) {
@@ -1159,7 +1159,7 @@ xg_boost_impute <- function(d_train, d_test, yvars, train_filts, test_filts, wei
     
     # generate model from training data 
     options(warn=-1)
-    ftrain <- d_train %>% filter(complete.cases(dplyr::select(d_train, yvars[i], xvars))) %>% filter_(train_filts[i])  
+    ftrain <- d_train %>% filter(complete.cases(dplyr::select(d_train, yvars[i], all_of(xvars)))) %>% filter_(train_filts[i])  
     options(warn=0)
     # normalize training data to equally weight differences between variables
     for (j in xvars) {
@@ -1179,7 +1179,7 @@ xg_boost_impute <- function(d_train, d_test, yvars, train_filts, test_filts, wei
     } 
     # normalize for test xvars
     options(warn=-1)
-    ftest <- d_test %>% filter(complete.cases(dplyr::select(d_test, temp_xvars))) %>% filter_(test_filts[i]) 
+    ftest <- d_test %>% filter(complete.cases(dplyr::select(d_test, all_of(temp_xvars)))) %>% filter_(test_filts[i]) 
     options(warn=0)
     for (j in temp_xvars) {
       if (sum(ftest[j])!=0 ){

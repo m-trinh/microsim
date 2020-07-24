@@ -1522,6 +1522,7 @@ impute_cps_to_acs <- function(d_acs, d_cps){
     mutate(tempsize=ifelse(empsize==4,sample(100:499, nrow(d_acs), replace=T),tempsize)) %>%
     mutate(tempsize=ifelse(empsize==5,sample(500:999, nrow(d_acs), replace=T),tempsize)) %>%
     mutate(tempsize=ifelse(empsize==6,sample(1000:99999, nrow(d_acs), replace=T),tempsize)) %>%
+    mutate(tempsize=ifelse(empsize==7,sample(100000:999999, nrow(d_acs), replace=T),tempsize)) %>%
     mutate(empsize=tempsize) %>%
     # clean up weeks worked variables
     mutate(weeks_worked_cat=weeks_worked) %>%
@@ -1544,7 +1545,6 @@ impute_cps_to_acs <- function(d_acs, d_cps){
   d_acs <- d_acs[, !(names(d_acs) %in% c('rand','tempsize','iweeks_worked',
                                          "wks_0_13", "wks_14_26", "wks_27_39", "wks_40_47", 
                                          "wks_48_49", "wks_50_52" ))]
-  
   return(d_acs)
 }
 

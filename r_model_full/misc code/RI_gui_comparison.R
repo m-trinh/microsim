@@ -15,6 +15,8 @@ source("0_master_execution_function.R")
 meth <- 'Logistic Regression GLM'
 timestart <<- Sys.time()
 ri <- policy_simulation(saveCSV=TRUE,
+                        minsize=1,
+                        ann_hours=1,
                         state='RI',
                         makelog=TRUE,
                         base_bene_level=.6,
