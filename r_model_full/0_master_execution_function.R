@@ -113,7 +113,7 @@ policy_simulation <- function(
                               rr_sensitive_leave_len=TRUE,
                               min_takeup_cpl = 5,
                               alpha=0,
-                              ext_base_effect=TRUE,
+                              ext_base_effect=FALSE,
                               extend_prob=0,
                               extend_days=0,
                               extend_prop=1,
