@@ -35,7 +35,7 @@ policy_simulation <- function(
                               progress_file=NULL,
                               fulloutput=FALSE,
                               saveCSV=TRUE,
-                              out_dir="./output/",
+                              out_dir="../output/",
                               output=NULL,
                               output_stats=NULL,
                               
@@ -131,6 +131,9 @@ policy_simulation <- function(
                             ) {
   
   
+  # note start time 
+  model_start_time <<- format(Sys.time(), "%Y%m%d_%H%M%S")
+  
   ####################################
   # Parameter standardization
   ####################################
@@ -149,7 +152,7 @@ policy_simulation <- function(
   #  if output name is null, set a standard name to match python
   
   if (is.null(output)) {
-    output <- paste0('acs_sim_all_', format(Sys.time(), "%Y%m%d_%H%M%S"))
+    output <- paste0('acs_sim_all_', model_start_time)
   }
   
   
@@ -186,7 +189,7 @@ policy_simulation <- function(
     params['params'] <- NULL
     
     # create log file and record starting parameters 
-    log_name <<- paste0(log_directory, format(Sys.time(), "%Y-%m-%d %H.%M.%S"), '_',output, '.log')
+    log_name <<- paste0(log_directory, model_start_time, '_',output, '.log')
     file.create(log_name)
     cat("==============================", file = log_name, sep="\n")
     cat("Microsim Log File", file = log_name, sep="\n", append = TRUE)
@@ -232,7 +235,7 @@ policy_simulation <- function(
   )
   meta_params <- data.frame(meta_params)
  
-  write.table(meta_params, sep=',', file=paste0(out_dir, '/prog_para_',format(Sys.time(), "%Y%m%d_%H%M%S"),'.csv'), col.names = FALSE)
+  write.table(meta_params, sep=',', file=paste0(out_dir, '/prog_para_',model_start_time,'.csv'), col.names = FALSE)
   bene_take <- data.frame(row.names=c('Maximum Week of Benefit Receiving','Take Up Rates'))
   leave_types <- c("own","matdis","bond","illchild","illspouse","illparent")
   for (i in leave_types) {
@@ -240,7 +243,7 @@ policy_simulation <- function(
     bene_take['Maximum Week of Benefit Receiving',i] <- get(paste0('maxlen_',i))/5
     bene_take['Take Up Rates',i] <- get(paste0(i,'_uptake'))
   }
-  write.table(bene_take, sep=',', file=paste0(out_dir, '/prog_para_',format(Sys.time(), "%Y%m%d_%H%M%S"),'.csv'), append=TRUE)
+  write.table(bene_take, sep=',', file=paste0(out_dir, '/prog_para_', model_start_time,'.csv'), append=TRUE)
   
   ####################################
   # global libraries used everywhere #
@@ -255,7 +258,7 @@ policy_simulation <- function(
     return("OK")
   }
   
-  global.libraries <- c('readr','tibble','DMwR','xgboost','bnclassify', 'randomForest','magick','stats', 'rlist', 'MASS', 'plyr', 'dplyr', 
+  global.libraries <- c('glmnet','readr','tibble','DMwR','xgboost','bnclassify', 'randomForest','magick','stats', 'rlist', 'MASS', 'plyr', 'dplyr', 
                         'survey', 'class', 'dummies', 'varhandle', 'oglmx', 
                         'foreign', 'ggplot2', 'reshape2','e1071','pander','ridge')
   

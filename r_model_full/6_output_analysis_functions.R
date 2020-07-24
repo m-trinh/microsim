@@ -287,5 +287,5 @@ create_meta_file <-function(d, out_dir,place_of_work) {
   meta_cost['total', 'cost'] <- temp[7]
   meta_cost['total', 'ci_lower'] <-  temp[[7]] + temp[[8]] *1.96
   meta_cost['total', 'ci_upper'] <-  temp[[7]] - temp[[8]] *1.96
-  write.csv(meta_cost,file=paste0(out_dir, 'program_cost_',format(Sys.time(), "%Y%m%d_%H%M%S"),'.csv'))
+  write.csv(meta_cost,file=paste0(out_dir, 'program_cost_',model_start_time,'.csv'))
 }

@@ -23,11 +23,12 @@
       # 1Ba. runLogitImpute - used in hardcoded methods found elsewhere as well
       # 1Bb. runOrdinalImpute - used in hardcoded methods found elsewhere as well
       # 1Bc. runRandDraw - used in hardcoded methods found elsewhere as well
+      # 1Bd, runRegLogitImpute
   # 1C. KNN_multi
   # 1D. Naive_Bayes
   # 1E. ridge_class
   # 1F. random_forest
-  # 1G. svm_impute - Gets bad results right now
+  # 1G. svm_impute
   # 1H. xG Boost
 
 # ============================ #
@@ -142,6 +143,11 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
     d_acs <- logit_leave_method(d_test=d_acs, d_train=d_fmla, xvars=xvars, 
                                 yvars=yvars, test_filts=filts, train_filts=filts, 
                                 weights=weights, create_dummies=TRUE)
+  }
+  if (impute_method=="Logistic Regression Regularized") {
+    d_acs <- logit_leave_method(d_test=d_acs, d_train=d_fmla, xvars=xvars, 
+                                yvars=yvars, test_filts=filts, train_filts=filts, 
+                                weights=weights, create_dummies=TRUE, regularized= TRUE)
   }
   
   if (impute_method=="K Nearest Neighbor") {
@@ -317,7 +323,7 @@ KNN1_scratch <- function(d_train, d_test, imp_var, train_filt, test_filt, xvars,
 # logit imputation of leave characteristics
 
 logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, train_filts, 
-                               weights, create_dummies) {
+                               weights, create_dummies, regularized = FALSE) {
   
   # placeholder modification of xvars to follow Chris' specification in python
   # should be removed in final version
@@ -387,13 +393,20 @@ logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, t
   }
   
   # create columns based on logit estimates  
-  sets <-  mapply(runLogitEstimate, formula = formulas, train_filt = train_filts,
-                       test_filt=test_filts, weight = weights, varname=yvars,
-                       MoreArgs=list(d_train=d_train, d_test=d_test, create_dummies=TRUE), 
-                       SIMPLIFY = FALSE)
-
-  # merge imputed values into single data set
+  if (regularized == FALSE) {
+    sets <-  mapply(runLogitEstimate, formula = formulas, train_filt = train_filts,
+                    test_filt=test_filts, weight = weights, varname=yvars,
+                    MoreArgs=list(d_train=d_train, d_test=d_test, create_dummies=TRUE), 
+                    SIMPLIFY = FALSE)
+  }
   
+  if (regularized == TRUE) {
+    sets <-  mapply(runRegLogitEstimate, formula = formulas, train_filt = train_filts,
+                    test_filt=test_filts, weight = weights, varname=yvars,
+                    MoreArgs=list(d_train=d_train, d_test=d_test, create_dummies=TRUE), 
+                    SIMPLIFY = FALSE)
+  }
+  # merge imputed values into single data set
   for (i in sets) {
     # old merge code, caused memory issues. using match instead
     # d_test <- merge(i, d_test, by="id",all.y=TRUE)
@@ -405,6 +418,7 @@ logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, t
     # set missing probability = 0
     d_test[is.na(d_test[colnames(i[2])]), colnames(i[2])] <- 0
   } 
+  browser()
   
   # set formula
   if (xvars[1]!="") {
@@ -705,6 +719,63 @@ runRandDraw <- function(d, yvar, filt, leave_dist, ext_resp_len, rr_sensitive_le
      return(est_df) 
   }
 }
+
+# ============================ #
+# 1Bd. runRegLogitEstimate
+# ============================ #
+runRegLogitEstimate <- function(d_train,d_test, formula, test_filt,train_filt, weight, 
+                             varname, create_dummies){
+  x_train <- model.frame(formula, data=d_train)
+  x_train <- x_train %>% filter_(train_filt)
+  x_train <- as.matrix(x_train)
+  y_train <- x_train[, 1]
+  x_train <- x_train[, 2:length(colnames(x_train))]
+  model <- glmnet( x_train ,y_train,family="binomial", alpha=0, lambda=1)
+  m_estimate <- coef(model)  
+  estimate <- as.vector(m_estimate)
+  names(estimate) <- rownames(m_estimate)
+
+  
+  # if making a log, record sample size of filtered data set
+  if (exists('makelog')) {
+    if ( makelog == TRUE) {
+      options(warn=-1)
+      temp_filt = d_train %>% filter_(train_filt)
+      options(warn=0)
+      cat("", file = log_name, sep="\n", append = TRUE)
+      cat("------------------------------", file = log_name, sep="\n", append = TRUE)
+      cat(paste("Filtered FMLA Sample Size:", nrow(temp_filt)), file = log_name, sep="\n", append = TRUE)
+      cat(paste("Formula:", formula), file = log_name, sep="\n", append = TRUE)
+      cat(paste("Filter condition:", train_filt), file = log_name, sep="\n", append = TRUE)
+      cat("------------------------------", file = log_name, sep="\n", append = TRUE)
+      cat("", file = log_name, sep="\n", append = TRUE)
+    }
+  }
+  var_prob= paste0(varname,"_prob")
+  options(warn=-1)
+  d_filt <- d_test %>% filter_(test_filt)
+  options(warn=0)
+  d_filt[var_prob]=estimate['(Intercept)']
+  for (dem in names(estimate)) {
+    if (dem !='(Intercept)' & !is.na(estimate[dem])) { 
+      d_filt[is.na(d_filt[,dem]),dem]=0
+      d_filt[var_prob]= d_filt[,var_prob] + d_filt[,dem]*estimate[dem]
+    }
+  }
+  d_filt[var_prob] <- with(d_filt, exp(get(var_prob))/(1+exp(get(var_prob))))
+  d_filt <- d_filt[,c(var_prob, 'id')]
+  
+  # option to create dummy variables in addition to probabilities
+  if (create_dummies==TRUE) {
+    d_filt [is.na(d_filt[var_prob]), var_prob] <- 0
+    d_filt['rand']=runif(nrow(d_filt))
+    d_filt[varname] <- with(d_filt, ifelse(rand>get(var_prob),0,1))    
+    d_filt <- d_filt[,c(varname, 'id')]
+  }
+  
+  return(d_filt)
+}
+
 
 # ============================ #
 # 1C. KNN_multi

@@ -171,7 +171,7 @@ run_ABF <- function(d, ABF_elig_size, ABF_max_tax_earn, ABF_bene_tax, ABF_avg_st
   )
   
    # output meta file 
-   write.csv(d_copy, file=paste0('./output/abf_acs_sim_',format(Sys.time(), "%Y%m%d_%H%M%S"),'.csv'))
+   write.csv(d_copy, file=paste0('./output/abf_acs_sim_',model_start_time,'.csv'))
   
   
   return(d)
