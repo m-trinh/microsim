@@ -1,6 +1,6 @@
 if( ! require( 'R.utils' , character.only = TRUE ) ){
       #  If package was not able to be loaded then re-install
-      install.packages( 'R.utils' , dependencies = TRUE )
+      install.packages( 'R.utils' , dependencies = TRUE, repos = "http://cran.us.r-project.org" )
       #  Load package after installing
       require( 'R.utils' , character.only = TRUE )
     }
@@ -12,15 +12,15 @@ keys <- attachLocally(args)
 d <- policy_simulation(
 	acs_dir=acs_dir,
 	fmla_file=fmla_file,
-	fmla_year=fmla_year,
-	acs_year=acs_year,
+	fmla_year=as.numeric(fmla_year),
+	acs_year=as.numeric(acs_year),
 	saveCSV=TRUE,
 	FEDGOV=as.logical(FEDGOV),
 	STATEGOV=as.logical(STATEGOV),
 	LOCALGOV=as.logical(LOCALGOV),
-	xvars=c("widowed", "divorced", "separated", "nevermarried", "female",
-		  'age_cat', "ltHS", "someCol", "BA", "GradSch", "black",
-		  "other", "asian",'native', "hisp","nochildren",'faminc_cat','coveligd'),
+	# xvars=c("widowed", "divorced", "separated", "nevermarried", "female",
+	# 	  'age_cat', "ltHS", "someCol", "BA", "GradSch", "black",
+	# 	  "other", "asian",'native', "hisp","nochildren",'faminc_cat','coveligd'),
 	base_bene_level=as.numeric(base_bene_level),
 	impute_method=gsub('_', ' ', impute_method),
 	makelog = TRUE,
@@ -55,9 +55,11 @@ d <- policy_simulation(
 	output_stats=c('standard', 'state_compar'),
 	kval=5,
 	alpha=as.numeric(alpha),
-	wait_period=wait_period,
-	wait_period_recollect=wait_period_recollect,
-	dual_receiver=dual_receiver,
-	min_takeup_cpl=min_takeup_cpl,
+	wait_period=as.numeric(wait_period),
+	wait_period_recollect=as.logical(wait_period_recollect),
+	min_cfl_recollect=as.numeric(min_cfl_recollect),
+	dual_receiver=as.numeric(dual_receiver),
+	min_takeup_cpl=as.numeric(min_takeup_cpl),
+	model_start_time=model_start_time,
 	ABF_enabled=FALSE
 )

@@ -56,7 +56,7 @@ policy_simulation <- function(
                               PRIVATE=TRUE,
                               wait_period=0,
                               wait_period_recollect=FALSE,
-                              min_cpl_recollect=wait_period,
+                              min_cfl_recollect=wait_period,
                               place_of_work = FALSE,
                               state = '',
                               dual_receiver = 1,
@@ -160,7 +160,7 @@ policy_simulation <- function(
   #  if output name is null, set a standard name to match python
   
   if (is.null(output)) {
-    output <- paste0('acs_sim_', tolower(state), '_', model_start_time, '.csv')
+    output <- paste0('acs_sim_', tolower(model_state), '_', model_start_time)
   }
   
   
@@ -260,7 +260,7 @@ policy_simulation <- function(
   {
     if (!require(x,character.only = TRUE))
     {
-      install.packages(x,dep=TRUE)
+      install.packages(x,dep=TRUE, repos = "http://cran.us.r-project.org")
       if(!require(x,character.only = TRUE)) stop("Package not found")
     }
     return("OK")

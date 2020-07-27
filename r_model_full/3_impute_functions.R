@@ -377,7 +377,7 @@ logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, t
   
   # generate formulas for logistic regression
   # need formula strings to look something like "take_own ~ age + agesq + male + ..." 
-  
+
   if (xvars[1]!="") {
     formulas=c()
     for (i in yvars) { 
@@ -391,7 +391,7 @@ logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, t
       formulas= c(formulas, paste(i, "~ 1"))
     }
   }
-  
+
   # create columns based on logit estimates  
   if (regularized == FALSE) {
     sets <-  mapply(runLogitEstimate, formula = formulas, train_filt = train_filts,
@@ -418,7 +418,7 @@ logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, t
     # set missing probability = 0
     d_test[is.na(d_test[colnames(i[2])]), colnames(i[2])] <- 0
   } 
-  
+
   # set formula
   if (xvars[1]!="") {
     formula <- paste("factor(prop_pay_employer) ~", paste(xvars[1],'+', paste(xvars[2:length(xvars)], collapse=" + ")))
@@ -430,7 +430,7 @@ logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, t
   # Do an ordinal logit imputation for prop_pay_employer
   d_filt <- runOrdinalEstimate(d_train=d_train,d_test=d_test, formula=formula,
                                test_filt="TRUE", train_filt="TRUE", varname='prop_pay_employer')
-  
+
   # old merge code caused memory issues. Using match instead.
   #d_test <- merge(d_filt, d_test, by='id', all.y=TRUE)
   for (i in names(d_filt)) {

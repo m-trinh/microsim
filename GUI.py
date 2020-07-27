@@ -35,7 +35,7 @@ class MicrosimGUI(Tk):
         self.default_params = OtherParameters()
         self.config_fp = 'config.ini'
         self.config = configparser.ConfigParser()
-        self.model_time_start = None
+        self.model_start_time = None
 
         self.showing_advanced = False  # Whether or not advanced parameters are being shown
 
@@ -334,16 +334,16 @@ class MicrosimGUI(Tk):
     def run_simulation_r(self):
         """Run R Engine"""
         # Create progress text file to update progress window
-        self.model_time_start = datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')
-        progress_file = './r_model_full/progress/progress_{}.txt'.format(self.model_time_start)
+        self.model_start_time = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        progress_file = './r_model_full/progress/progress_{}.txt'.format(self.model_start_time)
         if not os.path.exists('./r_model_full/progress'):
             os.makedirs('./r_model_full/progress')
         open(progress_file, 'w+').close()
-        output_dir = os.path.join(self.general_params.output_directory, 'output_%s' % self.model_time_start)
+        output_dir = os.path.join(self.general_params.output_directory, 'output_%s' % self.model_start_time)
 
         # Generate command to run R engine from terminal
         command = create_r_command(self.general_params, self.all_params[0], progress_file, output_dir,
-                                   self.model_time_start)
+                                   self.model_start_time)
         print(command)
 
         # Run command in new process
@@ -369,10 +369,15 @@ class MicrosimGUI(Tk):
             main_output_dir = self.sim_engine.output_directories[0]
             results_files = self.sim_engine.get_results_files()
         else:
-            r_output_dir = os.path.join(self.general_params.output_directory, 'output_%s' % self.model_time_start)
-            results_files = [os.path.join(r_output_dir, 'output_py_compatible.csv')]
-            costs = pd.read_csv(os.path.join(r_output_dir, 'program_cost_%s.csv' % self.model_time_start))
+            r_output_dir = os.path.join(self.general_params.output_directory, 'output_%s' % self.model_start_time)
+            results_files = [os.path.join(r_output_dir, 'acs_sim_{}_{}_py_compatible.csv'.
+                                          format(self.general_params.state.lower(), self.model_start_time))]
+            costs = pd.read_csv(os.path.join(r_output_dir, 'program_cost_%s_%s.csv' %
+                                             (self.general_params.state.lower(), self.model_start_time)))
+            takers = pd.read_csv(os.path.join(r_output_dir, 'program_progtaker_%s_%s.csv' %
+                                             (self.general_params.state.lower(), self.model_start_time)))
             costs.columns = ['type', 'cost', 'ci_lower', 'ci_upper']
+            takers.columns = ['type', 'progtaker', 'ci_lower', 'ci_upper']
             main_output_dir = self.general_params.output_directory
 
         # Calculate total benefits paid

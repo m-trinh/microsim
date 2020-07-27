@@ -412,7 +412,7 @@ def get_sim_name(sim_num):
     return 'Main Simulation' if sim_num == 0 else 'Comparison {}'.format(sim_num)
 
 
-def create_r_command(general_params, other_params, progress_file, output_dir, model_time_start):
+def create_r_command(general_params, other_params, progress_file, output_dir, model_start_time):
     """Uses parameter objects to create a command that, when run in a new process, will execute R engine
 
     :param general_params: GeneralParameters, required
@@ -468,9 +468,10 @@ def create_r_command(general_params, other_params, progress_file, output_dir, mo
         'alpha': other_params.alpha,
         'wait_period': other_params.wait_period,
         'wait_period_recollect': other_params.recollect,
+        'min_cfl_recollect': other_params.min_cfl_recollect,
         'dual_receiver': other_params.dual_receivers_share,
         'min_takeup_cpl': other_params.min_takeup_cpl,
-        'model_time_start': model_time_start
+        'model_start_time': model_start_time
     }
 
     # Convert the list into a string

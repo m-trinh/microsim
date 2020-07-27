@@ -125,7 +125,7 @@ impute_leave_length <- function(d_train, d_test, ext_resp_len,rr_sensitive_leave
   #        sample from which to impute length from (training data), and presence/absence of program
   
   # using actual leave length distribution data since FMLA only gives ranges of leave lengths
-  d_lens <- read.csv('../data/leave_length_prob_dist.csv')
+  d_lens <- read.csv('data/leave_length_prob_dist.csv')
   #d_lens2 <- fromJSON(file = "./data/length_distributions_exact_days.json")
   
   predict <- mapply(runRandDraw, yvar=yvars, filt=filts, maxlen=maxlen,
