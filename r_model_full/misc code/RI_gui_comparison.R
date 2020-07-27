@@ -12,7 +12,8 @@ source("0_master_execution_function.R")
 #=================================
 #Rhode Island
 #=================================
-meth <- 'Logistic Regression GLM'
+#meth <- 'K Nearest Neighbor'
+meth <- 'Support Vector Machine'
 timestart <<- Sys.time()
 ri <- policy_simulation(saveCSV=TRUE,
                         impute_method=meth,

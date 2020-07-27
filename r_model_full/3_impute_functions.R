@@ -153,7 +153,7 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
   if (impute_method=="K Nearest Neighbor") {
     # INPUTS: variable to be imputed, conditionals to filter training and test data on, FMLA data (training), and
     #         ACS data (test), id variable, and dependent variables to use in imputation, number of nbors
-    impute <- mapply(KNN_multi, imp_var=yvars,train_filt=filts, test_filt=filts,
+    impute <- mapply(KNN_multi_class, imp_var=yvars,train_filt=filts, test_filt=filts,
                      MoreArgs=list(d_train=d_fmla,d_test=d_acs,xvars=xvars, kval=kval), SIMPLIFY = FALSE)
     
     # OUTPUTS: list of data sets for each leave taking/other variables requiring imputation. 
@@ -377,7 +377,7 @@ logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, t
   
   # generate formulas for logistic regression
   # need formula strings to look something like "take_own ~ age + agesq + male + ..." 
-
+  
   if (xvars[1]!="") {
     formulas=c()
     for (i in yvars) { 
@@ -391,7 +391,7 @@ logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, t
       formulas= c(formulas, paste(i, "~ 1"))
     }
   }
-
+  
   # create columns based on logit estimates  
   if (regularized == FALSE) {
     sets <-  mapply(runLogitEstimate, formula = formulas, train_filt = train_filts,
@@ -418,7 +418,7 @@ logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, t
     # set missing probability = 0
     d_test[is.na(d_test[colnames(i[2])]), colnames(i[2])] <- 0
   } 
-
+  
   # set formula
   if (xvars[1]!="") {
     formula <- paste("factor(prop_pay_employer) ~", paste(xvars[1],'+', paste(xvars[2:length(xvars)], collapse=" + ")))
@@ -430,7 +430,7 @@ logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, t
   # Do an ordinal logit imputation for prop_pay_employer
   d_filt <- runOrdinalEstimate(d_train=d_train,d_test=d_test, formula=formula,
                                test_filt="TRUE", train_filt="TRUE", varname='prop_pay_employer')
-
+  
   # old merge code caused memory issues. Using match instead.
   #d_test <- merge(d_filt, d_test, by='id', all.y=TRUE)
   for (i in names(d_filt)) {
@@ -779,6 +779,52 @@ runRegLogitEstimate <- function(d_train,d_test, formula, test_filt,train_filt, w
 # ============================ #
 # 1C. KNN_multi
 # ============================ #
+KNN_multi_class <- function(d_train, d_test, imp_var, train_filt, test_filt, xvars, kval=5) {
+  # filter dataset and keep just the variables of interest
+  options(warn=-1)
+  train <-  d_train %>% filter(complete.cases(dplyr::select(d_train, all_of(imp_var),all_of(xvars)))) %>% 
+    filter_(train_filt) %>%
+    dplyr::select(imp_var, all_of(xvars)) %>%
+    mutate(id = NULL)
+  options(warn=0)
+  
+  # create test data set 
+  # This is a dataframe just with the variables in the acs that will be used to compute distance
+  options(warn=-1)
+  test <- d_test %>% filter_(test_filt) %>%
+    dplyr::select(all_of(xvars)) %>%
+    filter(complete.cases(.))
+  options(warn=0)
+  
+  # Initial checks
+  
+  # check for data frames
+  if ((!is.data.frame(train)) | (!is.data.frame(test))) {
+    stop("train_set and test_set must be data frames")
+  }  
+  
+  # check for missing data
+  if (anyNA(train) | anyNA(test)) {
+    stop("missing values not allowed in train_test or test_set")
+  }
+  
+  
+  # normalize training data to equally weight differences between variables
+  for (i in colnames(train)) {
+    if (i != 'nbor_id' & i != imp_var & sum(train[i])!=0 ){
+      train[i] <- scale(train[i],center=0,scale=max(train[,i]))
+    }
+  } 
+  
+  for (i in colnames(test)) {
+    if (i != 'id' & sum(test[i])!=0 ){
+      test[i] <- scale(test[i],center=0,scale=max(test[,i]))
+    }
+  } 
+  browser()
+  #results <- knn(train[,2:length(names(train))], test,train,[,1], k=5)
+  
+}
 # Define KNN matching method, but allowing multiple (k) neighbors 
 KNN_multi <- function(d_train, d_test, imp_var, train_filt, test_filt, xvars, kval=5) { 
   
@@ -1187,7 +1233,8 @@ svm_impute <- function(d_train, d_test, yvars, train_filts, test_filts, weights,
                                                                             , collapse=" + ")))
       }
     }  
-    model <- svm(x = ftrain[temp_xvars], y = factor(ftrain[,yvars[i]]), scale = FALSE , type='one-classification')
+    model <- svm(x = ftrain[temp_xvars], y = factor(ftrain[,yvars[i]]), scale = FALSE , type='C-classification',probability = TRUE)
+    # attr(model,"probabilities")
     # apply model to test data 
     options(warn=-1)
     ftest <- d_test %>% filter(complete.cases(dplyr::select(d_test, all_of(temp_xvars)))) %>% filter_(test_filts[i]) 
@@ -1198,9 +1245,25 @@ svm_impute <- function(d_train, d_test, yvars, train_filts, test_filts, weights,
         ftest[j] <- scale(ftest[j],center=0,scale=max(ftest[,j]))
       }
     }
-    impute <- as.data.frame(as.integer(predict(object=model, newdata = ftest[temp_xvars])))
-    colnames(impute)[1] <- yvars[i]
-    
+    impute <- predict(object=model, newdata = ftest[temp_xvars],probability = TRUE)
+    impute <- as.data.frame(attr(impute, 'probabilities'))
+    # play wheel of fortune with predicted probabilities to get imputed value
+    impute['rand'] <- runif(nrow(impute))
+    # do this differently for prop_pay_employer as a non-binary categorical var
+    if (i=='prop_pay_employer'){
+      impute['prop_pay_employer'] <- NA
+      impute['cum']=0
+      var_vals <- sapply(unname(sort(unlist(c(unique(ftrain['prop_pay_employer']))))),toString)
+      for (j in var_vals) {
+        impute['prop_pay_employer'] <- with(impute, ifelse(rand > cum & rand<(cum + get(j)), j, prop_pay_employer))
+        impute['cum']= impute[,'cum'] + impute[,j]
+      }
+      impute['prop_pay_employer'] <- as.numeric(impute[,'prop_pay_employer'])
+    }
+    # rest of vars are binary
+    else {
+      impute[yvars[i]] <- as.data.frame(ifelse(impute[2]>impute['rand'],1,0))  
+    }
     # add imputed value to test data set
     impute <- cbind(ftest['id'], impute)
     # old merge code, caused memory issues. using match instead
