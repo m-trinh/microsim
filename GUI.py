@@ -42,6 +42,7 @@ class MicrosimGUI(Tk):
         self.all_params = [self.default_params]
         self.comparing = False
         self.current_sim_num = 0
+        self.r_output_dir = None
 
         self.currently_running = False  # Whether or not a simulation is currently running
 
@@ -341,9 +342,11 @@ class MicrosimGUI(Tk):
         if not os.path.exists('./r_model_full/progress'):
             os.makedirs('./r_model_full/progress')
         open(progress_file, 'w+').close()
+        self.r_output_dir = os.path.join(self.general_params.output_directory,
+                                         'output_%s' % datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
 
         # Generate command to run R engine from terminal
-        command = create_r_command(self.general_params, self.all_params[0], progress_file)
+        command = create_r_command(self.general_params, self.all_params[0], progress_file, self.r_output_dir)
         print(command)
 
         # Run command in new process
@@ -364,12 +367,13 @@ class MicrosimGUI(Tk):
         # Compute program costs
         print('Showing results')
         if engine == 'Python':
-            costs = self.sim_engine.get_cost_df(0)
+            costs = self.sim_engine.get_summary_df(0, 'cost')
+            takers = self.sim_engine.get_summary_df(0, 'progtaker')
             main_output_dir = self.sim_engine.output_directories[0]
             results_files = self.sim_engine.get_results_files()
         else:
-            results_files = [os.path.join(self.general_params.output_directory, 'output_py_compatible.csv')]
-            costs = pd.read_csv(os.path.join(self.general_params.output_directory, 'program_cost_r_model.csv'))
+            results_files = [os.path.join(self.r_output_dir, 'output_py_compatible.csv')]
+            costs = pd.read_csv(os.path.join(self.r_output_dir, 'program_cost_r_model.csv'))
             costs.columns = ['type', 'cost', 'ci_lower', 'ci_upper']
             main_output_dir = self.general_params.output_directory
 
@@ -383,7 +387,7 @@ class MicrosimGUI(Tk):
                          main_params.average_state_tax, main_params.payroll_tax, output_dir=main_output_dir)
 
         # Keep track of all results windows that are created
-        self.results_windows.append(ResultsWindow(self, costs, self.current_state, results_files, abf_module))
+        self.results_windows.append(ResultsWindow(self, costs, takers, self.current_state, results_files, abf_module))
         self.run_button.enable()  # Enable run button again after simulation is complete
 
     def create_params(self):
@@ -2109,7 +2113,7 @@ class DependencyAllowanceProfileFrame(Frame):
 
 
 class ResultsWindow(Toplevel):
-    def __init__(self, parent, costs, state, results_files, abf_module):
+    def __init__(self, parent, costs, takers, state, results_files, abf_module):
         """Window to display results
 
         :param parent: Parent widget
@@ -2141,7 +2145,7 @@ class ResultsWindow(Toplevel):
         self.current_tab = 0
 
         # Summary tab will display the costs of the each leave type of the main simulation
-        self.summary_frame = ResultsSummary(self, costs, state, content_bg=DARK_COLOR)
+        self.summary_frame = ResultsSummary(self, costs, takers, state, content_bg=DARK_COLOR)
         self.notebook.add(self.summary_frame, text='Summary')
 
         # ABF tab wil display the revenue information and functionalities
@@ -2440,7 +2444,7 @@ class PopulationAnalysis(ScrollFrame):
 
 
 class ResultsSummary(ScrollFrame):
-    def __init__(self, parent, costs, state, **kwargs):
+    def __init__(self, parent, costs, takers, state, **kwargs):
         """Frame to hold summary results from main simulation
 
         :param parent: Tk widget, required
@@ -2460,9 +2464,9 @@ class ResultsSummary(ScrollFrame):
         self.cost_chart_container.pack()
 
         # Create leave chart
-        leave_chart = create_leave_chart(costs, state)
-        self.leave_chart_container = ChartContainer(self.frame, leave_chart, DARK_COLOR, height=400)
-        self.leave_chart_container.pack()
+        taker_chart = create_taker_chart(takers, state)
+        self.taker_chart_container = ChartContainer(self.frame, taker_chart, DARK_COLOR, height=400)
+        self.taker_chart_container.pack()
 
         # # Create canvas for summary chart
         # canvas = FigureCanvasTkAgg(self.chart, self.chart_container)

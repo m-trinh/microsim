@@ -320,7 +320,7 @@ def create_cost_chart(data, state):
     return fig
 
 
-def create_leave_chart(data, state):
+def create_taker_chart(data, state):
     """Create a matplotlib bar chart with benefits paid for each type
 
     :param data: pd.DataFrame, required
@@ -341,16 +341,15 @@ def create_leave_chart(data, state):
     leave_types = [leave_type_translation[l] for l in data['type'].tolist()[:-1]]
 
     # Get total cost of program, in millions and rounded to 1 decimal point
-    # total_cost = round(list(data.loc[data['type'] == 'total', 'cost'])[0] / 10 ** 6, 1)
-    # spread = round((list(data.loc[data['type'] == 'total', 'ci_upper'])[0] -
-    #                 list(data.loc[data['type'] == 'total', 'ci_lower'])[0]) / 10 ** 6, 1)
-    title = 'State: %s. Total Leave Takers = %s (\u00B1%s).' % (state.upper(), 'x', 'y')
+    total_takers = list(data.loc[data['type'] == 'any', 'progtaker'])[0]
+    spread = list(data.loc[data['type'] == 'any', 'ci_upper'])[0] - list(data.loc[data['type'] == 'any', 'ci_lower'])[0]
+    title = 'State: {}. Total Leave Takers = {:,} (\u00B1{:,}).'.format(state.upper(), total_takers, spread)
 
     # Create chart to display benefit cost for each leave type
     fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
     ind = np.arange(len(leave_types))
-    ys = data[:-1]['cost'] / 10 ** 6
-    es = 0.5 * (data[:-1]['ci_upper'] - data[:-1]['ci_lower']) / 10 ** 6  # Used for confidence intervals
+    ys = data[:-1]['progtaker']
+    es = 0.5 * (data[:-1]['ci_upper'] - data[:-1]['ci_lower'])  # Used for confidence intervals
     width = 0.5
     ax.bar(ind, ys, width, yerr=es, align='center', capsize=5, color='#1aff8c', ecolor='white')
     ax.set_ylabel('Leave Takers')
@@ -413,7 +412,7 @@ def get_sim_name(sim_num):
     return 'Main Simulation' if sim_num == 0 else 'Comparison {}'.format(sim_num)
 
 
-def create_r_command(general_params, other_params, progress_file):
+def create_r_command(general_params, other_params, progress_file, output_dir):
     """Uses parameter objects to create a command that, when run in a new process, will execute R engine
 
     :param general_params: GeneralParameters, required
@@ -425,6 +424,11 @@ def create_r_command(general_params, other_params, progress_file):
 
     # Create a list of parameter values
     params = {
+        'acs_dir': general_params.acs_directory,
+        'cps_dir': '../data/cps/',
+        'fmla_file': general_params.fmla_file,
+        'fmla_year': general_params.fmla_wave,
+        'acs_year': general_params.year,
         'base_bene_level': other_params.replacement_ratio,  # base_bene_level
         'impute_method': general_params.simulation_method.replace(' ', '_'),  # impute_method
         'makelog': True,  # makelog
@@ -461,8 +465,12 @@ def create_r_command(general_params, other_params, progress_file):
         'random_seed': general_params.random_seed,  # random_seed
         'progress_file': progress_file.replace('r_model_full/', ''),
         'log_directory': '../log/',
-        'out_dir': general_params.output_directory,
+        'out_dir': output_dir,
         'alpha': other_params.alpha,
+        'wait_period': other_params.wait_period,
+        'wait_period_recollect': other_params.recollect,
+        'dual_receiver': other_params.dual_receivers_share,
+        'min_takeup_cpl': other_params.min_takeup_cpl
         # '': 1,  # sample_prop?
         # '': True,  # exclusive_particip
         # '': False,  # SMOTE
