@@ -6,7 +6,7 @@ output/*
 r_engine/*
 build/*
 dist/*
-hook-sklearn.py
+hook-*.py
 Microsimulator.spec
 *.exe
 log/*
