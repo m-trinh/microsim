@@ -56,6 +56,7 @@ policy_simulation <- function(
                               PRIVATE=TRUE,
                               wait_period=0,
                               wait_period_recollect=FALSE,
+                              min_cpl_recollect=wait_period,
                               place_of_work = FALSE,
                               state = '',
                               dual_receiver = 1,
@@ -138,6 +139,7 @@ policy_simulation <- function(
   } else {
       model_start_time <<- model_start_time
   }
+  model_state <<- state
 
   
   ####################################

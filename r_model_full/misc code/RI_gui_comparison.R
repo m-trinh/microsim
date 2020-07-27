@@ -12,7 +12,7 @@ source("0_master_execution_function.R")
 #=================================
 #Rhode Island
 #=================================
-meth <- 'Logistic Regression Regularized'
+meth <- 'Logistic Regression GLM'
 timestart <<- Sys.time()
 ri <- policy_simulation(saveCSV=TRUE,
                         impute_method=meth,

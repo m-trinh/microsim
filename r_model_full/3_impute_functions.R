@@ -418,7 +418,6 @@ logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, t
     # set missing probability = 0
     d_test[is.na(d_test[colnames(i[2])]), colnames(i[2])] <- 0
   } 
-  browser()
   
   # set formula
   if (xvars[1]!="") {

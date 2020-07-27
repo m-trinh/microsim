@@ -28,7 +28,9 @@ r_model_full/restricted_data
 r_model_full/output
 r_model_full/logs
 r_model_full/log
-r_model_full/data
+r_model_full/data/acs
+r_model_full/data/fmla
+r_model_full/data/cps
 r_model_full/.Rproj.user
 r_model_full/.Rhistory
 meta_output/
