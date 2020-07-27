@@ -12,9 +12,12 @@ source("0_master_execution_function.R")
 #=================================
 #Rhode Island
 #=================================
-
+meth <- 'Logistic Regression Regularized'
 timestart <<- Sys.time()
 ri <- policy_simulation(saveCSV=TRUE,
+                        impute_method=meth,
+                        minsize=1,
+                        ann_hours=1,
                         state='RI',
                         makelog=TRUE,
                         base_bene_level=.6,
@@ -29,7 +32,7 @@ ri <- policy_simulation(saveCSV=TRUE,
                         dependent_allow = c(.07,.07,.07,.07,.07),
                         alpha=0,
                         sens_var='resp_len',
-                        own_uptake= .0723, matdis_uptake=.0241, bond_uptake=.0104, illchild_uptake=.0006,
+                        own_uptake= .0809, matdis_uptake=.027, bond_uptake=.0102, illchild_uptake=.0006,
                         illspouse_uptake=.0015, illparent_uptake=.0009,
                         maxlen_own =150, maxlen_matdis =150, maxlen_bond =20, maxlen_illparent=20, 
                         maxlen_illspouse =20, maxlen_illchild =20,

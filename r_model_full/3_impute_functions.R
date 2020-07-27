@@ -23,11 +23,12 @@
       # 1Ba. runLogitImpute - used in hardcoded methods found elsewhere as well
       # 1Bb. runOrdinalImpute - used in hardcoded methods found elsewhere as well
       # 1Bc. runRandDraw - used in hardcoded methods found elsewhere as well
+      # 1Bd, runRegLogitImpute
   # 1C. KNN_multi
   # 1D. Naive_Bayes
   # 1E. ridge_class
   # 1F. random_forest
-  # 1G. svm_impute - Gets bad results right now
+  # 1G. svm_impute
   # 1H. xG Boost
 
 # ============================ #
@@ -143,6 +144,11 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
                                 yvars=yvars, test_filts=filts, train_filts=filts, 
                                 weights=weights, create_dummies=TRUE)
   }
+  if (impute_method=="Logistic Regression Regularized") {
+    d_acs <- logit_leave_method(d_test=d_acs, d_train=d_fmla, xvars=xvars, 
+                                yvars=yvars, test_filts=filts, train_filts=filts, 
+                                weights=weights, create_dummies=TRUE, regularized= TRUE)
+  }
   
   if (impute_method=="K Nearest Neighbor") {
     # INPUTS: variable to be imputed, conditionals to filter training and test data on, FMLA data (training), and
@@ -164,6 +170,12 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
     
   }
   if (impute_method=="Naive Bayes") {
+    # xvars must be all categorical vars for naive bayes
+    xvars <-c("widowed", "divorced", "separated", "nevermarried", "female", 
+              "ltHS", "someCol", "BA", "GradSch", "black", 
+              "other", "asian",'native', "hisp","nochildren",'fmla_eligible',
+              'union','hourly')
+    
     options(warn=-1)
     d_acs <- Naive_Bayes(d_test=d_acs, d_train=d_fmla, xvars=xvars, 
                          yvars=yvars, test_filts=filts, train_filts=filts, 
@@ -181,7 +193,7 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
     d_acs <- random_forest(d_test=d_acs, d_train=d_fmla, xvars=xvars, 
                          yvars=yvars, test_filts=filts, train_filts=filts, 
                          weights=weights)
-  }
+  } 
   
   if (impute_method=="Support Vector Machine") {
     d_acs <- svm_impute(d_test=d_acs, d_train=d_fmla, xvars=xvars, 
@@ -225,9 +237,9 @@ KNN1_scratch <- function(d_train, d_test, imp_var, train_filt, test_filt, xvars,
   
   # filter dataset and keep just the variables of interest
   options(warn=-1)
-  train <-  d_train %>% filter(complete.cases(dplyr::select(d_train, 'id', imp_var,xvars))) %>% 
+  train <-  d_train %>% filter(complete.cases(dplyr::select(d_train, 'id', all_of(imp_var),all_of(xvars)))) %>% 
     filter_(train_filt) %>%
-    dplyr::select(imp_var, xvars) %>%
+    dplyr::select(imp_var, all_of(xvars)) %>%
     mutate(id = NULL)
   options(warn=0)
   train ['nbor_id'] <- as.numeric(rownames(train))
@@ -236,7 +248,7 @@ KNN1_scratch <- function(d_train, d_test, imp_var, train_filt, test_filt, xvars,
   # This is a dataframe just with the variables in the acs that will be used to compute distance
   options(warn=-1)
   test <- d_test %>% filter_(test_filt) %>%
-    dplyr::select(id, xvars) %>%
+    dplyr::select(id, all_of(xvars)) %>%
     filter(complete.cases(.))
   options(warn=0)
   
@@ -311,7 +323,7 @@ KNN1_scratch <- function(d_train, d_test, imp_var, train_filt, test_filt, xvars,
 # logit imputation of leave characteristics
 
 logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, train_filts, 
-                               weights, create_dummies) {
+                               weights, create_dummies, regularized = FALSE) {
   
   # placeholder modification of xvars to follow Chris' specification in python
   # should be removed in final version
@@ -381,13 +393,20 @@ logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, t
   }
   
   # create columns based on logit estimates  
-  sets <-  mapply(runLogitEstimate, formula = formulas, train_filt = train_filts,
-                       test_filt=test_filts, weight = weights, varname=yvars,
-                       MoreArgs=list(d_train=d_train, d_test=d_test, create_dummies=TRUE), 
-                       SIMPLIFY = FALSE)
-
-  # merge imputed values into single data set
+  if (regularized == FALSE) {
+    sets <-  mapply(runLogitEstimate, formula = formulas, train_filt = train_filts,
+                    test_filt=test_filts, weight = weights, varname=yvars,
+                    MoreArgs=list(d_train=d_train, d_test=d_test, create_dummies=TRUE), 
+                    SIMPLIFY = FALSE)
+  }
   
+  if (regularized == TRUE) {
+    sets <-  mapply(runRegLogitEstimate, formula = formulas, train_filt = train_filts,
+                    test_filt=test_filts, weight = weights, varname=yvars,
+                    MoreArgs=list(d_train=d_train, d_test=d_test, create_dummies=TRUE), 
+                    SIMPLIFY = FALSE)
+  }
+  # merge imputed values into single data set
   for (i in sets) {
     # old merge code, caused memory issues. using match instead
     # d_test <- merge(i, d_test, by="id",all.y=TRUE)
@@ -399,6 +418,7 @@ logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, t
     # set missing probability = 0
     d_test[is.na(d_test[colnames(i[2])]), colnames(i[2])] <- 0
   } 
+  browser()
   
   # set formula
   if (xvars[1]!="") {
@@ -701,6 +721,63 @@ runRandDraw <- function(d, yvar, filt, leave_dist, ext_resp_len, rr_sensitive_le
 }
 
 # ============================ #
+# 1Bd. runRegLogitEstimate
+# ============================ #
+runRegLogitEstimate <- function(d_train,d_test, formula, test_filt,train_filt, weight, 
+                             varname, create_dummies){
+  x_train <- model.frame(formula, data=d_train)
+  x_train <- x_train %>% filter_(train_filt)
+  x_train <- as.matrix(x_train)
+  y_train <- x_train[, 1]
+  x_train <- x_train[, 2:length(colnames(x_train))]
+  model <- glmnet( x_train ,y_train,family="binomial", alpha=0, lambda=1)
+  m_estimate <- coef(model)  
+  estimate <- as.vector(m_estimate)
+  names(estimate) <- rownames(m_estimate)
+
+  
+  # if making a log, record sample size of filtered data set
+  if (exists('makelog')) {
+    if ( makelog == TRUE) {
+      options(warn=-1)
+      temp_filt = d_train %>% filter_(train_filt)
+      options(warn=0)
+      cat("", file = log_name, sep="\n", append = TRUE)
+      cat("------------------------------", file = log_name, sep="\n", append = TRUE)
+      cat(paste("Filtered FMLA Sample Size:", nrow(temp_filt)), file = log_name, sep="\n", append = TRUE)
+      cat(paste("Formula:", formula), file = log_name, sep="\n", append = TRUE)
+      cat(paste("Filter condition:", train_filt), file = log_name, sep="\n", append = TRUE)
+      cat("------------------------------", file = log_name, sep="\n", append = TRUE)
+      cat("", file = log_name, sep="\n", append = TRUE)
+    }
+  }
+  var_prob= paste0(varname,"_prob")
+  options(warn=-1)
+  d_filt <- d_test %>% filter_(test_filt)
+  options(warn=0)
+  d_filt[var_prob]=estimate['(Intercept)']
+  for (dem in names(estimate)) {
+    if (dem !='(Intercept)' & !is.na(estimate[dem])) { 
+      d_filt[is.na(d_filt[,dem]),dem]=0
+      d_filt[var_prob]= d_filt[,var_prob] + d_filt[,dem]*estimate[dem]
+    }
+  }
+  d_filt[var_prob] <- with(d_filt, exp(get(var_prob))/(1+exp(get(var_prob))))
+  d_filt <- d_filt[,c(var_prob, 'id')]
+  
+  # option to create dummy variables in addition to probabilities
+  if (create_dummies==TRUE) {
+    d_filt [is.na(d_filt[var_prob]), var_prob] <- 0
+    d_filt['rand']=runif(nrow(d_filt))
+    d_filt[varname] <- with(d_filt, ifelse(rand>get(var_prob),0,1))    
+    d_filt <- d_filt[,c(varname, 'id')]
+  }
+  
+  return(d_filt)
+}
+
+
+# ============================ #
 # 1C. KNN_multi
 # ============================ #
 # Define KNN matching method, but allowing multiple (k) neighbors 
@@ -715,9 +792,9 @@ KNN_multi <- function(d_train, d_test, imp_var, train_filt, test_filt, xvars, kv
   
   # filter dataset and keep just the variables of interest
   options(warn=-1)
-  train <-  d_train %>% filter(complete.cases(dplyr::select(d_train, 'id', imp_var,xvars))) %>% 
+  train <-  d_train %>% filter(complete.cases(dplyr::select(d_train, 'id', all_of(imp_var),all_of(xvars)))) %>% 
     filter_(train_filt) %>%
-    dplyr::select(imp_var, xvars) %>%
+    dplyr::select(imp_var, all_of(xvars)) %>%
     mutate(id = NULL)
   options(warn=0)
   train ['nbor_id'] <- as.numeric(rownames(train))
@@ -726,7 +803,7 @@ KNN_multi <- function(d_train, d_test, imp_var, train_filt, test_filt, xvars, kv
   # This is a dataframe just with the variables in the acs that will be used to compute distance
   options(warn=-1)
   test <- d_test %>% filter_(test_filt) %>%
-    dplyr::select(id, xvars) %>%
+    dplyr::select(id, all_of(xvars)) %>%
     filter(complete.cases(.))
   options(warn=0)
   # Initial checks
@@ -837,38 +914,28 @@ Naive_Bayes <- function(d_train, d_test, yvars, train_filts, test_filts, weights
   # predict each yvar 
   for (i in names(yvars)) {
     # # generate NB model from training data
-    options(warn=-1)
-    w_train <- as.data.frame(sapply(d_train %>% filter(complete.cases(dplyr::select(d_train, yvars[[i]], xvars))) 
-                                    %>% filter_(train_filts[i]) %>% dplyr::select(xvars, yvars[[i]]), as.factor))
-    w_test <- as.data.frame(sapply(d_test %>% filter(complete.cases(dplyr::select(d_test, xvars))) %>% filter_(test_filts[i])%>% dplyr::select(xvars),as.factor))
-    options(warn=0)
+    w_train <- as.data.frame(sapply(d_train %>% filter(complete.cases(dplyr::select(d_train, yvars[[i]], all_of(xvars)))) 
+                                    %>% filter_(train_filts[i]) %>% dplyr::select(all_of(xvars), yvars[[i]]), as.factor))
+    w_test <- as.data.frame(sapply(d_test %>% filter(complete.cases(dplyr::select(d_test, all_of(xvars)))) %>% filter_(test_filts[i])%>% dplyr::select(all_of(xvars)),as.factor))
     
-    # make sure that testing and training sets have same factor levels
+    # make sure that testing and training sets have same factor levels and are factors
     for (j in xvars) {
       # make sure categorical vars are factors with equivalent levels
+      d_test[,c(j)] <- factor(d_test[,c(j)])
+      w_test[,c(j)] <- factor(w_test[,c(j)])
       d_train[,c(j)] <- factor(d_train[,c(j)], levels=levels(d_test[,c(j)]))
       w_train[,c(j)] <- factor(w_train[,c(j)], levels=levels(w_test[,c(j)]))
     }
-    
+    d_train[,yvars[[i]]] <- factor(d_train[,yvars[[i]]])
+    w_train[,yvars[[i]]] <- factor(w_train[,yvars[[i]]])
+
     #wanbia <- compute_wanbia_weights('prop_pay_employer', as.data.frame(sapply(w_train, as.factor))) 
     wanbia <- bnc(dag_learner = 'nb',class=yvars[[i]], dataset=w_train,smooth=0,wanbia=TRUE) 
     
     
     # apply model to test data 
-    options(warn=-1)
-    w_test_ids <- d_test %>% filter(complete.cases(dplyr::select(d_test, xvars))) %>% filter_(test_filts[i])%>% dplyr::select(id)
-    options(warn=0)
+    w_test_ids <- d_test %>% filter(complete.cases(dplyr::select(d_test, all_of(xvars)))) %>% filter_(test_filts[i])%>% dplyr::select(id)
     wanbia_imp <- as.data.frame(predict(object=wanbia, newdata = w_test, prob=TRUE)) 
-    
-    # old version of NB impute; not done correctly
-    # ftrain <- d_train %>% filter(complete.cases(dplyr::select(d_train, yvars[i], xvars))) %>% filter_(train_filts[i])  
-    # model <- naiveBayes(x = ftrain[xvars], y = ftrain[yvars[i]])
-
-    # ftest <- d_test %>% filter(complete.cases(dplyr::select(d_test, xvars))) %>% filter_(test_filts[i]) 
-    # impute <- as.data.frame(predict(object=model, newdata = ftest[xvars], type='raw'))
-    # impute[yvars[i]] <- apply(impute, 1, FUN=which.min)
-    # impute[yvars[i]] <- apply(impute[yvars[i]],1,function(x) colnames(impute)[x])
-    # impute[yvars[i]] <- as.numeric(impute[,yvars[i]])
     
     # Play wheel of fortune with which prop_val to assign to each test obs
     wanbia_imp['rand'] <- runif(nrow(wanbia_imp))
@@ -916,7 +983,7 @@ ridge_class <- function(d_train, d_test, yvars, train_filts, test_filts, weights
   for (i in names(yvars)) {
     # generate Ridge Regression model from training data
     options(warn=-1)
-    ftrain <- d_train %>% filter(complete.cases(dplyr::select(d_train, yvars[i], xvars))) %>% filter_(train_filts[i])  
+    ftrain <- d_train %>% filter(complete.cases(dplyr::select(d_train, yvars[i], all_of(xvars)))) %>% filter_(train_filts[i])  
     options(warn=0)
     # normalize training data to equally weight differences between variables
     for (j in xvars) {
@@ -947,7 +1014,7 @@ ridge_class <- function(d_train, d_test, yvars, train_filts, test_filts, weights
       
       # apply model to test data
       options(warn=-1)
-      ftest <- d_test %>% filter(complete.cases(dplyr::select(d_test, temp_xvars))) %>% filter_(test_filts[i]) 
+      ftest <- d_test %>% filter(complete.cases(dplyr::select(d_test, all_of(temp_xvars)))) %>% filter_(test_filts[i]) 
       options(warn=0)
       
       # normalize test data to equally weight differences between variables
@@ -978,7 +1045,7 @@ ridge_class <- function(d_train, d_test, yvars, train_filts, test_filts, weights
       
       # prep test data
       options(warn=-1)
-      ftest <- d_test %>% filter(complete.cases(dplyr::select(d_test, temp_xvars))) %>% filter_(test_filts[i]) 
+      ftest <- d_test %>% filter(complete.cases(dplyr::select(d_test, all_of(temp_xvars)))) %>% filter_(test_filts[i]) 
       options(warn=0)
       # normalize test data to equally weight differences between variables
       for (j in temp_xvars) {
@@ -1045,12 +1112,12 @@ random_forest <- function(d_train, d_test, yvars, train_filts, test_filts, weigh
   for (i in names(yvars)) {
     # generate model from training data 
     options(warn=-1)
-    ftrain <- d_train %>% filter(complete.cases(dplyr::select(d_train, yvars[i], xvars))) %>% filter_(train_filts[i])  
+    ftrain <- d_train %>% filter(complete.cases(dplyr::select(d_train, yvars[i], all_of(xvars)))) %>% filter_(train_filts[i])  
     options(warn=0)
     model <- randomForest(x = ftrain[xvars], y = factor(ftrain[,yvars[i]]))
     # apply model to test data 
     options(warn=-1)
-    ftest <- d_test %>% filter(complete.cases(dplyr::select(d_test, xvars))) %>% filter_(test_filts[i]) 
+    ftest <- d_test %>% filter(complete.cases(dplyr::select(d_test, all_of(xvars)))) %>% filter_(test_filts[i]) 
     options(warn=0)
     impute <- as.data.frame(predict(object=model, newdata = ftest[xvars], type='prob'))
   
@@ -1103,12 +1170,12 @@ svm_impute <- function(d_train, d_test, yvars, train_filts, test_filts, weights,
     
     # generate model from training data 
     options(warn=-1)
-    ftrain <- d_train %>% filter(complete.cases(dplyr::select(d_train, yvars[i], xvars))) %>% filter_(train_filts[i])  
+    ftrain <- d_train %>% filter(complete.cases(dplyr::select(d_train, yvars[i], all_of(xvars)))) %>% filter_(train_filts[i])  
     options(warn=0)
     # normalize training data to equally weight differences between variables
     for (j in xvars) {
       if (sum(ftrain[j])!=0 ){
-        ftrain[j] <- scale(ftrain[j],center=0,scale=max(ftplotrain[,j]))
+        ftrain[j] <- scale(ftrain[j],center=0,scale=max(ftrain[,j]))
       }
     } 
     # check for xvars with all identical values. need to not use xvar if all values are the same in training 
@@ -1121,10 +1188,10 @@ svm_impute <- function(d_train, d_test, yvars, train_filts, test_filts, weights,
                                                                             , collapse=" + ")))
       }
     }  
-    model <- svm(x = ftrain[temp_xvars], y = factor(ftrain[,yvars[i]]), scale = FALSE)
+    model <- svm(x = ftrain[temp_xvars], y = factor(ftrain[,yvars[i]]), scale = FALSE , type='one-classification')
     # apply model to test data 
     options(warn=-1)
-    ftest <- d_test %>% filter(complete.cases(dplyr::select(d_test, temp_xvars))) %>% filter_(test_filts[i]) 
+    ftest <- d_test %>% filter(complete.cases(dplyr::select(d_test, all_of(temp_xvars)))) %>% filter_(test_filts[i]) 
     options(warn=0)
     # normalize test data to equally weight differences between variables
     for (j in temp_xvars) {
@@ -1132,7 +1199,7 @@ svm_impute <- function(d_train, d_test, yvars, train_filts, test_filts, weights,
         ftest[j] <- scale(ftest[j],center=0,scale=max(ftest[,j]))
       }
     }
-    impute <- as.data.frame(unfactor(predict(object=model, newdata = ftest[temp_xvars])))
+    impute <- as.data.frame(as.integer(predict(object=model, newdata = ftest[temp_xvars])))
     colnames(impute)[1] <- yvars[i]
     
     # add imputed value to test data set
@@ -1140,7 +1207,6 @@ svm_impute <- function(d_train, d_test, yvars, train_filts, test_filts, weights,
     # old merge code, caused memory issues. using match instead
     #d_test <- merge(d_test, impute[c('id', yvars[i])], by='id', all.x = TRUE)
     d_test[yvars[[i]]] <- impute[match(d_test$id, impute$id), yvars[[i]]]
-    
   }
   return(d_test) 
 }
@@ -1164,7 +1230,7 @@ xg_boost_impute <- function(d_train, d_test, yvars, train_filts, test_filts, wei
     
     # generate model from training data 
     options(warn=-1)
-    ftrain <- d_train %>% filter(complete.cases(dplyr::select(d_train, yvars[i], xvars))) %>% filter_(train_filts[i])  
+    ftrain <- d_train %>% filter(complete.cases(dplyr::select(d_train, yvars[i], all_of(xvars)))) %>% filter_(train_filts[i])  
     options(warn=0)
     # normalize training data to equally weight differences between variables
     for (j in xvars) {
@@ -1184,7 +1250,7 @@ xg_boost_impute <- function(d_train, d_test, yvars, train_filts, test_filts, wei
     } 
     # normalize for test xvars
     options(warn=-1)
-    ftest <- d_test %>% filter(complete.cases(dplyr::select(d_test, temp_xvars))) %>% filter_(test_filts[i]) 
+    ftest <- d_test %>% filter(complete.cases(dplyr::select(d_test, all_of(temp_xvars)))) %>% filter_(test_filts[i]) 
     options(warn=0)
     for (j in temp_xvars) {
       if (sum(ftest[j])!=0 ){

@@ -17,9 +17,17 @@
 # function to generate SE for an ACS variable using replicate weights
 # following method specified by this document from Census:
 # https://www2.census.gov/programs-surveys/acs/tech_docs/pums/accuracy/2012_2016AccuracyPUMS.pdf
-replicate_weights_SE <- function(d, var, filt=TRUE) {
+replicate_weights_SE <- function(d, var, place_of_work, filt=TRUE) {
   # filter d by specified filter
   d <- d[filt,]
+  # if place of work, multiply weight by 2% to adjust for missing values
+  if (place_of_work){
+    d$PWGTP <- d$PWGTP*1.02
+    replicate_weights <- paste0('PWGTP',seq(1,80))
+    for (i in replicate_weights) {
+      d[,i] <- d[,i] * 1.02 
+    }  
+  }
   # base estimate of population mean, total
   x= weighted.mean(d[,var], d[,'PWGTP'], na.rm=TRUE)
   tot=sum(d[,var]* d[,'PWGTP'], na.rm=TRUE)
@@ -60,7 +68,7 @@ replicate_weights_SE <- function(d, var, filt=TRUE) {
 # master ABF execution function
 
 run_ABF <- function(d, ABF_elig_size, ABF_max_tax_earn, ABF_bene_tax, ABF_avg_state_tax, 
-                    ABF_payroll_tax, ABF_bene,output) {
+                    ABF_payroll_tax, ABF_bene,output,place_of_work,ABF_detail_out) {
 
   if (ABF_max_tax_earn>0) {
     d <- d %>% mutate(taxable_income_capped=ifelse(wage12>ABF_max_tax_earn,
@@ -82,7 +90,6 @@ run_ABF <- function(d, ABF_elig_size, ABF_max_tax_earn, ABF_bene_tax, ABF_avg_st
   # Tax revenue
   # Unweighted tax revenue collected (full geographic area)
   d$ptax_rev_final = d$taxable_income_capped * ABF_payroll_tax
-  
   # Total Weighted Tax Revenue (full geographic area)
   d$ptax_rev_wgted = d$ptax_rev_final * d$PWGTP
   total_ptax_rev_w= total_wgted_income * ABF_payroll_tax
@@ -108,7 +115,7 @@ run_ABF <- function(d, ABF_elig_size, ABF_max_tax_earn, ABF_bene_tax, ABF_avg_st
   total_SE=c()
   total_CI=c()
   for (i in vars) {
-    temp=replicate_weights_SE(d, i)
+    temp=replicate_weights_SE(d, i, place_of_work)
     mean=c(mean, temp[2])
     SE=c(SE, temp[3])
     CI=c(CI, temp[4])
@@ -131,36 +138,41 @@ run_ABF <- function(d, ABF_elig_size, ABF_max_tax_earn, ABF_bene_tax, ABF_avg_st
   d_out <- rbind(d_out, recoup_row)
   colnames(d_out) <- c("Variable","Mean", "Standard Error of Mean", "Confidence Interval","Population Total", "Pop Total Standard Error", "Pop Total CI")
   
-  write.csv(d_out,file=paste0('./output/',output,"_ABF_stats.csv"), row.names= FALSE)
+  if (ABF_detail_out){
+    write.csv(d_out,file=paste0('./output/',output,"_ABF_stats.csv"), row.names= FALSE)
+  }
   
   # output meta summary file
-  # TODO: remove placeholders
   meta_summ <- c(
     'Tax Revenue Recouped from Benefits'= recoup_tax_rev,
-    'Income Standard Error' = 1,
-    'Total Income Upper Confidence Interval' = 1,
-    'Total Tax Revenue (Weighted)' = 1,
-    'Tax Revenue Standard Error' = 1,
-    'Total Income Lower Confidence Interval' = 1,
-    'Total Tax Revenue Upper Confidence Interval' = 1,
-    'Total Income (Weighted)' = 1,
-    'Total Tax Revenue Lower Confidence Interval' = 1,
-    'Total Income' = 1
+    'Income Standard Error' = d_out[2, 'Pop Total Standard Error'],
+    'Total Income Upper Confidence Interval' = d_out[2, 'Population Total'] + d_out[2, 'Pop Total Standard Error'] * 1.96,
+    'Total Tax Revenue (Weighted)' = d_out[1, 'Population Total'],
+    'Tax Revenue Standard Error' = d_out[1, 'Pop Total Standard Error'],
+    'Total Income Lower Confidence Interval' = d_out[2, 'Population Total'] - d_out[2, 'Pop Total Standard Error'] * 1.96,
+    'Total Tax Revenue Upper Confidence Interval' = d_out[1, 'Population Total'] + d_out[1, 'Pop Total Standard Error'] * 1.96,
+    'Total Income (Weighted)' = d_out[2, 'Population Total'],
+    'Total Tax Revenue Lower Confidence Interval' = d_out[1, 'Population Total'] - d_out[1, 'Pop Total Standard Error'] * 1.96,
+    'Total Income' = total_income
   )
   write.csv(data.frame(meta_summ), file='output/abf_summary.csv')
   
-  # placeholder vars for meta file  
-  # TODO: implement proper coding of these 
-   d_copy <- d
-   for (i in c('class', 'age_cat', 'GENDER_CAT', 'taxable_income_capped', 'income_w', 'wage_cat', 'ptax_rev_final', 'ptax_rev_w')) {
-     if (i %in% names(d_copy) == FALSE) {
-       d_copy[i] <- 0 
-     }
-   }
+  # rename/gen vars for meta file  
+  wage_bins = seq(0, 210000, by=25000)
+  d <- d %>% mutate(wage_cat=NA)
+  for (i in wage_bins) {
+    next_bin <- i + 25000
+    cat <- paste0('[',format(i,scientific=FALSE),' - ', format(next_bin,scientific=FALSE),')')
+    d <- d %>% mutate(wage_cat=ifelse(wage12>=i & wage12 < next_bin, cat, wage_cat))
+  }
+  d_copy <- d
+  d_copy <- d_copy %>% rename(
+     income_w=income_wgted,
+  )
+  
    # output meta file 
-   write.csv(d_copy, file=paste0('./output/abf_acs_sim_r_model.csv'))
-   
-   
+   write.csv(d_copy, file=paste0('./output/abf_acs_sim_',model_start_time,'.csv'))
+  
   
   return(d)
 }

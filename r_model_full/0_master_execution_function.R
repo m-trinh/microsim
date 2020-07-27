@@ -23,10 +23,9 @@ policy_simulation <- function(
                               # input data parameters
                               loadRDS=FALSE,
                               loadCSV=TRUE,
-                              do_cleaning=FALSE,
-                              acs_dir='csv_inputs/',
-                              cps_dir='csv_inputs/CPS/',
-                              fmla_file='csv_inputs/fmla_2012_employee_puf.csv',
+                              acs_dir='../data/acs',
+                              cps_dir='../data/cps/',
+                              fmla_file='../data/fmla/fmla_2012/fmla_2012_employee_puf.csv',
                               fmla_year=2012,
                               acs_year=2016,
                               
@@ -35,9 +34,9 @@ policy_simulation <- function(
                               log_directory='./log/',
                               progress_file=NULL,
                               fulloutput=FALSE,
-                              saveCSV=FALSE,
-                              out_dir="output/",
-                              output='output',
+                              saveCSV=TRUE,
+                              out_dir="../output/",
+                              output=NULL,
                               output_stats=NULL,
                               
                               # simulation runtime modification params
@@ -87,10 +86,8 @@ policy_simulation <- function(
                               
                               # FMLA -> ACS imputation params
                               impute_method="Logistic Regression GLM",
-                              kval= 3,
-                              xvars=c("widowed", "divorced", "separated", "nevermarried", "female", 
-                                         'age',"agesq", "ltHS", "someCol", "BA", "GradSch", "black", 
-                                         "other", "asian",'native', "hisp","nochildren",'faminc','coveligd'),
+                              kval= 5,
+                              xvars=NULL,
                               # default xvar weights is 1's for everything
                               xvar_wgts = rep(1,length(xvars)),
                               
@@ -116,32 +113,67 @@ policy_simulation <- function(
                               rr_sensitive_leave_len=TRUE,
                               min_takeup_cpl = 5,
                               alpha=0,
-                              ext_base_effect=TRUE,
+                              ext_base_effect=FALSE,
                               extend_prob=0,
                               extend_days=0,
                               extend_prop=1,
                               fmla_protect=FALSE,
                               
                               # ABF Params
-                              ABF_enabled=FALSE,
-                              ABF_elig_size=0,
+                              ABF_enabled=TRUE,
+                              ABF_elig_size=earnings,
                               ABF_max_tax_earn=0,
                               ABF_bene_tax=TRUE,
                               ABF_avg_state_tax=0,
                               ABF_payroll_tax=0,
-                              ABF_bene=NULL
+                              ABF_bene=NULL,
+                              ABF_detail_out=FALSE
                             ) {
   
+  
+  # note start time 
+  model_start_time <<- format(Sys.time(), "%Y%m%d_%H%M%S")
   
   ####################################
   # Parameter standardization
   ####################################
   # read in state codes data set
-  d_states <- read.csv("csv_inputs/ACS_state_codes.csv")
+  d_states <- read.csv("data/ACS_state_codes.csv")
   # make two digit abbreviation of year
   year_2dig <- toString(acs_year - 2000)
+  if (nchar(year_2dig)==1) {
+    year_2dig <- paste0('0',year_2dig)
+  }
   # set derived parameters
   weightfactor=1/clone_factor
+  # create required folders for logs and output, if they don't exist
+  dir.create(log_directory, showWarnings = FALSE)
+  dir.create(out_dir, showWarnings = FALSE)
+  #  if output name is null, set a standard name to match python
+  
+  if (is.null(output)) {
+    output <- paste0('acs_sim_all_', model_start_time)
+  }
+  
+  
+  # If xvars is null, set to be defaults based on fmla wave 
+  if (is.null(xvars) & fmla_year==2012) {
+    xvars <-c("widowed", "divorced", "separated", "nevermarried", "female", 
+              "ltHS", "someCol", "BA", "GradSch", "black", 
+              "other", "asian",'native', "hisp","nochildren",'fmla_eligible',
+              'union','hourly',
+              'age',"agesq",'wkhours','faminc')
+  }
+  if (is.null(xvars) & fmla_year==2018) {
+    xvars <-c("widowed", "divorced", "separated", "nevermarried", "female", 
+              "ltHS", "someCol", "BA", "GradSch", "black", 
+              "other", "asian",'native', "hisp","nochildren",'fmla_eligible',
+              'union','noelderly','hourly',
+              'age',"agesq",'wkhours','faminc',
+              'emp_nonprofit','low_wage','occ_1','occ_2','occ_3','occ_4','occ_5','occ_6'
+              ,'occ_7','occ_8','occ_9','occ_10','ind_1','ind_2','ind_3','ind_4','ind_5','ind_6'
+              ,'ind_7','ind_8','ind_9','ind_10','ind_11','ind_12','ind_13')
+  }
   
   ####################################
   # Option to create execution log
@@ -157,7 +189,7 @@ policy_simulation <- function(
     params['params'] <- NULL
     
     # create log file and record starting parameters 
-    log_name <<- paste0(log_directory, format(Sys.time(), "%Y-%m-%d %H.%M.%S"), '_',output, '.log')
+    log_name <<- paste0(log_directory, model_start_time, '_',output, '.log')
     file.create(log_name)
     cat("==============================", file = log_name, sep="\n")
     cat("Microsim Log File", file = log_name, sep="\n", append = TRUE)
@@ -203,7 +235,7 @@ policy_simulation <- function(
   )
   meta_params <- data.frame(meta_params)
  
-  write.table(meta_params, sep=',', file=paste0(out_dir, '/prog_para_r_model.csv'), col.names = FALSE)
+  write.table(meta_params, sep=',', file=paste0(out_dir, '/prog_para_',model_start_time,'.csv'), col.names = FALSE)
   bene_take <- data.frame(row.names=c('Maximum Week of Benefit Receiving','Take Up Rates'))
   leave_types <- c("own","matdis","bond","illchild","illspouse","illparent")
   for (i in leave_types) {
@@ -211,7 +243,7 @@ policy_simulation <- function(
     bene_take['Maximum Week of Benefit Receiving',i] <- get(paste0('maxlen_',i))/5
     bene_take['Take Up Rates',i] <- get(paste0(i,'_uptake'))
   }
-  write.table(bene_take, sep=',', file=paste0(out_dir, '/prog_para_r_model.csv'), append=TRUE)
+  write.table(bene_take, sep=',', file=paste0(out_dir, '/prog_para_', model_start_time,'.csv'), append=TRUE)
   
   ####################################
   # global libraries used everywhere #
@@ -226,7 +258,7 @@ policy_simulation <- function(
     return("OK")
   }
   
-  global.libraries <- c('readr','tibble','DMwR','xgboost','bnclassify', 'randomForest','magick','stats', 'rlist', 'MASS', 'plyr', 'dplyr', 
+  global.libraries <- c('glmnet','readr','tibble','DMwR','xgboost','bnclassify', 'randomForest','magick','stats', 'rlist', 'MASS', 'plyr', 'dplyr', 
                         'survey', 'class', 'dummies', 'varhandle', 'oglmx', 
                         'foreign', 'ggplot2', 'reshape2','e1071','pander','ridge')
   
@@ -262,8 +294,8 @@ policy_simulation <- function(
   if (loadCSV) {
     # if loadCSV, look for csvs and conduct cleaning
     # Load and clean CPS
-    d_cps <- read.csv(paste0(cps_dir,'CPS',acs_year-2,'extract.csv'))
-    d_cps <- clean_cps(d_cps)
+    d_cps <- read.csv(paste0(cps_dir,'cps_clean_',acs_year-2,'.csv'))
+    #d_cps <- clean_cps(d_cps)
   
     # Load and clean FMLA 
     d_fmla <- read.csv(fmla_file)
@@ -286,7 +318,7 @@ policy_simulation <- function(
       d_acs_p <- read.csv(paste0(acs_dir,'/',acs_year,'/pow_person_files/ss',year_2dig,'h',tolower(state),'.csv')) 
     }
     
-    d_acs <- clean_acs(d_acs_p, d_acs_hh, save_csv=FALSE)
+    d_acs <- clean_acs(d_acs_p, d_acs_hh, fmla_year, save_csv=FALSE)
     # Impute hourly worker, weeks worked, and firm size variables from CPS into ACS. 
     # These are needed for leave program eligibility determination
     d_acs <- impute_cps_to_acs(d_acs, d_cps)
@@ -506,7 +538,7 @@ policy_simulation <- function(
   # Running ABF module
   if (ABF_enabled==TRUE) {
     d_acs_imp <- run_ABF(d_acs_imp, ABF_elig_size, ABF_max_tax_earn, ABF_bene_tax, ABF_avg_state_tax, 
-                     ABF_payroll_tax, ABF_bene, output)
+                     ABF_payroll_tax, ABF_bene, output,place_of_work,ABF_detail_out)
   }
   
   if (runtime_measure==1){
@@ -524,18 +556,21 @@ policy_simulation <- function(
   #   }  
   # }
   
+  # create meta file
+  create_meta_file(d_acs_imp,out_dir,place_of_work)
+  
   # final output options
   for (i in output_stats) {
     if (i=='standard') {
-      standard_summary_stats(d_acs_imp,output, out_dir)
+      standard_summary_stats(d_acs_imp,output, out_dir,place_of_work)
     }
     
     if (i=='state_compar') {
-      state_compar_stats(d_acs_imp, output, out_dir)
+      state_compar_stats(d_acs_imp, output, out_dir,place_of_work)
     }
     
     if (i=='take_compar') {
-      take_compar(d_acs_imp, output, out_dir)
+      take_compar(d_acs_imp, output, out_dir,place_of_work)
     }  
   }
   
@@ -573,7 +608,6 @@ policy_simulation <- function(
     cfl_matdis=length_matdis ,
     cfl_own=length_own ,
     ln_faminc=lnfaminc ,
-    hourly=paid_hrly ,
     takeup_any=particip ,
     cpl_all=particip_length ,
     cpl_bond=plen_bond ,
@@ -595,7 +629,6 @@ policy_simulation <- function(
     len_matdis=squo_length_matdis ,
     len_own=squo_length_own ,
     cfl_all=total_length ,
-    wkswork=weeks_worked ,
   )
   
   if (!is.null(output) & saveCSV==TRUE) {

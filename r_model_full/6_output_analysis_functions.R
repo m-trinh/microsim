@@ -10,8 +10,13 @@
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Table of Contents
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+
 # 1. replicate_weights_SE
 # see 5_ABF_functions.R
+
+
 
 
 
@@ -19,8 +24,15 @@
 # 2. standard_summary_stats
 # ============================ #
 # function to produce some standard summary statistics of relevant leave taking and other vars in csv format
-standard_summary_stats <-function(d, output, out_dir) {
-  
+standard_summary_stats <-function(d, output, out_dir,place_of_work) {
+  # if place of work, multiply weight by 2% to adjust for missing values
+  if (place_of_work){
+    d$PWGTP <- d$PWGTP*1.02
+    replicate_weights <- paste0('PWGTP',seq(1,80))
+    for (i in replicate_weights) {
+      d[,i] <- d[,i] * 1.02 
+    }  
+  }
   ptake_vars=c()
   ptake_names=c()
   for (i in leave_types) {
@@ -38,7 +50,7 @@ standard_summary_stats <-function(d, output, out_dir) {
   total_SE=c()
   total_CI=c()
   for (i in vars) {
-    temp=replicate_weights_SE(d, i)
+    temp=replicate_weights_SE(d, i,place_of_work)
     mean=c(mean, temp[2])
     SE=c(SE, temp[3])
     CI=c(CI, temp[4])
@@ -65,8 +77,15 @@ standard_summary_stats <-function(d, output, out_dir) {
 # ============================ #
 
 # function to produce summary statistics to compare with actual state of relevant leave taking and other vars in csv format
-state_compar_stats <-function(d, output, out_dir) {
-  
+state_compar_stats <-function(d, output, out_dir,place_of_work) {
+  # if place of work, multiply weight by 2% to adjust for missing values
+  if (place_of_work){
+    d$PWGTP <- d$PWGTP*1.02
+    replicate_weights <- paste0('PWGTP',seq(1,80))
+    for (i in replicate_weights) {
+      d[,i] <- d[,i] * 1.02 
+    }  
+  }
   ptake_vars=c()
   ptake_names=c()
   plen_vars=c()
@@ -89,9 +108,9 @@ state_compar_stats <-function(d, output, out_dir) {
   for (i in vars) {
     # for benefit and len vars, filter to just non zero vals 
     if (grepl('plen', i) | grepl('bene', i)){
-      temp= replicate_weights_SE(d, i,d[i]>0)  
+      temp= replicate_weights_SE(d, i,place_of_work,d[i]>0)  
     } else {
-      temp=replicate_weights_SE(d, i)  
+      temp=replicate_weights_SE(d, i,place_of_work)  
     }
     mean=c(mean, temp[2])
     SE=c(SE, temp[3])
@@ -145,21 +164,6 @@ state_compar_stats <-function(d, output, out_dir) {
   colnames(d_out) <- c("Variable","Mean", "Standard Error of Mean", "Confidence Interval","Population Total", "Pop Total Standard Error", "Pop Total CI")
   write.csv(d_out,file=file.path(out_dir, paste0(output,'_roundstats.csv'), fsep = .Platform$file.sep), row.names= FALSE)
   
-  # meta output file for leave costs 
-  meta_cost <- data.frame(row.names = leave_types)
-  for (i in leave_types)  {
-    var <- paste0('bene_',i)
-    temp <- replicate_weights_SE(d, var)
-    meta_cost[i, 'cost'] <- temp[7]
-    meta_cost[i, 'ci_lower'] <- temp[[7]] + temp[[8]] *1.96 
-    meta_cost[i, 'ci_upper'] <- temp[[7]] - temp[[8]] *1.96
-  }
-  temp <- replicate_weights_SE(d, 'actual_benefits')
-  meta_cost['total', 'cost'] <- temp[7]
-  meta_cost['total', 'ci_lower'] <-  temp[[7]] + temp[[8]] *1.96
-  meta_cost['total', 'ci_upper'] <-  temp[[7]] - temp[[8]] *1.96
-  write.csv(meta_cost,file=file.path(out_dir, 'program_cost_r_model.csv', fsep = .Platform$file.sep))
-  
   if (makelog==TRUE) {
     
     
@@ -182,7 +186,15 @@ state_compar_stats <-function(d, output, out_dir) {
 # 3. length_compar
 # ============================ #
 # function to compare status quo and leave taking variables 
-take_compar <- function(d, output, out_dir) {
+take_compar <- function(d, output, out_dir,place_of_work) {
+  # if place of work, multiply weight by 2% to adjust for missing values
+  if (place_of_work){
+    d$PWGTP <- d$PWGTP*1.02
+    replicate_weights <- paste0('PWGTP',seq(1,80))
+    for (i in replicate_weights) {
+      d[,i] <- d[,i] * 1.02 
+    }  
+  }
   length_vars=paste0("length_",leave_types)
   length_names=paste("Counterfactual",leave_types,'leave')
   squo_vars = paste0("squo_", length_vars)
@@ -195,7 +207,7 @@ take_compar <- function(d, output, out_dir) {
   total_SE=c()
   total_CI=c()
   for (i in vars) {
-    temp=replicate_weights_SE(d %>% filter(get(i)>0), i)
+    temp=replicate_weights_SE(d %>% filter(get(i)>0), i,place_of_work)
     mean=c(mean, temp[2])
     SE=c(SE, temp[3])
     CI=c(CI, temp[4])
@@ -248,4 +260,32 @@ take_compar <- function(d, output, out_dir) {
     file.remove(paste0(out_dir,i , '_squo.png'))
   }
   image_write(squo_img, path = paste0(out_dir,output,"_squo_lengths.png"), format = "png")
+}
+
+#=====================================================
+# 4. create_meta_file
+#=====================================================
+create_meta_file <-function(d, out_dir,place_of_work) {
+  # if place of work, multiply weight by 2% to adjust for missing values
+  if (place_of_work){
+    d$PWGTP <- d$PWGTP*1.02
+    replicate_weights <- paste0('PWGTP',seq(1,80))
+    for (i in replicate_weights) {
+      d[,i] <- d[,i] * 1.02 
+    }  
+  }
+  # meta output file for leave costs 
+  meta_cost <- data.frame(row.names = leave_types)
+  for (i in leave_types)  {
+    var <- paste0('bene_',i)
+    temp <- replicate_weights_SE(d, var,place_of_work)
+    meta_cost[i, 'cost'] <- temp[7]
+    meta_cost[i, 'ci_lower'] <- temp[[7]] + temp[[8]] *1.96 
+    meta_cost[i, 'ci_upper'] <- temp[[7]] - temp[[8]] *1.96
+  }
+  temp <- replicate_weights_SE(d, 'actual_benefits',place_of_work)
+  meta_cost['total', 'cost'] <- temp[7]
+  meta_cost['total', 'ci_lower'] <-  temp[[7]] + temp[[8]] *1.96
+  meta_cost['total', 'ci_upper'] <-  temp[[7]] - temp[[8]] *1.96
+  write.csv(meta_cost,file=paste0(out_dir, 'program_cost_',model_start_time,'.csv'))
 }
