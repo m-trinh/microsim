@@ -35,6 +35,7 @@ class MicrosimGUI(Tk):
         self.default_params = OtherParameters()
         self.config_fp = 'config.ini'
         self.config = configparser.ConfigParser()
+        self.model_time_start = None
 
         self.showing_advanced = False  # Whether or not advanced parameters are being shown
 
@@ -42,7 +43,6 @@ class MicrosimGUI(Tk):
         self.all_params = [self.default_params]
         self.comparing = False
         self.current_sim_num = 0
-        self.r_output_dir = None
 
         self.currently_running = False  # Whether or not a simulation is currently running
 
@@ -75,7 +75,7 @@ class MicrosimGUI(Tk):
         # This frame holds buttons for comparing program parameters
         self.simulation_comparison = ComparisonFrame(self.content, bg=DARK_COLOR)
         # This notebook will have three tabs for the program, population, and simulation parameters
-        self.parameter_notebook = ParameterNotebook(self.content, height=150)
+        self.parameter_notebook = ParameterNotebook(self.content, height=200)
         self.advanced_frame = AdvancedFrame(self.content, self.toggle_advanced_parameters)
         self.run_button = RunButton(self.content, text="Run", height=1, command=self.run_simulation)
 
@@ -90,10 +90,6 @@ class MicrosimGUI(Tk):
         self.parameter_notebook.pack(expand=True, fill=BOTH, pady=(4, 4))
         self.advanced_frame.pack(anchor=E, pady=(0, 4))
         self.run_button.pack(anchor=E, fill=Y)
-
-        self.update_idletasks()
-        self.original_height = self.winfo_height()  # Need to keep track of original height of window when resizing
-        self.minsize(self.winfo_width(), 650)  # Set minimum height of window
 
         # Display the advanced parameters
         try:
@@ -338,15 +334,16 @@ class MicrosimGUI(Tk):
     def run_simulation_r(self):
         """Run R Engine"""
         # Create progress text file to update progress window
-        progress_file = './r_model_full/progress/progress_{}.txt'.format(datetime.datetime.now().strftime('%Y%m%d%H%M%S%f'))
+        self.model_time_start = datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')
+        progress_file = './r_model_full/progress/progress_{}.txt'.format(self.model_time_start)
         if not os.path.exists('./r_model_full/progress'):
             os.makedirs('./r_model_full/progress')
         open(progress_file, 'w+').close()
-        self.r_output_dir = os.path.join(self.general_params.output_directory,
-                                         'output_%s' % datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
+        output_dir = os.path.join(self.general_params.output_directory, 'output_%s' % self.model_time_start)
 
         # Generate command to run R engine from terminal
-        command = create_r_command(self.general_params, self.all_params[0], progress_file, self.r_output_dir)
+        command = create_r_command(self.general_params, self.all_params[0], progress_file, output_dir,
+                                   self.model_time_start)
         print(command)
 
         # Run command in new process
@@ -372,8 +369,9 @@ class MicrosimGUI(Tk):
             main_output_dir = self.sim_engine.output_directories[0]
             results_files = self.sim_engine.get_results_files()
         else:
-            results_files = [os.path.join(self.r_output_dir, 'output_py_compatible.csv')]
-            costs = pd.read_csv(os.path.join(self.r_output_dir, 'program_cost_r_model.csv'))
+            r_output_dir = os.path.join(self.general_params.output_directory, 'output_%s' % self.model_time_start)
+            results_files = [os.path.join(r_output_dir, 'output_py_compatible.csv')]
+            costs = pd.read_csv(os.path.join(r_output_dir, 'program_cost_%s.csv' % self.model_time_start))
             costs.columns = ['type', 'cost', 'ci_lower', 'ci_upper']
             main_output_dir = self.general_params.output_directory
 

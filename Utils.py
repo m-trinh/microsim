@@ -278,7 +278,6 @@ def generate_default_state_params(parameters=None, state='RI'):
     return state_params
 
 
-
 def create_cost_chart(data, state):
     """Create a matplotlib bar chart with benefits paid for each type
 
@@ -359,6 +358,7 @@ def create_taker_chart(data, state):
     format_chart(fig, ax, title)
     return fig
 
+
 def format_chart(fig, ax, title, bg_color='#333333', fg_color='#ffffff'):
     """Visually format matplotlib Figure
 
@@ -412,7 +412,7 @@ def get_sim_name(sim_num):
     return 'Main Simulation' if sim_num == 0 else 'Comparison {}'.format(sim_num)
 
 
-def create_r_command(general_params, other_params, progress_file, output_dir):
+def create_r_command(general_params, other_params, progress_file, output_dir, model_time_start):
     """Uses parameter objects to create a command that, when run in a new process, will execute R engine
 
     :param general_params: GeneralParameters, required
@@ -461,7 +461,6 @@ def create_r_command(general_params, other_params, progress_file, output_dir):
         'weeks': other_params.eligible_weeks,  # weeks
         'ann_hours': other_params.eligible_hours,  # ann_hours
         'minsize': other_params.eligible_size,  # minsize
-        'output': 'output',  # output
         'random_seed': general_params.random_seed,  # random_seed
         'progress_file': progress_file.replace('r_model_full/', ''),
         'log_directory': '../log/',
@@ -470,30 +469,8 @@ def create_r_command(general_params, other_params, progress_file, output_dir):
         'wait_period': other_params.wait_period,
         'wait_period_recollect': other_params.recollect,
         'dual_receiver': other_params.dual_receivers_share,
-        'min_takeup_cpl': other_params.min_takeup_cpl
-        # '': 1,  # sample_prop?
-        # '': True,  # exclusive_particip
-        # '': False,  # SMOTE
-        # '': False,  # ext_resp_len
-        # '': 'mean',  # len_method
-        # '': 'resp_len',  # sens_var?
-        # '': 'post',  # progalt_post_or_pre
-        # '': True,  # intra_impute
-        # '': True,  # ext_base_effect
-        # '': 0.01,  # extend_prob
-        # '': 1,  # extend_days
-        # '': 1.01,  # extend_prop
-        # 'topoff_rate': other_params.top_off_rate,  # topoff_rate
-        # 'topoff_minlength': other_params.top_off_min_length,  # topoff_minlength
-        # 'bene_effect': other_params.benefit_effect,  # bene_effect
-        # '': 5,  # wait_period
-        # '': 0,  # week_ben_min
-        # '': other_params.leave_probability_factors['Own Health'],  # own_elig_adj
-        # '': other_params.leave_probability_factors['Maternity'],  # matdis_elig_adj
-        # '': other_params.leave_probability_factors['New Child'],  # bond_elig_adj
-        # '': other_params.leave_probability_factors['Ill Parent'],  # illspouse_elig_adj
-        # '': other_params.leave_probability_factors['Ill Spouse'],  # illparent_elig_adj
-        # '': other_params.leave_probability_factors['Ill Child'],  # illchild_elig_adj
+        'min_takeup_cpl': other_params.min_takeup_cpl,
+        'model_time_start': model_time_start
     }
 
     # Convert the list into a string

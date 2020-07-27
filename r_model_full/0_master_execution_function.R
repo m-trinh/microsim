@@ -127,12 +127,18 @@ policy_simulation <- function(
                               ABF_avg_state_tax=0,
                               ABF_payroll_tax=0,
                               ABF_bene=NULL,
-                              ABF_detail_out=FALSE
+                              ABF_detail_out=FALSE,
+
+                              model_start_time=NULL
                             ) {
-  
-  
-  # note start time 
-  model_start_time <<- format(Sys.time(), "%Y%m%d_%H%M%S")
+
+  # note start time
+  if (is.null(model_start_time)) {
+      model_start_time <<- format(Sys.time(), "%Y%m%d_%H%M%S")
+  } else {
+      model_start_time <<- model_start_time
+  }
+
   
   ####################################
   # Parameter standardization
@@ -152,7 +158,7 @@ policy_simulation <- function(
   #  if output name is null, set a standard name to match python
   
   if (is.null(output)) {
-    output <- paste0('acs_sim_all_', model_start_time)
+    output <- paste0('acs_sim_', tolower(state), '_', model_start_time, '.csv')
   }
   
   
