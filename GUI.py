@@ -85,11 +85,13 @@ class MicrosimGUI(Tk):
         # ----------------------------------------- Add Widgets to Window --------------------------------------------
 
         self.content.pack(expand=True, fill=BOTH)
-        self.general_params_frame.pack(fill=X)
-        self.simulation_comparison.pack(fill=X, pady=(2, 0))
-        self.parameter_notebook.pack(expand=True, fill=BOTH, pady=(4, 4))
-        self.advanced_frame.pack(anchor=E, pady=(0, 4))
-        self.run_button.pack(anchor=E, fill=Y)
+        self.general_params_frame.grid(row=0, sticky=EW)
+        self.simulation_comparison.grid(row=1, sticky=EW, pady=(2, 0))
+        self.parameter_notebook.grid(row=2, sticky=NSEW, pady=(4, 4))
+        self.advanced_frame.grid(row=3, sticky=E, pady=(0, 4))
+        self.run_button.grid(row=4, sticky=E)
+        self.content.rowconfigure(2, weight=1)
+        self.content.columnconfigure(0, weight=1)
 
         # Display the advanced parameters
         try:
@@ -891,6 +893,10 @@ class MicrosimGUI(Tk):
         self.general_params_frame.show_advanced_parameters()
         self.parameter_notebook.show_advanced_parameters()
         self.update_idletasks()
+        notebook_height = self.parameter_notebook.winfo_height()
+        if notebook_height < 200:
+            window_height = self.winfo_height() + 200 - notebook_height
+            self.geometry('%dx%d' % (self.winfo_width(), window_height))
 
     def toggle_advanced_parameters(self):
         """Switches between either showing or hiding advanced inputs"""
@@ -1201,10 +1207,13 @@ class GeneralParamsFrame(Frame):
             self.r_path_label.grid(column=0, row=13, sticky=W, pady=self.row_padding)
             self.r_path_input.grid(column=1, row=13, padx=8, sticky=(E, W), pady=self.row_padding)
             self.r_path_button.grid(column=4, row=13, pady=self.row_padding)
+            self.winfo_toplevel().simulation_comparison.main_sim.select()
+            self.winfo_toplevel().simulation_comparison.grid_remove()
         else:
             self.r_path_label.grid_forget()
             self.r_path_input.grid_forget()
             self.r_path_button.grid_forget()
+            self.winfo_toplevel().simulation_comparison.grid()
 
         self.winfo_toplevel().check_file_entries()
 
