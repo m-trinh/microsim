@@ -156,6 +156,10 @@ policy_simulation <- function(
   if (nchar(year_2dig)==1) {
     year_2dig <- paste0('0',year_2dig)
   }
+  # if fmla_year is set and fmla_file not changed, set to correct file
+  if (fmla_year==2018 & fmla_file=='../data/fmla/fmla_2012/fmla_2012_employee_puf.csv') {
+    fmla_file="C:/Users/lsp52/AnacondaProjects/microsim/data/fmla/fmla_2018/FMLA_2018_Employee_PUF.csv"
+  }
   # set derived parameters
   weightfactor=1/clone_factor
   # create required folders for logs and output, if they don't exist
@@ -350,12 +354,10 @@ policy_simulation <- function(
       d_acs_hh <- read.csv(paste0(acs_dir,'/',acs_year,'/household_files/ss',year_2dig,'p',tolower(state),'.csv'))
       d_acs_p <- read.csv(paste0(acs_dir,'/',acs_year,'/person_files/ss',year_2dig,'h',tolower(state),'.csv')) 
     }
-    
     d_acs <- clean_acs(d_acs_p, d_acs_hh,acs_year, fmla_year, save_csv=FALSE)
     # Impute hourly worker, weeks worked, and firm size variables from CPS into ACS. 
     # These are needed for leave program eligibility determination
     d_acs <- impute_cps_to_acs(d_acs, d_cps)
-    
   }
   
   # sample ACS

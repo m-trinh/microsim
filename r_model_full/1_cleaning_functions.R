@@ -540,11 +540,11 @@ clean_fmla <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
 # clean 2018 wave of fmla data 
 clean_fmla_2018 <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
   
-  # some misc cleaning stepsf
+  # some misc cleaning steps
   # make index start at 0
   d_fmla$empid <- d_fmla$empid - 1
   # name weight variable consistently
-  d_fmla <- d_fmla %>% rename(combo_trimmed_weight = weight)
+  d_fmla <- d_fmla %>% rename(weight = combo_trimmed_weight)
   
   # --------------------------------------------------------------------
   # demographic characteristics
@@ -998,6 +998,7 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
   d_hh$faminc <- d_hh$FINCP * d_hh$adjinc 
   d_hh <- d_hh %>% mutate(faminc=ifelse(is.na(faminc)==FALSE & faminc<=0, 0.01, faminc)) # force non-positive income to be epsilon to get meaningful log-income
   d_hh$lnfaminc <- log(d_hh$faminc)
+
   
   # number of dependents
   d_hh$ndep_kid <- d_hh$NOC
@@ -1012,7 +1013,8 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
   # -------------------------- #
   # ACS Person File
   # -------------------------- #
-
+  # force SERIALNO to be string to account for non-numeric chars in 2018 ACS SERIALNO
+  d$SERIALNO <- as.character(d$SERIALNO)
   # merge with household level vars 
   d <- merge(d,d_hh, by="SERIALNO")
   rm(d_hh)
@@ -1236,7 +1238,8 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
            "occ_4", "occ_5", "occ_6", "occ_7", "occ_8", "occ_9", "occ_10", "ind_1", "ind_2", "ind_3", "ind_4", 
            "ind_5", "ind_6", "ind_7", "ind_8", "ind_9", "ind_10", "ind_11", "ind_12", "ind_13", "weeks_worked",
            "WAGP",'wage12',"WKHP","PWGTP", replicate_weights,"FER", "WKW","COW","ESR",'NPF',"partner","ndep_kid",
-           "ndep_old",'emp_gov','empgov_fed','empgov_st', 'wkhours','wkswork', 'empgov_loc', 'ST','POWSP','age_cat','faminc_cat','employed',
+           "ndep_old",'emp_gov','empgov_fed','empgov_st', 'wkhours','wkswork', 'empgov_loc','emp_nonprofit', 
+           'ST','POWSP','age_cat','faminc_cat','employed', 'low_wage',
            'married','HSgrad','BAplus','INDP','OCCP','SPORDER','FES','NOC','R65', 'noelderly')]
 
   # id variable from SERIALNO [Household ID] and SPORDER [Individual ID within Household]
@@ -1406,7 +1409,14 @@ impute_cps_to_acs <- function(d_acs, d_cps){
   # INPUTS: CPS (training) data set, logit regression model specification, training filter condition, weight to use
   d_filt <- runLogitEstimate(d_train=d_cps,d_test=d_acs, formula=formula, test_filt=filt, train_filt=filt, 
                              weight=weight, varname=varname, create_dummies=TRUE)
-  d_acs <- merge(d_filt, d_acs, by='id', all.y=TRUE)
+  
+  # running into memory issues with merge, using match instead
+  #d_acs <- merge(d_filt, d_acs, by='id', all.y=TRUE)
+  for (j in names(d_filt)) {
+    if (j %in% names(d_acs)==FALSE){
+      d_acs[j] <- d_filt[match(d_acs$id, d_filt$id), j]    
+    }
+  }
   # OUTPUT: Dataframe with two columns: id and imputed paid hourly variable
   
   # ordered logit for number of employers
@@ -1418,7 +1428,15 @@ impute_cps_to_acs <- function(d_acs, d_cps){
   # INPUTS: CPS (training) data set, ordinal regression model specification, filter conditions, var to create 
   d_filt <-  runLogitEstimate(d_train=d_cps,d_test=d_acs, formula=formula, test_filt=filt, train_filt=filt, 
                               weight=weight, varname=varname, create_dummies=TRUE)
-  d_acs <- merge(d_filt, d_acs, by='id', all.y=TRUE)
+  
+  # running into memory issues with merge, using match instead
+  #d_acs <- merge(d_filt, d_acs, by='id', all.y=TRUE)
+  for (j in names(d_filt)) {
+    if (j %in% names(d_acs)==FALSE){
+      d_acs[j] <- d_filt[match(d_acs$id, d_filt$id), j]    
+    }
+  }
+  
   # OUTPUTS: ACS data with imputed number of employers variable
   # create wks worked categories for use with imputation
   d_cps <- d_cps %>% mutate(WKW=ifelse(wkswork>=50 & wkswork<=52,1,NA))
@@ -1492,7 +1510,14 @@ impute_cps_to_acs <- function(d_acs, d_cps){
                  MoreArgs=list(d_train=d_cps,d_test=d_acs),
                  SIMPLIFY=FALSE)
   for (i in sets) {
-    d_acs <- merge(i, d_acs, by='id', all.y=TRUE)
+    # running into memory issues with merge, using match instead
+    #d_acs <- merge(i, d_acs, by='id', all.y=TRUE)
+    d_filt <- i
+    for (j in names(d_filt)) {
+      if (j %in% names(d_acs)==FALSE){
+        d_acs[j] <- d_filt[match(d_acs$id, d_filt$id), j]    
+      }
+    }
   }
   
   # one category only has 2 categories, so using a logit 
@@ -1504,7 +1529,13 @@ impute_cps_to_acs <- function(d_acs, d_cps){
   test_filt= "WKW==2"
   d_filt <- runLogitEstimate(d_train=d_cps,d_test=d_acs, formula=formula, test_filt=test_filt, 
                              train_filt=train_filt, weight=weight, varname=varname, create_dummies=TRUE)
-  d_acs <- merge(d_filt, d_acs, by='id', all.y=TRUE)
+  # running into memory issues with merge, using match instead
+  #d_acs <- merge(d_filt, d_acs, by='id', all.y=TRUE)
+  for (j in names(d_filt)) {
+    if (j %in% names(d_acs)==FALSE){
+      d_acs[j] <- d_filt[match(d_acs$id, d_filt$id), j]    
+    }
+  }
   
   # create single weeks worked var
   d_acs <- d_acs %>% mutate (iweeks_worked= ifelse(!is.na(wks_50_52),wks_50_52+49,0)) %>% 
@@ -1552,7 +1583,13 @@ impute_cps_to_acs <- function(d_acs, d_cps){
   
   d_filt <- runLogitEstimate(d_train=d_cps,d_test=d_acs, formula=formula, test_filt=filt, train_filt=filt, 
                              weight=weight, varname=varname, create_dummies=TRUE)
-  d_acs <- merge(d_filt, d_acs, by='id', all.y=TRUE)
+  # running into memory issues with merge, using match instead
+  #d_acs <- merge(d_filt, d_acs, by='id', all.y=TRUE)
+  for (j in names(d_filt)) {
+    if (j %in% names(d_acs)==FALSE){
+      d_acs[j] <- d_filt[match(d_acs$id, d_filt$id), j]    
+    }
+  }
   
   # clean up vars
   d_acs <- d_acs[, !(names(d_acs) %in% c('rand','tempsize','iweeks_worked',

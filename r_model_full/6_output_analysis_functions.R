@@ -280,13 +280,13 @@ create_meta_file <-function(d, out_dir,place_of_work) {
     var <- paste0('bene_',i)
     temp <- replicate_weights_SE(d, var,place_of_work)
     meta_cost[i, 'cost'] <- temp[7]
-    meta_cost[i, 'ci_lower'] <- temp[[7]] + temp[[8]] *1.96 
-    meta_cost[i, 'ci_upper'] <- temp[[7]] - temp[[8]] *1.96
+    meta_cost[i, 'ci_upper'] <- temp[[7]] + temp[[8]] *1.96 
+    meta_cost[i, 'ci_lower'] <- temp[[7]] - temp[[8]] *1.96
   }
   temp <- replicate_weights_SE(d, 'actual_benefits',place_of_work)
   meta_cost['total', 'cost'] <- temp[7]
-  meta_cost['total', 'ci_lower'] <-  temp[[7]] + temp[[8]] *1.96
-  meta_cost['total', 'ci_upper'] <-  temp[[7]] - temp[[8]] *1.96
+  meta_cost['total', 'ci_upper'] <-  temp[[7]] + temp[[8]] *1.96
+  meta_cost['total', 'ci_lower'] <-  temp[[7]] - temp[[8]] *1.96
   write.csv(meta_cost,file=paste0(out_dir, '/program_cost_',tolower(model_state),'_',model_start_time,'.csv'))
   
   meta_take <- data.frame (row.names = leave_types)
@@ -294,12 +294,12 @@ create_meta_file <-function(d, out_dir,place_of_work) {
     var <- paste0('ptake_',i)
     temp <- replicate_weights_SE(d, var,place_of_work)
     meta_take[i, 'progtaker'] <- as.integer(temp[7])
-    meta_take[i, 'ci_lower'] <- as.integer(temp[[7]] + temp[[8]] *1.96) 
-    meta_take[i, 'ci_upper'] <- as.integer(temp[[7]] - temp[[8]] *1.96)
+    meta_take[i, 'ci_upper'] <- as.integer(temp[[7]] + temp[[8]] *1.96) 
+    meta_take[i, 'ci_lower'] <- as.integer(temp[[7]] - temp[[8]] *1.96)
   }
   temp <- replicate_weights_SE(d, 'particip', place_of_work)
   meta_take['any', 'progtaker'] <- as.integer(temp[7])
-  meta_take['any', 'ci_lower'] <- as.integer(temp[[7]] + temp[[8]] *1.96)
-  meta_take['any', 'ci_upper'] <- as.integer(temp[[7]] - temp[[8]] *1.96)
+  meta_take['any', 'ci_upper'] <- as.integer(temp[[7]] + temp[[8]] *1.96)
+  meta_take['any', 'ci_lower'] <- as.integer(temp[[7]] - temp[[8]] *1.96)
   write.csv(meta_take,file=paste0(out_dir, '/program_progtaker_',tolower(model_state),'_',model_start_time,'.csv'))
 }

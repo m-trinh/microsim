@@ -792,9 +792,11 @@ KNN_multi_class <- function(d_train, d_test, imp_var, train_filt, test_filt, xva
   # This is a dataframe just with the variables in the acs that will be used to compute distance
   options(warn=-1)
   test <- d_test %>% filter_(test_filt) %>%
-    dplyr::select(all_of(xvars)) %>%
+    dplyr::select(all_of(xvars), id) %>%
     filter(complete.cases(.))
   options(warn=0)
+  test_ids <- test$id
+  test <- test %>% dplyr::select(-id) 
   
   # Initial checks
   
@@ -821,9 +823,10 @@ KNN_multi_class <- function(d_train, d_test, imp_var, train_filt, test_filt, xva
       test[i] <- scale(test[i],center=0,scale=max(test[,i]))
     }
   } 
-  browser()
-  #results <- knn(train[,2:length(names(train))], test,train,[,1], k=5)
-  
+  results <- knn(train[,2:length(names(train))], test, train[,1], k=5, l=4)
+  temp <- as.data.frame(cbind(test_ids, unfactor(results)))
+  names(temp) <- c('id',imp_var)
+  return(temp)
 }
 # Define KNN matching method, but allowing multiple (k) neighbors 
 KNN_multi <- function(d_train, d_test, imp_var, train_filt, test_filt, xvars, kval=5) { 
@@ -1294,12 +1297,13 @@ xg_boost_impute <- function(d_train, d_test, yvars, train_filts, test_filts, wei
     options(warn=-1)
     ftrain <- d_train %>% filter(complete.cases(dplyr::select(d_train, yvars[i], all_of(xvars)))) %>% filter_(train_filts[i])  
     options(warn=0)
+    # don't need to normalize for xgb
     # normalize training data to equally weight differences between variables
-    for (j in xvars) {
-      if (sum(ftrain[j])!=0 ){
-        ftrain[j] <- scale(ftrain[j],center=0,scale=max(ftrain[,j]))
-      }
-    } 
+    # for (j in xvars) {
+    #   if (sum(ftrain[j])!=0 ){
+    #     ftrain[j] <- scale(ftrain[j],center=0,scale=max(ftrain[,j]))
+    #   }
+    # } 
     
     # check for xvars with all identical values. need to not use xvar if all values are the same in training 
     temp_xvars <- xvars
@@ -1312,13 +1316,13 @@ xg_boost_impute <- function(d_train, d_test, yvars, train_filts, test_filts, wei
     } 
     # normalize for test xvars
     options(warn=-1)
-    ftest <- d_test %>% filter(complete.cases(dplyr::select(d_test, all_of(temp_xvars)))) %>% filter_(test_filts[i]) 
+    ftest <- d_test %>% filter(complete.cases(dplyr::select(d_test, all_of(temp_xvars)))) %>% filter_(test_filts[i])
     options(warn=0)
-    for (j in temp_xvars) {
-      if (sum(ftest[j])!=0 ){
-        ftest[j] <- scale(ftest[j],center=0,scale=max(ftest[,j]))
-      }
-    }
+    # for (j in temp_xvars) {
+    #   if (sum(ftest[j])!=0 ){
+    #     ftest[j] <- scale(ftest[j],center=0,scale=max(ftest[,j]))
+    #   }
+    # }
     
     # set up training and testing data as xgb objects
     mtrain <-as.matrix(ftrain[,c(temp_xvars,yvars[[i]])])
