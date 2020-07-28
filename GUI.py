@@ -2860,7 +2860,8 @@ class ProgressWindow(Toplevel):
             self.progress.set(int(update['value']))
         elif update_type == 'message':
             # Add new message to updates_container
-            self.add_update(update['value'], update['engine'])
+            engine_num = None if update['engine'] == '' else int(update['engine'])
+            self.add_update(update['value'], engine_num)
         elif update_type == 'done':
             # Show results window
             self.parent.show_results(engine=engine)
