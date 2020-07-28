@@ -351,8 +351,8 @@ policy_simulation <- function(
       d_acs_p <- read.csv(paste0(acs_dir,'/',acs_year,'/pow_person_files/p',st_code,'_',tolower(state),'_pow.csv')) 
     }
     else {
-      d_acs_hh <- read.csv(paste0(acs_dir,'/',acs_year,'/household_files/ss',year_2dig,'p',tolower(state),'.csv'))
-      d_acs_p <- read.csv(paste0(acs_dir,'/',acs_year,'/person_files/ss',year_2dig,'h',tolower(state),'.csv')) 
+      d_acs_hh <- read.csv(paste0(acs_dir,'/',acs_year,'/household_files/ss',year_2dig,'h',tolower(state),'.csv'))
+      d_acs_p <- read.csv(paste0(acs_dir,'/',acs_year,'/person_files/ss',year_2dig,'p',tolower(state),'.csv'))
     }
     d_acs <- clean_acs(d_acs_p, d_acs_hh,acs_year, fmla_year, save_csv=FALSE)
     # Impute hourly worker, weeks worked, and firm size variables from CPS into ACS. 
@@ -630,7 +630,6 @@ policy_simulation <- function(
       d_acs_imp[i] <- NULL
     }
   }
-  
   
   # rename variables to be consistent with Python
   d_acs_imp <- d_acs_imp %>% rename(

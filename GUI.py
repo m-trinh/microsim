@@ -1447,7 +1447,7 @@ class ScrollFrame(Frame):
         self.scroll_bar.pack(side=RIGHT, fill=Y)
 
         # Canvas needed to hold scroll wheel and content frame
-        self.canvas = Canvas(self, bg=VERY_LIGHT_COLOR, borderwidth=0, highlightthickness=0,
+        self.canvas = Canvas(self, bg=content_bg, borderwidth=0, highlightthickness=0,
                              yscrollcommand=self.scroll_bar.set)
         self.canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=0, pady=0)
 
@@ -2193,7 +2193,8 @@ class ResultsWindow(Toplevel):
         elif self.current_tab == 1:
             self.abf.canvas.yview_scroll(move_unit, 'units')
         elif self.current_tab == 2:
-            self.population_analysis.canvas.yview_scroll(move_unit, 'units')
+            if self.population_analysis.content.winfo_height() > self.population_analysis.canvas.winfo_height():
+                self.population_analysis.canvas.yview_scroll(move_unit, 'units')
 
     def change_current_tab(self, event):
         """Set current tab to the one that user selects. Used for scrolling with mouse wheel."""
