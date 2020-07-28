@@ -540,11 +540,11 @@ clean_fmla <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
 # clean 2018 wave of fmla data 
 clean_fmla_2018 <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
   
-  # some misc cleaning steps
+  # some misc cleaning stepsf
   # make index start at 0
   d_fmla$empid <- d_fmla$empid - 1
   # name weight variable consistently
-  d_fmla <- d_fmla %>% rename(weight = combo_trimmed_weight)
+  d_fmla <- d_fmla %>% rename(combo_trimmed_weight = weight)
   
   # --------------------------------------------------------------------
   # demographic characteristics
@@ -969,19 +969,32 @@ clean_fmla_2018 <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
 # -------------------------- #
 # ACS Household File
 # -------------------------- #
-clean_acs <-function(d,d_hh,fmla_year,save_csv=FALSE,POW_weight=FALSE) {
+clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) {
 
   # create variables
   
   d_hh$nochildren <- as.data.frame(dummy("FPARC",d_hh))$FPARC4
-  # adjust  dollars to FMLA year
+  # adjust  dollars to FMLA/ACS year
   # don't multiple ADJINC directly to faminc to avoid integer overflow issue in R
-  if (fmla_year==2012){
+  if (fmla_year==2012 & acs_year==2016){
     d_hh$adjinc <- d_hh$ADJINC / 1056030 
   }
-  if (fmla_year==2018) {
-    d_hh$adjinc <- d_hh$ADJINC / 1022342
+  if (fmla_year==2012 & acs_year==2017){
+    d_hh$adjinc <- d_hh$ADJINC / (1061971*(1056030/1038170)) 
   }
+  if (fmla_year==2012 & acs_year==2018){
+    d_hh$adjinc <- d_hh$ADJINC / (1070673*(1056030/1022342))
+  }
+  if (fmla_year==2018 & acs_year==2016) {
+    d_hh$adjinc <- d_hh$ADJINC / (1054346/1013097*1000000)
+  }
+  if (fmla_year==2018 & acs_year==2017) {
+    d_hh$adjinc <- d_hh$ADJINC / (1035838/1013097*1000000)
+  }
+  if (fmla_year==2018 & acs_year==2018) {
+    d_hh$adjinc <- d_hh$ADJINC / 1000000
+  }
+  
   d_hh$faminc <- d_hh$FINCP * d_hh$adjinc 
   d_hh <- d_hh %>% mutate(faminc=ifelse(is.na(faminc)==FALSE & faminc<=0, 0.01, faminc)) # force non-positive income to be epsilon to get meaningful log-income
   d_hh$lnfaminc <- log(d_hh$faminc)

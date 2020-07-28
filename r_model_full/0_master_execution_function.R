@@ -24,18 +24,18 @@ policy_simulation <- function(
                               loadRDS=FALSE,
                               loadCSV=TRUE,
                               acs_dir='../data/acs',
-                              cps_dir='../data/cps/',
+                              cps_dir='../data/cps',
                               fmla_file='../data/fmla/fmla_2012/fmla_2012_employee_puf.csv',
                               fmla_year=2012,
                               acs_year=2016,
                               
                               # output/logging params
                               makelog=TRUE,
-                              log_directory='./log/',
+                              log_directory='./log',
                               progress_file=NULL,
                               fulloutput=FALSE,
                               saveCSV=TRUE,
-                              out_dir="../output/",
+                              out_dir="../output",
                               output=NULL,
                               output_stats=NULL,
                               
@@ -129,16 +129,20 @@ policy_simulation <- function(
                               ABF_payroll_tax=0,
                               ABF_bene=NULL,
                               ABF_detail_out=FALSE,
-
+                              
+                              # misc execution params
+                              GUI_call=FALSE,
                               model_start_time=NULL
                             ) {
 
   # note start time
   if (is.null(model_start_time)) {
-      model_start_time <<- format(Sys.time(), "%Y%m%d_%H%M%S")
+    model_start_time <<- format(Sys.time(), "%Y%m%d_%H%M%S")
   } else {
-      model_start_time <<- model_start_time
+    model_start_time <<- model_start_time
   }
+
+  # note state
   model_state <<- state
 
   
@@ -157,6 +161,11 @@ policy_simulation <- function(
   # create required folders for logs and output, if they don't exist
   dir.create(log_directory, showWarnings = FALSE)
   dir.create(out_dir, showWarnings = FALSE)
+  # create output subfolder for model run 
+  # commenting out for now as this breaks the GUI
+  # dir.create(paste0(out_dir,'/output_',model_start_time))
+  # out_dir <- paste0(out_dir,'/output_',model_start_time)
+  
   #  if output name is null, set a standard name to match python
   
   if (is.null(output)) {
@@ -197,7 +206,7 @@ policy_simulation <- function(
     params['params'] <- NULL
     
     # create log file and record starting parameters 
-    log_name <<- paste0(log_directory, model_start_time, '_',output, '.log')
+    log_name <<- paste0(log_directory,'/', model_start_time, '_',output, '.log')
     file.create(log_name)
     cat("==============================", file = log_name, sep="\n")
     cat("Microsim Log File", file = log_name, sep="\n", append = TRUE)
@@ -253,9 +262,18 @@ policy_simulation <- function(
   }
   write.table(bene_take, sep=',', file=paste0(out_dir, '/prog_para_', model_start_time,'.csv'), append=TRUE)
   
+  
+  
   ####################################
   # global libraries used everywhere #
   ####################################
+  if (!is.null(progress_file)) {
+    message <- paste0('{"type": "message", "engine": "', engine_type, '", "value": "Completed setup operations."}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+    message <- paste0('{"type": "progress", "engine": "', engine_type, '", "value": 2}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+  }
+  
   pkgTest <- function(x)
   {
     if (!require(x,character.only = TRUE))
@@ -282,6 +300,13 @@ policy_simulation <- function(
     set.seed(random_seed)
   }
  
+  if (!is.null(progress_file)) {
+    message <- paste0('{"type": "message", "engine": "', engine_type, '", "value": "Loaded required packages."}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+    message <- paste0('{"type": "progress", "engine": "', engine_type, '", "value": 5}')
+    cat(message, file = progress_file, sep = "\n", append = TRUE)
+  }
+  
   #========================================
   # 1. Cleaning 
   #========================================
@@ -302,7 +327,7 @@ policy_simulation <- function(
   if (loadCSV) {
     # if loadCSV, look for csvs and conduct cleaning
     # Load and clean CPS
-    d_cps <- read.csv(paste0(cps_dir,'cps_clean_',acs_year-2,'.csv'))
+    d_cps <- read.csv(paste0(cps_dir,'/cps_clean_',acs_year-2,'.csv'))
     #d_cps <- clean_cps(d_cps)
   
     # Load and clean FMLA 
@@ -322,11 +347,11 @@ policy_simulation <- function(
       d_acs_p <- read.csv(paste0(acs_dir,'/',acs_year,'/pow_person_files/p',st_code,'_',tolower(state),'_pow.csv')) 
     }
     else {
-      d_acs_hh <- read.csv(paste0(acs_dir,'/',acs_year,'/pow_household_files/ss',year_2dig,'p',tolower(state),'.csv'))
-      d_acs_p <- read.csv(paste0(acs_dir,'/',acs_year,'/pow_person_files/ss',year_2dig,'h',tolower(state),'.csv')) 
+      d_acs_hh <- read.csv(paste0(acs_dir,'/',acs_year,'/household_files/ss',year_2dig,'p',tolower(state),'.csv'))
+      d_acs_p <- read.csv(paste0(acs_dir,'/',acs_year,'/person_files/ss',year_2dig,'h',tolower(state),'.csv')) 
     }
     
-    d_acs <- clean_acs(d_acs_p, d_acs_hh, fmla_year, save_csv=FALSE)
+    d_acs <- clean_acs(d_acs_p, d_acs_hh,acs_year, fmla_year, save_csv=FALSE)
     # Impute hourly worker, weeks worked, and firm size variables from CPS into ACS. 
     # These are needed for leave program eligibility determination
     d_acs <- impute_cps_to_acs(d_acs, d_cps)
@@ -546,7 +571,7 @@ policy_simulation <- function(
   # Running ABF module
   if (ABF_enabled==TRUE) {
     d_acs_imp <- run_ABF(d_acs_imp, ABF_elig_size, ABF_max_tax_earn, ABF_bene_tax, ABF_avg_state_tax, 
-                     ABF_payroll_tax, ABF_bene, output,place_of_work,ABF_detail_out)
+                     ABF_payroll_tax, ABF_bene, output,place_of_work,ABF_detail_out, out_dir)
   }
   
   if (runtime_measure==1){
@@ -584,7 +609,7 @@ policy_simulation <- function(
   
   # Options to output final data
   if (!is.null(output) & saveCSV==TRUE & fulloutput==TRUE) {
-    write.csv(d_acs_imp, file=file.path(out_dir, paste0(output,'.csv'), fsep = .Platform$file.sep))
+    write.csv(d_acs_imp, file=file.path(out_dir, paste0('/',output,'.csv'), fsep = .Platform$file.sep))
   }
   
   # Clean up vars for Python compatibility
@@ -640,13 +665,13 @@ policy_simulation <- function(
   )
   
   if (!is.null(output) & saveCSV==TRUE) {
-    write.csv(d_acs_imp, file=file.path(out_dir, paste0(output,'_py_compatible.csv'), fsep = .Platform$file.sep))
+    write.csv(d_acs_imp, file=file.path(out_dir, paste0('/',output,'_py_compatible.csv'), fsep = .Platform$file.sep))
   }  
   
   
-  print('=====================================')
-  print('Simulation successfully completed')
-  print('=====================================')
+  # print('=====================================')
+  # print('Simulation successfully completed')
+  # print('=====================================')
   if (!is.null(progress_file)) {
     message <- paste0('{"type": "message", "engine": "', engine_type, '", "value": "Output saved"}')
     cat(message, file = progress_file, sep = "\n", append = TRUE)

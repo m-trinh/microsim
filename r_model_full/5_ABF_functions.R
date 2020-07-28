@@ -68,7 +68,7 @@ replicate_weights_SE <- function(d, var, place_of_work, filt=TRUE) {
 # master ABF execution function
 
 run_ABF <- function(d, ABF_elig_size, ABF_max_tax_earn, ABF_bene_tax, ABF_avg_state_tax, 
-                    ABF_payroll_tax, ABF_bene,output,place_of_work,ABF_detail_out) {
+                    ABF_payroll_tax, ABF_bene,output,place_of_work,ABF_detail_out, out_dir) {
 
   if (ABF_max_tax_earn>0) {
     d <- d %>% mutate(taxable_income_capped=ifelse(wage12>ABF_max_tax_earn,
@@ -139,7 +139,7 @@ run_ABF <- function(d, ABF_elig_size, ABF_max_tax_earn, ABF_bene_tax, ABF_avg_st
   colnames(d_out) <- c("Variable","Mean", "Standard Error of Mean", "Confidence Interval","Population Total", "Pop Total Standard Error", "Pop Total CI")
   
   if (ABF_detail_out){
-    write.csv(d_out,file=paste0('./output/',output,"_ABF_stats.csv"), row.names= FALSE)
+    write.csv(d_out,file=paste0(out_dir,'/',output,"_ABF_stats.csv"), row.names= FALSE)
   }
   
   # output meta summary file
@@ -155,7 +155,7 @@ run_ABF <- function(d, ABF_elig_size, ABF_max_tax_earn, ABF_bene_tax, ABF_avg_st
     'Total Tax Revenue Lower Confidence Interval' = d_out[1, 'Population Total'] - d_out[1, 'Pop Total Standard Error'] * 1.96,
     'Total Income' = total_income
   )
-  write.csv(data.frame(meta_summ), file='output/abf_summary.csv')
+  write.csv(data.frame(meta_summ), file=paste0(out_dir,'/abf_summary.csv'))
   
   # rename/gen vars for meta file  
   wage_bins = seq(0, 210000, by=25000)
@@ -171,7 +171,7 @@ run_ABF <- function(d, ABF_elig_size, ABF_max_tax_earn, ABF_bene_tax, ABF_avg_st
   )
   
    # output meta file 
-   write.csv(d_copy, file=paste0('./output/abf_acs_sim_',model_start_time,'.csv'))
+   write.csv(d_copy, file=paste0(out_dir,'/abf_acs_sim_',model_start_time,'.csv'))
   
   
   return(d)

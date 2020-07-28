@@ -20,6 +20,7 @@ ri <- policy_simulation(saveCSV=TRUE,
                         minsize=1,
                         ann_hours=1,
                         state='RI',
+                        fmla_year=2012,
                         makelog=TRUE,
                         base_bene_level=.6,
                         place_of_work = TRUE,
@@ -37,7 +38,6 @@ ri <- policy_simulation(saveCSV=TRUE,
                         illspouse_uptake=.0015, illparent_uptake=.0009,
                         maxlen_own =150, maxlen_matdis =150, maxlen_bond =20, maxlen_illparent=20, 
                         maxlen_illspouse =20, maxlen_illchild =20,
-                        earnings=3840,output=paste0("RI_",meth,"_gui_compar"),
-                        output_stats=c('state_compar'),  random_seed=12312)
+                        earnings=3840,  random_seed=12312)
 timeend <<- Sys.time()
 print(timeend - timestart)
