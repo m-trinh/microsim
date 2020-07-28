@@ -12,7 +12,7 @@ source("0_master_execution_function.R")
 #=================================
 #Rhode Island
 #=================================
-meth <- 'Logistic Regression GLM'
+meth <- 'K Nearest Neighbor'
 timestart <<- Sys.time()
 ri <- policy_simulation(saveCSV=TRUE,
                         impute_method=meth,
@@ -20,7 +20,7 @@ ri <- policy_simulation(saveCSV=TRUE,
                         ann_hours=1,
                         state='RI',
                         fmla_year=2018,
-                        acs_year=2017,
+                        acs_year=2018,
                         makelog=TRUE,
                         base_bene_level=.6,
                         place_of_work = TRUE,
