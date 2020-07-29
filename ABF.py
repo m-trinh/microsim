@@ -42,7 +42,7 @@ class ABF:
                 index_names = df[df['wage12'] > self.max_taxable_earnings_per_person].index
                 censor = len(index_names)
                 message_censor = "We censored %s observations to the wage max" % censor
-                print(message_censor)
+                # print(message_censor)
             else:
                 df['taxable_income_capped'] = df['wage12']
 
@@ -59,8 +59,8 @@ class ABF:
             df['wage_cat'] = pd.cut(x=df['wage12'], bins=wage_bins, labels=wage_ranges,
                                          right=False)
             total_income_w = df['income_w'].sum()
-            print('Output: Weighted Income Base for Full Geographic Area:')
-            print(total_income_w)
+            # print('Output: Weighted Income Base for Full Geographic Area:')
+            # print(total_income_w)
 
             # Tax Revenue
             # Unweighted tax revenue collected (full geographic area)
@@ -69,21 +69,21 @@ class ABF:
             # Total Weighted Tax Revenue (full geographic area)
             df['ptax_rev_w'] = df['income_w'] * self.payroll_tax
             total_ptax_rev_w = self.payroll_tax * total_income_w
-            print('Output: Weighted Tax Revenue for Full Geographic Area:')
-            print(total_ptax_rev_w)
+            # print('Output: Weighted Tax Revenue for Full Geographic Area:')
+            # print(total_ptax_rev_w)
 
-            message = "The weighted estimated tax revenue is %s based on a payroll tax rate of %s and a income " \
-                      "base of %s " % (total_ptax_rev_w, self.payroll_tax, total_income_w)
-            print(message)
+            # message = "The weighted estimated tax revenue is %s based on a payroll tax rate of %s and a income " \
+            #           "base of %s " % (total_ptax_rev_w, self.payroll_tax, total_income_w)
+            # print(message)
 
             # State Tax Revenue Recouped from Taxed Benefits
             if self.benefits_tax:
                 recoup_tax_rev = self.average_state_tax * self.benefits
-                print('Output: "State Tax Revenue Recouped from Taxed Benefits:')
-                print(recoup_tax_rev)
-                message = "With a state tax rate of %s and a benefit outlay of %s, the estimated state tax revenue is %s" \
-                          % (self.average_state_tax, self.benefits, recoup_tax_rev)
-                print(message)
+                # print('Output: "State Tax Revenue Recouped from Taxed Benefits:')
+                # print(recoup_tax_rev)
+                # message = "With a state tax rate of %s and a benefit outlay of %s, the estimated state tax revenue is %s" \
+                #           % (self.average_state_tax, self.benefits, recoup_tax_rev)
+                # print(message)
             else:
                 recoup_tax_rev = 0
 
@@ -121,19 +121,19 @@ class ABF:
 
             # Income
             total_income_w_uci = total_income_w + 1.96 * income_se
-            print('Total Income Upper CI:')
-            print(total_income_w_uci)
+            # print('Total Income Upper CI:')
+            # print(total_income_w_uci)
             total_income_w_lci = total_income_w - 1.96 * income_se
-            print('Total Income Low CI:')
-            print(total_income_w_lci)
+            # print('Total Income Low CI:')
+            # print(total_income_w_lci)
 
             #Tax Revenue
             total_ptax_w_uci = total_ptax_rev_w + 1.96 * tax_se
-            print('Total Income Upper CI:')
-            print(total_ptax_w_uci)
+            # print('Total Income Upper CI:')
+            # print(total_ptax_w_uci)
             total_ptax_w_lci = total_ptax_rev_w - 1.96 * tax_se
-            print('Total Income Low CI:')
-            print(total_ptax_w_lci)
+            # print('Total Income Low CI:')
+            # print(total_ptax_w_lci)
 
             # Return Dictionary with Final Output Values
             abf_output = {'Total Income (Weighted)': total_income_w, 'Total Income': total_income,
@@ -208,7 +208,6 @@ class ABF:
         self.save_summary()
         out = {self.abf_output.index.values[i]: self.abf_output['Value'].values[i]
                for i in range(self.abf_output.shape[0])}
-        print(out)
         return out, self.pivot_tables
 
     def reset_abf_output(self):

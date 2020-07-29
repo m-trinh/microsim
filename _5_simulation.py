@@ -580,7 +580,7 @@ class SimulationEngine:
 
         message = 'Leaves simulated for 5-year ACS %s-%s in state %s. Time needed = %s seconds. ' % \
                   ((self.yr-4), self.yr, self.st.upper(), round(time()-tsim, 0))
-        message += '\nEstimate of total eligible workers in state = %s' % (n_eligible_workers*self.pow_pop_multiplier)
+        message += '\nEstimate of total eligible workers in state = %s' % round(n_eligible_workers*self.pow_pop_multiplier, 0)
         print(message)
 
         self.progress += 40 / len(self.prog_para)
@@ -697,8 +697,8 @@ class SimulationEngine:
             progtakers[t] = int(round((w * acs_taker_needer['takeup_%s' % t]).sum(), 0))
         costs['total'] = sum(list(costs.values()))
         progtakers['any'] = int(round((w * acs_taker_needer['takeup_any']).sum(), 0))
-        print('Completed cost estimation - costs[total] = %s' % costs['total'])
-        print('Completed program taker count estimation - progtakers[any] = %s' % progtakers['any'])
+        print('Completed cost estimation - costs[total] = %s' % round(costs['total'], 2))
+        print('Completed program taker count estimation - progtakers[any] = %s' % round(progtakers['any'], 0))
 
         # get takeup flag using 80 rep weights, and get se, ci
         t0_se = time()
