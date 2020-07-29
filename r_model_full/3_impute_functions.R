@@ -167,7 +167,6 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
         }
       }
     }
-    
   }
   if (impute_method=="Naive Bayes") {
     # xvars must be all categorical vars for naive bayes
@@ -823,9 +822,31 @@ KNN_multi_class <- function(d_train, d_test, imp_var, train_filt, test_filt, xva
       test[i] <- scale(test[i],center=0,scale=max(test[,i]))
     }
   } 
-  results <- knn(train[,2:length(names(train))], test, train[,1], k=5, l=4)
-  temp <- as.data.frame(cbind(test_ids, unfactor(results)))
+  result <- knn3Train(train[,2:length(names(train))], test, train[,1], k=5, prob=TRUE)
+  impute <- as.data.frame(attr(result, 'prob'))
+  
+  # play wheel of fortune with predicted probabilities to get imputed value
+  impute['rand'] <- runif(nrow(impute))
+  # do this differently for prop_pay_employer as a non-binary categorical var
+  if (imp_var=='prop_pay_employer'){
+    impute['prop_pay_employer'] <- NA
+    impute['cum']=0
+    var_vals <- sapply(unname(sort(unlist(c(unique(train['prop_pay_employer']))))),toString)
+    for (j in var_vals) {
+      impute['prop_pay_employer'] <- with(impute, ifelse(rand > cum & rand<(cum + get(j)), j, prop_pay_employer))
+      impute['cum']= impute[,'cum'] + impute[,j]
+    }
+    impute['prop_pay_employer'] <- as.numeric(impute[,'prop_pay_employer'])
+  }
+  # rest of vars are binary
+  else {
+    impute[imp_var] <- as.data.frame(ifelse(impute[2]>impute['rand'],1,0))  
+  }
+  temp <- as.data.frame(cbind(test_ids, impute[,imp_var]))
   names(temp) <- c('id',imp_var)
+  if (imp_var=='prop_pay_employer'){
+    temp$prop_pay_employer <- as.numeric(temp$prop_pay_employer)
+  }
   return(temp)
 }
 # Define KNN matching method, but allowing multiple (k) neighbors 

@@ -207,7 +207,7 @@ CLONEFACTOR <- function(d, clone_factor) {
     d_clones$clone_flag=1
     d <- rbind(d,d_clones)
     # reset id var
-    d['id'] <- as.numeric(rownames(d))
+    d['id'] <- as.character(rownames(d))
   }
   return(d)
 }

@@ -1243,7 +1243,7 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
            'married','HSgrad','BAplus','INDP','OCCP','SPORDER','FES','NOC','R65', 'noelderly')]
 
   # id variable from SERIALNO [Household ID] and SPORDER [Individual ID within Household]
-  d$id <- as.numeric(paste0(as.character(d$SERIALNO),as.character(d$SPORDER)))
+  d$id <- paste0(as.character(d$SERIALNO),as.character(d$SPORDER))
   d <- d[order(d$id),]
   
 

@@ -158,7 +158,7 @@ policy_simulation <- function(
   }
   # if fmla_year is set and fmla_file not changed, set to correct file
   if (fmla_year==2018 & fmla_file=='../data/fmla/fmla_2012/fmla_2012_employee_puf.csv') {
-    fmla_file="C:/Users/lsp52/AnacondaProjects/microsim/data/fmla/fmla_2018/FMLA_2018_Employee_PUF.csv"
+    fmla_file="../data/fmla/fmla_2018/FMLA_2018_Employee_PUF.csv"
   }
   # set derived parameters
   weightfactor=1/clone_factor
@@ -288,7 +288,7 @@ policy_simulation <- function(
     return("OK")
   }
   
-  global.libraries <- c('glmnet','readr','tibble','DMwR','xgboost','bnclassify', 'randomForest','magick','stats', 'rlist', 'MASS', 'plyr', 'dplyr', 
+  global.libraries <- c('caret','glmnet','readr','tibble','DMwR','xgboost','bnclassify', 'randomForest','magick','stats', 'rlist', 'MASS', 'plyr', 'dplyr', 
                         'survey', 'class', 'dummies', 'varhandle', 'oglmx', 
                         'foreign', 'ggplot2', 'reshape2','e1071','pander','ridge')
   
@@ -630,40 +630,47 @@ policy_simulation <- function(
       d_acs_imp[i] <- NULL
     }
   }
-
+  
   # rename variables to be consistent with Python
-  d_acs_imp <- d_acs_imp %>% rename(
-    ST = ST.x, 
-    annual_benefit_all = actual_benefits, 
-    cfl_bond=length_bond ,
-    cfl_illchild=length_illchild ,
-    cfl_illparent=length_illparent ,
-    cfl_illspouse=length_illspouse ,
-    cfl_matdis=length_matdis ,
-    cfl_own=length_own ,
-    ln_faminc=lnfaminc ,
-    takeup_any=particip ,
-    cpl_all=particip_length ,
-    cpl_bond=plen_bond ,
-    cpl_illchild=plen_illchild ,
-    cpl_illparent=plen_illparent ,
-    cpl_illspouse=plen_illspouse ,
-    cpl_matdis=plen_matdis ,
-    cpl_own=plen_own ,
-    takeup_bond=ptake_bond ,
-    takeup_illchild=ptake_illchild ,
-    takeup_illparent=ptake_illparent ,
-    takeup_illspouse=ptake_illspouse ,
-    takeup_matdis=ptake_matdis ,
-    takeup_own=ptake_own ,
-    len_bond=squo_length_bond ,
-    len_illchild=squo_length_illchild ,
-    len_illparent=squo_length_illparent ,
-    len_illspouse=squo_length_illspouse ,
-    len_matdis=squo_length_matdis ,
-    len_own=squo_length_own ,
-    cfl_all=total_length ,
+  renames <- c(
+    'ST' = 'ST.x', 
+    'annual_benefit_all' = 'actual_benefits', 
+    'cfl_bond'='length_bond' ,
+    'cfl_illchild'='length_illchild' ,
+    'cfl_illparent'='length_illparent' ,
+    'cfl_illspouse'='length_illspouse' ,
+    'cfl_matdis'='length_matdis' ,
+    'cfl_own'='length_own' ,
+    'ln_faminc'='lnfaminc' ,
+    'takeup_any'='particip' ,
+    'cpl_all'='particip_length' ,
+    'cpl_bond'='plen_bond' ,
+    'cpl_illchild'='plen_illchild' ,
+    'cpl_illparent'='plen_illparent' ,
+    'cpl_illspouse'='plen_illspouse' ,
+    'cpl_matdis'='plen_matdis' ,
+    'cpl_own'='plen_own' ,
+    'takeup_bond'='ptake_bond' ,
+    'takeup_illchild'='ptake_illchild' ,
+    'takeup_illparent'='ptake_illparent' ,
+    'takeup_illspouse'='ptake_illspouse' ,
+    'takeup_matdis'='ptake_matdis' ,
+    'takeup_own'='ptake_own' ,
+    'len_bond'='squo_length_bond' ,
+    'len_illchild'='squo_length_illchild' ,
+    'len_illparent'='squo_length_illparent' ,
+    'len_illspouse'='squo_length_illspouse' ,
+    'len_matdis'='squo_length_matdis' ,
+    'len_own'='squo_length_own' ,
+    'cfl_all'='total_length'
   )
+  
+  for (new_var in names(renames)) {
+    old_var <- renames[[new_var]]
+    if (old_var %in% names(d_acs_imp)) {
+      names(d_acs_imp)[names(d_acs_imp)==old_var] <- new_var
+    }
+  }
   
   if (!is.null(output) & saveCSV==TRUE) {
     write.csv(d_acs_imp, file=file.path(out_dir, paste0('/',output,'_py_compatible.csv'), fsep = .Platform$file.sep))
