@@ -265,7 +265,7 @@ take_compar <- function(d, output, out_dir,place_of_work) {
 #=====================================================
 # 4. create_meta_file
 #=====================================================
-create_meta_file <-function(d, out_dir,place_of_work) {
+create_meta_file <-function(d, out_dir,place_of_work, model_start_time) {
   # if place of work, multiply weight by 2% to adjust for missing values
   if (place_of_work){
     d$PWGTP <- d$PWGTP*1.02

@@ -68,7 +68,7 @@ replicate_weights_SE <- function(d, var, place_of_work, filt=TRUE) {
 # master ABF execution function
 
 run_ABF <- function(d, ABF_elig_size, ABF_max_tax_earn, ABF_bene_tax, ABF_avg_state_tax, 
-                    ABF_payroll_tax, ABF_bene,output,place_of_work,ABF_detail_out, out_dir) {
+                    ABF_payroll_tax, ABF_bene,output,place_of_work,ABF_detail_out, out_dir, model_start_time) {
 
   if (ABF_max_tax_earn>0) {
     d <- d %>% mutate(taxable_income_capped=ifelse(wage12>ABF_max_tax_earn,
