@@ -131,17 +131,22 @@ policy_simulation <- function(
                               ABF_detail_out=FALSE,
                               
                               # misc execution params
-                              GUI_call=FALSE,
                               model_start_time=NULL
                             ) {
 
   # note start time
   if (is.null(model_start_time)) {
-    model_start_time <<- format(Sys.time(), "%Y%m%d_%H%M%S")
+    
+    model_start_time <- format(Sys.time(), "%Y%m%d_%H%M%S")
+    # check to make sure we are pointing to an output subfolder with the timestamp
+    if (!dir.exists(paste0(out_dir,'/output_',model_start_time))) {
+      dir.create(paste0(out_dir,'/output_',model_start_time))
+      out_dir <- paste0(out_dir,'/output_',model_start_time)
+    }
   } else {
-    model_start_time <<- model_start_time
+    model_start_time <- model_start_time
   }
-
+  
   # note state
   model_state <<- state
 
@@ -167,8 +172,7 @@ policy_simulation <- function(
   dir.create(out_dir, showWarnings = FALSE)
   # create output subfolder for model run 
   # commenting out for now as this breaks the GUI
-  # dir.create(paste0(out_dir,'/output_',model_start_time))
-  # out_dir <- paste0(out_dir,'/output_',model_start_time)
+
   
   #  if output name is null, set a standard name to match python
   
@@ -205,7 +209,10 @@ policy_simulation <- function(
     timestart <<- Sys.time()
     
     # save starting parameters
+    # sometimes getting a warning that NAs introduced by coercion here, that's ok so we'll suppress the warning
+    options(warn=-1)
     params <- lapply(ls(), function(x) {return(get(x))})
+    options(warn=0)
     names(params) <- ls()[!ls() %in% c('params')]
     params['params'] <- NULL
     
@@ -523,7 +530,7 @@ policy_simulation <- function(
 
   # INPUT: ACS file
   d_acs_imp <-UPTAKE(d_acs_imp, own_uptake, matdis_uptake, bond_uptake, illparent_uptake, 
-                     illspouse_uptake, illchild_uptake, full_particip, wait_period, wait_period_recollect,
+                     illspouse_uptake, illchild_uptake, full_particip, wait_period, wait_period_recollect,min_cfl_recollect,
                      maxlen_own, maxlen_matdis, maxlen_bond, maxlen_illparent, maxlen_illspouse, maxlen_illchild,
                      maxlen_total,maxlen_DI,maxlen_PFL,dual_receiver, min_takeup_cpl,alpha)
   # OUTPUT: ACS file with modified leave program variables based on user-specified program restrictions
@@ -573,7 +580,7 @@ policy_simulation <- function(
   # Running ABF module
   if (ABF_enabled==TRUE) {
     d_acs_imp <- run_ABF(d_acs_imp, ABF_elig_size, ABF_max_tax_earn, ABF_bene_tax, ABF_avg_state_tax, 
-                     ABF_payroll_tax, ABF_bene, output,place_of_work,ABF_detail_out, out_dir)
+                     ABF_payroll_tax, ABF_bene, output,place_of_work,ABF_detail_out, out_dir, model_start_time)
   }
   
   if (runtime_measure==1){
@@ -592,7 +599,7 @@ policy_simulation <- function(
   # }
   
   # create meta file
-  create_meta_file(d_acs_imp,out_dir,place_of_work)
+  create_meta_file(d_acs_imp,out_dir,place_of_work, model_start_time)
   
   # final output options
   for (i in output_stats) {
@@ -611,7 +618,7 @@ policy_simulation <- function(
   
   # Options to output final data
   if (!is.null(output) & saveCSV==TRUE & fulloutput==TRUE) {
-    write.csv(d_acs_imp, file=file.path(out_dir, paste0('/',output,'.csv'), fsep = .Platform$file.sep))
+    write.csv(d_acs_imp, file=file.path(out_dir, paste0('/',output,'_full_output.csv'), fsep = .Platform$file.sep))
   }
   
   # Clean up vars for Python compatibility
@@ -673,7 +680,7 @@ policy_simulation <- function(
   }
   
   if (!is.null(output) & saveCSV==TRUE) {
-    write.csv(d_acs_imp, file=file.path(out_dir, paste0('/',output,'_py_compatible.csv'), fsep = .Platform$file.sep))
+    write.csv(d_acs_imp, file=file.path(out_dir, paste0('/',output,'.csv'), fsep = .Platform$file.sep))
   }  
   
   

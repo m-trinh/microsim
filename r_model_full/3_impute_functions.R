@@ -783,7 +783,7 @@ KNN_multi_class <- function(d_train, d_test, imp_var, train_filt, test_filt, xva
   options(warn=-1)
   train <-  d_train %>% filter(complete.cases(dplyr::select(d_train, all_of(imp_var),all_of(xvars)))) %>% 
     filter_(train_filt) %>%
-    dplyr::select(imp_var, all_of(xvars)) %>%
+    dplyr::select(all_of(imp_var), all_of(xvars)) %>%
     mutate(id = NULL)
   options(warn=0)
   

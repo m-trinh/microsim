@@ -372,7 +372,7 @@ class MicrosimGUI(Tk):
             results_files = self.sim_engine.get_results_files()
         else:
             main_output_dir = os.path.join(self.general_params.output_directory, 'output_%s' % self.model_start_time)
-            results_files = [os.path.join(main_output_dir, 'acs_sim_{}_{}_py_compatible.csv'.
+            results_files = [os.path.join(main_output_dir, 'acs_sim_{}_{}.csv'.
                                           format(self.general_params.state.lower(), self.model_start_time))]
             costs = pd.read_csv(os.path.join(main_output_dir, 'program_cost_%s_%s.csv' %
                                              (self.general_params.state.lower(), self.model_start_time)))

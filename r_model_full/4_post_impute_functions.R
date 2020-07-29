@@ -660,14 +660,10 @@ EXTENDLEAVES <-function(d_train, d_test,wait_period, ext_base_effect,
 
 
 UPTAKE <- function(d, own_uptake, matdis_uptake, bond_uptake, illparent_uptake, 
-                   illspouse_uptake, illchild_uptake, full_particip, wait_period, wait_period_recollect,
+                   illspouse_uptake, illchild_uptake, full_particip, wait_period, wait_period_recollect, min_cfl_recollect,
                    maxlen_own, maxlen_matdis, maxlen_bond, maxlen_illparent, maxlen_illspouse, maxlen_illchild,
                    maxlen_total, maxlen_DI, maxlen_PFL,dual_receiver,min_takeup_cpl,alpha) {
-  
-  # if wait_period_recollect is true, essentially wait_period is zero for this purpose
-  if (wait_period_recollect) {
-    wait_period=0
-  }
+
   # calculate uptake -> days of leave that program benefits are collected
   d['particip_length']=0
   for (i in leave_types) {
@@ -745,6 +741,13 @@ UPTAKE <- function(d, own_uptake, matdis_uptake, bond_uptake, illparent_uptake,
                                     ifelse(get(paste('length_',i,sep="")) > exhausted_by & exhausted_by>wait_period, 
                                            get(plen_var) - exhausted_by + wait_period, get(plen_var)), get(plen_var)))
       
+      # if waiting period recollect is possible, and leave equals/exceeds min_cfl_recollect length, then we adjust plen length for each leave up 
+      # by length of waiting period 
+      if (wait_period_recollect & min_cfl_recollect>=wait_period){
+        d['particip_length'] <- with(d, ifelse(get(plen_var)>=min_cfl_recollect, particip_length+wait_period, particip_length))
+        d[plen_var] <- with(d, ifelse(get(plen_var)>=min_cfl_recollect, get(plen_var)+wait_period, get(plen_var)))
+      }
+      
       ptake_var=paste("ptake_",i,sep="")
       d[ptake_var] <- with(d, ifelse(get(plen_var)>0 & get(take_var)>0,1,0))
     }
@@ -762,7 +765,7 @@ UPTAKE <- function(d, own_uptake, matdis_uptake, bond_uptake, illparent_uptake,
   # OUTPUT: ACS data set with participating leave length capped at user-specified program maximums
   
   # clean up vars
-  d <- d[, !(names(d) %in% c('change_flag','reduce'))]
+  d <- d[, !(names(d) %in% c('change_flag','reduce','recollect_len'))]
   return(d)
 }
 # ============================ #

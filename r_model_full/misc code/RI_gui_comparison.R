@@ -1,26 +1,17 @@
-# code for issue brief 1 - simulating 2012 leave program in RI 
 
-#rm(list=ls())
-cat("\014")  
-basepath <- rprojroot::find_rstudio_root_file()
-setwd(basepath)
-options(error=recover)
-#options(error=NULL)
-
-# sample master execution function for testing code
 source("0_master_execution_function.R")
 #=================================
 #Rhode Island
 #=================================
-meth <- 'K Nearest Neighbor'
+meth <- 'Logistic Regression GLM'
 timestart <<- Sys.time()
 ri <- policy_simulation(saveCSV=TRUE,
                         impute_method=meth,
                         minsize=1,
                         ann_hours=1,
                         state='RI',
-                        fmla_year=2018,
-                        acs_year=2018,
+                        fmla_year=2012,
+                        acs_year=2016,
                         makelog=TRUE,
                         base_bene_level=.6,
                         place_of_work = TRUE,
@@ -30,7 +21,7 @@ ri <- policy_simulation(saveCSV=TRUE,
                         ext_base_effect=FALSE,
                         rr_sensitive_leave_len=TRUE,
                         topoff_rate=0, topoff_minlength=0, 
-                        bene_effect=FALSE, wait_period=5, clone_factor=1, week_bene_cap=795, week_bene_min=0,
+                        bene_effect=FALSE, wait_period=5, clone_factor=1, week_bene_cap=804, week_bene_min=0,
                         dependent_allow = c(.07,.07,.07,.07,.07),
                         alpha=0,
                         sens_var='resp_len',
