@@ -1,27 +1,7 @@
 
-#rm(list=ls())0
-cat("\014")  
-#basepath <- rprojroot::find_rstudio_root_file()
-#setwd(basepath)
-options(error=recover)
-options(warn=1)
-#options(error=NULL)
-
 # sample master execution function for testing code
 source("0_master_execution_function.R")
 
-#First time, preload cleaned data sets to speed up testing
-# policy_simulation(fmla_csv="fmla_2012_employee_restrict_puf.csv",
-#                    acs_person_csv="ss16pri_short.csv",
-#                    acs_house_csv="ss16hri_short.csv",
-#                    cps_csv="CPS2014extract.csv",
-#                    useCSV=TRUE,
-#                    saveDF=TRUE,
-#                    GOVERNMENT=TRUE,
-#                    SELFEMP=TRUE)
-
-
-# subsequent times, can run from saved r data frames to save time.
 meth <- 'Logistic Regression GLM'
 timestart <<- Sys.time()
 d <- policy_simulation(

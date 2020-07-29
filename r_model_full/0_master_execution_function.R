@@ -147,8 +147,6 @@ policy_simulation <- function(
     model_start_time <- model_start_time
   }
   
- 
-  
   # note state
   model_state <<- state
 
@@ -211,7 +209,10 @@ policy_simulation <- function(
     timestart <<- Sys.time()
     
     # save starting parameters
+    # sometimes getting a warning that NAs introduced by coercion here, that's ok so we'll suppress the warning
+    options(warn=-1)
     params <- lapply(ls(), function(x) {return(get(x))})
+    options(warn=0)
     names(params) <- ls()[!ls() %in% c('params')]
     params['params'] <- NULL
     

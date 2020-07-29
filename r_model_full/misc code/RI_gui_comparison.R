@@ -1,13 +1,4 @@
-# code for issue brief 1 - simulating 2012 leave program in RI 
 
-#rm(list=ls())
-cat("\014")  
-basepath <- rprojroot::find_rstudio_root_file()
-setwd(basepath)
-options(error=recover)
-#options(error=NULL)
-
-# sample master execution function for testing code
 source("0_master_execution_function.R")
 #=================================
 #Rhode Island
@@ -29,10 +20,8 @@ ri <- policy_simulation(saveCSV=TRUE,
                         fmla_protect=FALSE,
                         ext_base_effect=FALSE,
                         rr_sensitive_leave_len=TRUE,
-                        topoff_rate=0, topoff_minlength=0,
-                        min_cfl_recollect = 10,
-                        wait_period_recollect = TRUE,
-                        bene_effect=FALSE, wait_period=5, clone_factor=1, week_bene_cap=795, week_bene_min=0,
+                        topoff_rate=0, topoff_minlength=0, 
+                        bene_effect=FALSE, wait_period=5, clone_factor=1, week_bene_cap=804, week_bene_min=0,
                         dependent_allow = c(.07,.07,.07,.07,.07),
                         alpha=0,
                         sens_var='resp_len',

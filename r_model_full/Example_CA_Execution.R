@@ -4,8 +4,6 @@
 # load master execution function for testing code
 source("0_master_execution_function.R")
 
-# subsequent times, can run from saved r data frames to save time.
-
 timestart <<- Sys.time()
 policy_simulation(saveCSV=TRUE,
                   state='CA',
