@@ -448,12 +448,12 @@ def create_r_command(general_params, other_params, progress_file, output_dir, mo
         'illparent_uptake': other_params.take_up_rates['Ill Parent'],  # illparent_uptake
         'illspouse_uptake': other_params.take_up_rates['Ill Spouse'],  # illspouse_uptake
         'illchild_uptake': other_params.take_up_rates['Ill Child'],  # illchild_uptake
-        'maxlen_own': other_params.max_weeks['Own Health'] * 5,  # maxlen_own
-        'maxlen_matdis': other_params.max_weeks['Maternity'] * 5,  # maxlen_matdis
-        'maxlen_bond': other_params.max_weeks['New Child'] * 5,  # maxlen_bond
-        'maxlen_illparent': other_params.max_weeks['Ill Parent'] * 5,  # maxlen_illparent
-        'maxlen_illspouse': other_params.max_weeks['Ill Spouse'] * 5,  # maxlen_illspouse
-        'maxlen_illchild': other_params.max_weeks['Ill Child'] * 5,  # maxlen_illchild
+        'maxlen_own': other_params.max_weeks['Own Health'] * 5 if other_params.own_health else 0,  # maxlen_own
+        'maxlen_matdis': other_params.max_weeks['Maternity'] * 5 if other_params.maternity else 0,  # maxlen_matdis
+        'maxlen_bond': other_params.max_weeks['New Child'] * 5 if other_params.new_child else 0,  # maxlen_bond
+        'maxlen_illparent': other_params.max_weeks['Ill Parent'] * 5 if other_params.ill_parent else 0,  # maxlen_illparent
+        'maxlen_illspouse': other_params.max_weeks['Ill Spouse'] * 5 if other_params.ill_spouse else 0,  # maxlen_illspouse
+        'maxlen_illchild': other_params.max_weeks['Ill Child'] * 5 if other_params.ill_child else 0,  # maxlen_illchild
         'maxlen_total': 260,  # maxlen_total
         'maxlen_PFL': 30,  # maxlen_PFL
         'maxlen_DI': 260,  # maxlen_DI
