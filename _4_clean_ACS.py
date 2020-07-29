@@ -466,14 +466,15 @@ class DataCleanerACS:
         # a single state
         if self.st.lower() != 'all':
             dout = self.clean_person_state_data(self.st, cps, chunk_size=chunk_size)
-            dout.to_csv(self.fp_out + "ACS_cleaned_forsimulation_%s_%s.csv" % (self.yr, self.st), index=False,
-                        header=True)
+            dout.to_csv(os.path.join(self.fp_out, "ACS_cleaned_forsimulation_%s_%s.csv" % (self.yr, self.st)),
+                        index=False, header=True)
+
         # TODO: GUI's default_params.private etc. not updated per user input, not passed to worker_class in GUI
         # TODO: temp solution below - if st=ALL, do it for US Fed gov workers... need a formal fix
         else:
             dout = self.clean_person_state_data(self.st, cps, chunk_size=chunk_size)
-            dout.to_csv(self.fp_out + "ACS_cleaned_forsimulation_%s_%s_gov.csv" % (self.yr, self.st), index=False,
-                        header=True)
+            dout.to_csv(os.path.join(self.fp_out, "ACS_cleaned_forsimulation_%s_%s.csv" % (self.yr, self.st)),
+                        index=False, header=True)
         # # all states, private workers eligible
         # elif self.worker_class['private']:
         #     for i, st in enumerate(STATE_CODES):
