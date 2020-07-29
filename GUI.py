@@ -371,16 +371,15 @@ class MicrosimGUI(Tk):
             main_output_dir = self.sim_engine.output_directories[0]
             results_files = self.sim_engine.get_results_files()
         else:
-            r_output_dir = os.path.join(self.general_params.output_directory, 'output_%s' % self.model_start_time)
-            results_files = [os.path.join(r_output_dir, 'acs_sim_{}_{}_py_compatible.csv'.
+            main_output_dir = os.path.join(self.general_params.output_directory, 'output_%s' % self.model_start_time)
+            results_files = [os.path.join(main_output_dir, 'acs_sim_{}_{}_py_compatible.csv'.
                                           format(self.general_params.state.lower(), self.model_start_time))]
-            costs = pd.read_csv(os.path.join(r_output_dir, 'program_cost_%s_%s.csv' %
+            costs = pd.read_csv(os.path.join(main_output_dir, 'program_cost_%s_%s.csv' %
                                              (self.general_params.state.lower(), self.model_start_time)))
-            takers = pd.read_csv(os.path.join(r_output_dir, 'program_progtaker_%s_%s.csv' %
+            takers = pd.read_csv(os.path.join(main_output_dir, 'program_progtaker_%s_%s.csv' %
                                              (self.general_params.state.lower(), self.model_start_time)))
             costs.columns = ['type', 'cost', 'ci_lower', 'ci_upper']
             takers.columns = ['type', 'progtaker', 'ci_lower', 'ci_upper']
-            main_output_dir = self.general_params.output_directory
 
         # Calculate total benefits paid
         total_benefits = list(costs.loc[costs['type'] == 'total', 'cost'])[0]
@@ -2869,8 +2868,7 @@ class ProgressWindow(Toplevel):
             self.progress.set(int(update['value']))
         elif update_type == 'message':
             # Add new message to updates_container
-            engine_num = None if update['engine'] == '' else int(update['engine'])
-            self.add_update(update['value'], engine_num)
+            self.add_update(update['value'], update['engine'])
         elif update_type == 'done':
             # Show results window
             self.parent.show_results(engine=engine)

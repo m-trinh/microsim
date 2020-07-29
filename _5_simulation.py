@@ -777,7 +777,7 @@ class SimulationEngine:
         varname_summary = 'progtaker'
         fp_out_summary = self.get_summary_file(sim_num, varname_summary)
         out = self.save_summary(progtakers, ci_progtakers, varname_summary, fp_out_summary)
-        message = 'Output saved - progtaker summary. Total progtakers = $%s' % \
+        message = 'Output saved - progtaker summary. Total progtakers = %s' % \
                   (round(out.loc[out['type'] == 'any', 'progtaker'].values[0]/1))
         print(message)
 

@@ -45,7 +45,7 @@ policy_simulation <- function(
                               clone_factor=1,  
                               progalt_post_or_pre ='post',
                               random_seed=123,
-                              engine_num=NULL,
+                              engine_num='None',
                               runtime_measure=0,
                               
                               # program eligibility params
@@ -272,9 +272,9 @@ policy_simulation <- function(
   # global libraries used everywhere #
   ####################################
   if (!is.null(progress_file)) {
-    message <- paste0('{"type": "message", "engine": "', engine_num, '", "value": "Completed setup operations."}')
+    message <- paste0('{"type": "message", "engine": ', engine_num, ', "value": "Completed setup operations."}')
     cat(message, file = progress_file, sep = "\n", append = TRUE)
-    message <- paste0('{"type": "progress", "engine": "', engine_num, '", "value": 2}')
+    message <- paste0('{"type": "progress", "engine": ', engine_num, ', "value": 2}')
     cat(message, file = progress_file, sep = "\n", append = TRUE)
   }
   
@@ -305,9 +305,9 @@ policy_simulation <- function(
   }
  
   if (!is.null(progress_file)) {
-    message <- paste0('{"type": "message", "engine": "', engine_num, '", "value": "Loaded required packages."}')
+    message <- paste0('{"type": "message", "engine": ', engine_num, ', "value": "Loaded required packages."}')
     cat(message, file = progress_file, sep = "\n", append = TRUE)
-    message <- paste0('{"type": "progress", "engine": "', engine_num, '", "value": 5}')
+    message <- paste0('{"type": "progress", "engine": ', engine_num, ', "value": 5}')
     cat(message, file = progress_file, sep = "\n", append = TRUE)
   }
   
@@ -373,9 +373,9 @@ policy_simulation <- function(
   }
   
   if (!is.null(progress_file)) {
-    message <- paste0('{"type": "message", "engine": "', engine_num, '", "value": "Cleaned data files before CPS imputation."}')
+    message <- paste0('{"type": "message", "engine": ', engine_num, ', "value": "Cleaned data files before CPS imputation."}')
     cat(message, file = progress_file, sep = "\n", append = TRUE)
-    message <- paste0('{"type": "progress", "engine": "', engine_num, '", "value": 10}')
+    message <- paste0('{"type": "progress", "engine": ', engine_num, ', "value": 10}')
     cat(message, file = progress_file, sep = "\n", append = TRUE)
   }
    
@@ -404,9 +404,9 @@ policy_simulation <- function(
   }
 
   if (!is.null(progress_file)) {
-    message <- paste0('{"type": "message", "engine": "', engine_num, '", "value": "Applied leave-taking behavioral updates."}')
+    message <- paste0('{"type": "message", "engine": ', engine_num, ', "value": "Applied leave-taking behavioral updates."}')
     cat(message, file = progress_file, sep = "\n", append = TRUE)
-    message <- paste0('{"type": "progress", "engine": "', engine_num, '", "value": 20}')
+    message <- paste0('{"type": "progress", "engine": ', engine_num, ', "value": 20}')
     cat(message, file = progress_file, sep = "\n", append = TRUE)
   }
   # OUTPUT: FMLA data with adjusted take_leave columns to include 1s
@@ -430,9 +430,9 @@ policy_simulation <- function(
   }
 
   if (!is.null(progress_file)) {
-    message <- paste0('{"type": "message", "engine": "', engine_num, '", "value": "Finished FMLA to ACS imputation."}')
+    message <- paste0('{"type": "message", "engine": ', engine_num, ', "value": "Finished FMLA to ACS imputation."}')
     cat(message, file = progress_file, sep = "\n", append = TRUE)
-    message <- paste0('{"type": "progress", "engine": "', engine_num, '", "value": 80}')
+    message <- paste0('{"type": "progress", "engine": ', engine_num, ', "value": 80}')
     cat(message, file = progress_file, sep = "\n", append = TRUE)
   }
 
@@ -468,9 +468,9 @@ policy_simulation <- function(
   }
 
   if (!is.null(progress_file)) {
-    message <- paste0('{"type": "message", "engine": "', engine_num, '", "value": "Imputed leave lengths"}')
+    message <- paste0('{"type": "message", "engine": ', engine_num, ', "value": "Imputed leave lengths"}')
     cat(message, file = progress_file, sep = "\n", append = TRUE)
-    message <- paste0('{"type": "progress", "engine": "', engine_num, '", "value": 90}')
+    message <- paste0('{"type": "progress", "engine": ', engine_num, ', "value": 90}')
     cat(message, file = progress_file, sep = "\n", append = TRUE)
   }
   # function interactions description (may not be complete, just writing as they come to me):
@@ -674,11 +674,11 @@ policy_simulation <- function(
   # print('Simulation successfully completed')
   # print('=====================================')
   if (!is.null(progress_file)) {
-    message <- paste0('{"type": "message", "engine": "', engine_num, '", "value": "Output saved"}')
+    message <- paste0('{"type": "message", "engine": ', engine_num, ', "value": "Output saved"}')
     cat(message, file = progress_file, sep = "\n", append = TRUE)
-    message <- paste0('{"type": "progress", "engine": "', engine_num, '", "value": 100}')
+    message <- paste0('{"type": "progress", "engine": ', engine_num, ', "value": 100}')
     cat(message, file = progress_file, sep = "\n", append = TRUE)
-    message <- paste0('{"type": "done", "engine": "', engine_num, '", "value": None}')
+    message <- paste0('{"type": "done", "engine": ', engine_num, ', "value": None}')
     cat(message, file = progress_file, sep = "\n", append = TRUE)
   }
   return(d_acs_imp)
