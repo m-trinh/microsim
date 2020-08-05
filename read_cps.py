@@ -35,6 +35,8 @@ cps = pd.read_stata(fp_in, convert_categoricals=False) # , convert_missing=True 
 cps = cps.drop(cps[cps['a_wkstat'].isin([0, 1])].index)
 # remove without-pay/never worked
 cps = cps.drop(cps[cps['a_clswkr'].isin([0, 7, 8])].index)
+# remove empsize=0 (not in universe)
+cps = cps.drop(cps[cps['noemp'].isin([0])].index)
 
 ## Create vars
 # female, race, age, educ, married

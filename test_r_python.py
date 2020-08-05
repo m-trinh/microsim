@@ -11,14 +11,27 @@ pd.set_option('display.width', 200)
 import numpy as np
 
 ## Read in post-sim ACS
-dr = pd.read_csv("C:\workfiles\Microsimulation\microsim_R-master\output\_test_RI.csv")
-dr0 = dr.copy()
-dr = dr[dr['eligworker']==1]
+dr = pd.read_csv('./output/output_20200805_140919/acs_sim_ri_20200805_140919.csv')
+dp = pd.read_csv('./output/output_20200805_140008_main simulation/acs_sim_ri_20200805_140008.csv')
 
-p_run_stamp = '20200113_122631'
-dp = pd.read_csv('./output/output_%s_Main/acs_sim_%s.csv' % (p_run_stamp, p_run_stamp))
+## Find which persons are in R but not Python
+dm = pd.merge(dp[['SERIALNO', 'SPORDER']], dr[['SERIALNO', 'SPORDER']], how='outer', indicator=True)
+dm = dm[dm['_merge']!='both']
+# pd.merge(dr, dm[['SERIALNO', 'SPORDER']], how='right')
+# acsp = pd.read_csv('./data/acs/ACS_cleaned_forsimulation_2016_ri_Py.csv')
+# pd.merge(acsp, dm[['SERIALNO', 'SPORDER']], on=['SERIALNO', 'SPORDER'], how='right')
 
-## Check length of DFs
+## For FMLA/ACS imputation consistency, check take/need vars
+types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
+# check row counts and weight sum
+for t in types:
+    print(dp['take_%s' % t].value_counts())
+    print('PWGTP sum Py = %s\n' % dp[dp['take_%s' % t]==1]['PWGTP'].sum())
+    print(dr['take_%s' % t].value_counts())
+    print('PWGTP sum R = %s' % dr[dr['take_%s' % t]==1]['PWGTP'].sum())
+    print('-----------------------------')
+
+
 # get diff in eligible workers' IDs between dr and dp
 # NOTE: SERIALNO is id for household not person.
 ids_r = pd.DataFrame(dr['SERIALNO']).sort_values(by='SERIALNO')

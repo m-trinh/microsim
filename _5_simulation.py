@@ -91,7 +91,7 @@ class SimulationEngine:
             'Support Vector Machine': sklearn.svm.SVC(probability=True, gamma='auto', random_state=self.random_state),
             'Random Forest': sklearn.ensemble.RandomForestClassifier(random_state=self.random_state),
             'K Nearest Neighbor': sklearn.neighbors.KNeighborsClassifier(),
-            'XGBoost': xgboost.XGBClassifier(objective='binary:logistic') # = multi:softmax as needed in get_sim_col
+            'XGBoost': xgboost.XGBClassifier(objective='binary:logistic', random_state=self.random_state) # = multi:softmax as needed in get_sim_col
         }
 
         # out id for creating unique out folder to store all model outputs
