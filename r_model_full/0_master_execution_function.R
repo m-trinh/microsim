@@ -35,6 +35,7 @@ policy_simulation <- function(
                               progress_file=NULL,
                               fulloutput=FALSE,
                               saveCSV=TRUE,
+                              save_intermediate_clean=TRUE,
                               out_dir="../output",
                               output=NULL,
                               output_stats=NULL,
@@ -377,6 +378,11 @@ policy_simulation <- function(
   }
   if (!is.null(sample_prop) & !is.null(sample_num)) {
     d_acs <- sample_acs(d_acs, sample_prop=sample_prop, sample_num=sample_num)  
+  }
+  
+  if (save_intermediate_clean) {
+    write.csv(d_acs, file=file.path('../data/acs', paste0('/ACS_cleaned_forsimulation_',acs_year,'_',state,'.csv'), fsep = .Platform$file.sep))
+    write.csv(d_fmla, file=file.path(paste0('../data/fmla/fmla_',fmla_year), paste0('/fmla_clean_',fmla_year,'.csv'), fsep = .Platform$file.sep))
   }
   
   if (!is.null(progress_file)) {
