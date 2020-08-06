@@ -381,8 +381,8 @@ policy_simulation <- function(
   }
   
   if (save_intermediate_clean) {
-    write.csv(d_acs, file=file.path('../data/acs', paste0('/ACS_cleaned_forsimulation_',acs_year,'_',state,'.csv'), fsep = .Platform$file.sep))
-    write.csv(d_fmla, file=file.path(paste0('../data/fmla/fmla_',fmla_year), paste0('/fmla_clean_',fmla_year,'.csv'), fsep = .Platform$file.sep))
+    write.csv(d_acs, file=paste0('../data/acs', '/ACS_cleaned_forsimulation_',acs_year,'_',state,'.csv'),row.names=FALSE)
+    write.csv(d_fmla, file=paste0('../data/fmla/fmla_',fmla_year,'/fmla_clean_',fmla_year,'.csv'), row.names = FALSE)
   }
   
   if (!is.null(progress_file)) {
@@ -686,7 +686,7 @@ policy_simulation <- function(
   }
   
   if (!is.null(output) & saveCSV==TRUE) {
-    write.csv(d_acs_imp, file=file.path(out_dir, paste0('/',output,'.csv'), fsep = .Platform$file.sep))
+    write.csv(d_acs_imp, file=paste0(out_dir, '/',output,'.csv'), row.names=FALSE)
   }  
   
   

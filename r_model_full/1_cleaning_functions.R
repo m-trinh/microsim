@@ -1041,7 +1041,7 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
   d <- d %>% mutate(divorced=ifelse(partner==1, 0, divorced))
   d <- d %>% mutate(separated=ifelse(partner==1, 0, separated))
   d <- d %>% mutate(nevermarried=ifelse(partner==1, 0, nevermarried))
-  
+
   #gender
   d <- d %>% mutate(male=ifelse(SEX==1, 1, 0))
   d$female <- 1-d$male
@@ -1092,10 +1092,6 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
   d <- d %>% mutate(empgov_st=ifelse(is.na(COW)==TRUE, NA, empgov_st))  
   d <- d %>% mutate(empgov_loc=ifelse(COW==3, 1, 0))
   d <- d %>% mutate(empgov_loc=ifelse(is.na(COW)==TRUE, NA, empgov_loc))
-  
-  # placeholder for union for now.
-  # TODO: add union import in CPS imputation
-  d['union']=runif(nrow(d))
   
   # occupation
   # since there is an actual OCCP variable in ACS file, going to use OCC as our varname going forward
@@ -1190,7 +1186,6 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
   
   d <- d %>% mutate(wkswork=weeks_worked)
   
-  
   # Health Insurance from employer
   d <- d %>% mutate(hiemp=ifelse(HINS1==1,1,0))
   
@@ -1205,7 +1200,7 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
   d <- d %>% mutate(wage_hourly= wage12/weeks_worked/wkhours)
   
   d <- d %>% mutate(low_wage=ifelse(wage_hourly<15,1,0))
-  d <- d %>% mutate(low_wage=ifelse(is.na(wage_hourly),NA,wage_hourly))
+  d <- d %>% mutate(low_wage=ifelse(is.na(wage_hourly),NA,low_wage))
   
   # family income
   # Make more coarse categores
@@ -1240,7 +1235,7 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
            "WAGP",'wage12',"WKHP","PWGTP", replicate_weights,"FER", "WKW","COW","ESR",'NPF',"partner","ndep_kid",
            "ndep_old",'emp_gov','empgov_fed','empgov_st', 'wkhours','wkswork', 'empgov_loc','emp_nonprofit', 
            'ST','POWSP','age_cat','faminc_cat','employed', 'low_wage',
-           'married','HSgrad','BAplus','INDP','OCCP','SPORDER','FES','NOC','R65', 'noelderly')]
+           'HSgrad','BAplus','INDP','OCCP','SPORDER','FES','NOC','R65', 'noelderly')]
 
   # id variable from SERIALNO [Household ID] and SPORDER [Individual ID within Household]
   d$id <- paste0(as.character(d$SERIALNO),as.character(d$SPORDER))
@@ -1262,7 +1257,7 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
   # -------------------------- #
   # Save the resulting dataset
   # -------------------------- #
-  
+
   if (save_csv==TRUE) {
     write.csv(d, file = filename, row.names = FALSE)  
   }
@@ -1558,16 +1553,18 @@ impute_cps_to_acs <- function(d_acs, d_cps){
                                train_filt=filt, varname=varname)
   d_acs <- cbind(d_acs, d_filt['empsize'])
   
+  # keeping as categories rather than converting to actual numbers 
   # then do random draw within assigned size range
-  d_acs <- d_acs %>% mutate(tempsize=ifelse(empsize==1,sample(1:9, nrow(d_acs), replace=T),0)) 
+  # d_acs <- d_acs %>% mutate(tempsize=ifelse(empsize==1,sample(1:9, nrow(d_acs), replace=T),0)) 
   d_acs <- d_acs %>%
-    mutate(tempsize=ifelse(empsize==2,sample(10:49, nrow(d_acs), replace=T),tempsize)) %>%
-    mutate(tempsize=ifelse(empsize==3,sample(50:99, nrow(d_acs), replace=T),tempsize)) %>%
-    mutate(tempsize=ifelse(empsize==4,sample(100:499, nrow(d_acs), replace=T),tempsize)) %>%
-    mutate(tempsize=ifelse(empsize==5,sample(500:999, nrow(d_acs), replace=T),tempsize)) %>%
-    mutate(tempsize=ifelse(empsize==6,sample(1000:99999, nrow(d_acs), replace=T),tempsize)) %>%
-    mutate(tempsize=ifelse(empsize==7,sample(100000:999999, nrow(d_acs), replace=T),tempsize)) %>%
-    mutate(empsize=tempsize) %>%
+   
+    # mutate(tempsize=ifelse(empsize==2,sample(10:49, nrow(d_acs), replace=T),tempsize)) %>%
+    # mutate(tempsize=ifelse(empsize==3,sample(50:99, nrow(d_acs), replace=T),tempsize)) %>%
+    # mutate(tempsize=ifelse(empsize==4,sample(100:499, nrow(d_acs), replace=T),tempsize)) %>%
+    # mutate(tempsize=ifelse(empsize==5,sample(500:999, nrow(d_acs), replace=T),tempsize)) %>%
+    # mutate(tempsize=ifelse(empsize==6,sample(1000:99999, nrow(d_acs), replace=T),tempsize)) %>%
+    # mutate(tempsize=ifelse(empsize==7,sample(100000:999999, nrow(d_acs), replace=T),tempsize)) %>%
+    # mutate(empsize=tempsize) %>%
     # clean up weeks worked variables
     mutate(weeks_worked_cat=weeks_worked) %>%
     mutate(weeks_worked=iweeks_worked)
