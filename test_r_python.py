@@ -9,16 +9,95 @@ pd.set_option('max_colwidth', 100)
 pd.set_option('display.max_columns', 999)
 pd.set_option('display.width', 200)
 import numpy as np
-
+from _5a_aux_functions import *
 ## Read in post-sim ACS
-dr = pd.read_csv("C:\workfiles\Microsimulation\microsim_R-master\output\_test_RI.csv")
-dr0 = dr.copy()
-dr = dr[dr['eligworker']==1]
+dr = pd.read_csv('./output/output_20200806_210828/acs_sim_ri_20200806_210828.csv')
+dp = pd.read_csv('./output/output_20200806_210528_main simulation/acs_sim_ri_20200806_210528.csv')
 
-p_run_stamp = '20200113_122631'
-dp = pd.read_csv('./output/output_%s_Main/acs_sim_%s.csv' % (p_run_stamp, p_run_stamp))
+## Find which persons are in R but not Python
+dm = pd.merge(dp[['SERIALNO', 'SPORDER']], dr[['SERIALNO', 'SPORDER']], how='outer', indicator=True)
+dm = dm[dm['_merge']!='both']
+# pd.merge(dr, dm[['SERIALNO', 'SPORDER']], how='right')
+# acsp = pd.read_csv('./data/acs/ACS_cleaned_forsimulation_2016_ri_Py.csv')
+# pd.merge(acsp, dm[['SERIALNO', 'SPORDER']], on=['SERIALNO', 'SPORDER'], how='right')
 
-## Check length of DFs
+## Check take/need_type, resp_len (13 variables)
+types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
+# check row counts and weight sum
+for t in types:
+    print(dp['take_%s' % t].value_counts())
+    print('PWGTP sum Py = %s\n' % dp[dp['take_%s' % t]==1]['PWGTP'].sum())
+    print(dr['take_%s' % t].value_counts())
+    print('PWGTP sum R = %s' % dr[dr['take_%s' % t]==1]['PWGTP'].sum())
+    print('-----------------------------')
+print(dp['resp_len'].value_counts())
+print(dr['resp_len'].value_counts())
+## If any diff in take/need_type, resp_len, check clean FMLA, clean ACS, NA handling, classifier
+
+# check clean FMLA
+fmla_p = pd.read_csv('./data/fmla/fmla_2012/fmla_clean_2012_Py.csv')
+fmla_r = pd.read_csv('./data/fmla/fmla_2012/fmla_clean_2012_R.csv')
+# cols diffs
+for c in (set(fmla_r.columns) - set(fmla_p.columns)):
+    print(c)
+for c in (set(fmla_p.columns) - set(fmla_r.columns)):
+    print(c)
+# out vars in training
+for t in types:
+    print('clean fmla, Py')
+    print(fmla_p['take_%s' % t].value_counts())
+    print('clean fmla, R')
+    print(fmla_r['take_%s' % t].value_counts())
+    print('-----------------------------')
+for t in types:
+    print('clean fmla, Py')
+    print(fmla_p['need_%s' % t].value_counts())
+    print('clean fmla, R')
+    print(fmla_r['need_%s' % t].value_counts())
+    print('-----------------------------')
+print('clean fmla, Py')
+print(fmla_p['resp_len'].value_counts())
+print('clean fmla, R')
+print(fmla_r['resp_len'].value_counts())
+# xvars in training
+xvars, yvars, w = get_columns(2012, types)
+bool_cols, num_cols = get_bool_num_cols(fmla_p[xvars])
+for c in bool_cols:
+    if c not in ['noelderly', 'emp_gov']: # some xvars not generated in R, NT fix by Luke
+        print('clean fmla, Py')
+        print(fmla_p[c].value_counts())
+        print('clean fmla, R')
+        print(fmla_r[c].value_counts())
+        print('-----------------------------')
+for c in num_cols:
+    print('clean fmla, Py')
+    print(fmla_p[c].describe())
+    print('clean fmla, R')
+    print(fmla_r[c].describe())
+    print('-----------------------------')
+
+# check clean ACS
+acs_p = pd.read_csv('./data/acs/ACS_cleaned_forsimulation_2016_ri_Py.csv')
+acs_r = pd.read_csv('./data/acs/ACS_cleaned_forsimulation_2016_ri_R.csv')
+# col diffs
+for c in (set(acs_r.columns) - set(acs_p.columns)):
+    print(c)
+for c in (set(acs_p.columns) - set(acs_r.columns)):
+    print(c)
+# xvars in prediction sample (ACS)
+for c in bool_cols:
+    print('clean ACS, Py')
+    print(acs_p[c].value_counts())
+    print('clean ACS, R')
+    print(acs_r[c].value_counts())
+    print('-----------------------------')
+for c in num_cols:
+    print('clean ACS, Py')
+    print(acs_p[c].describe())
+    print('clean ACS, R')
+    print(acs_r[c].describe())
+    print('-----------------------------')
+
 # get diff in eligible workers' IDs between dr and dp
 # NOTE: SERIALNO is id for household not person.
 ids_r = pd.DataFrame(dr['SERIALNO']).sort_values(by='SERIALNO')
