@@ -399,7 +399,7 @@ class DataCleanerACS:
                 else: # simulate from logit phat, not yhat, to avoid loss of predicted minor class (e.g. union=0)
                     ps = clf.predict_proba(Xd)  # get prob vector ps where each p = (p0, p1)
                     ps = ps[:, 1]  # get prob=1 for each row
-                    us = np.random.rand(len(ps))  # random number
+                    us = self.random_state.rand(len(ps))  # random number
                     d[c] = [int(x) for x in ps > us]  # flag 1 if p1 > random number
 
             # get fmla_eligible col based on imputed vars above
