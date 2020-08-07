@@ -36,26 +36,31 @@ clean_fmla <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
   # --------------------------------------------------------------------
 
   # FMLA eligible worker
-  d_fmla <- d_fmla %>% mutate(fmla_eligworker = NA)
-  d_fmla <- d_fmla %>% mutate(fmla_eligworker = ifelse(E13 == 1 & (E14 == 1 | (E15_CAT >= 5 & E15_CAT <= 8)),1,NA))
-  
-  # FMLA ineligible workers
-  # E13 same job past year fails
-  d_fmla <- d_fmla %>% mutate(fmla_eligworker = ifelse(is.na(E13)==FALSE & E13!=1, 0, fmla_eligworker))
-  # E14 (FT) and E15 (hrs) fails
-  d_fmla <- d_fmla %>% mutate(fmla_eligworker = ifelse(is.na(E14)==FALSE & E14!=1 & is.na(E15_CAT)==FALSE & (E15_CAT<5 | E15_CAT>8), 0, fmla_eligworker))
-  
-  # covered workplace
-  d_fmla <- d_fmla %>% mutate(covwrkplace = ifelse(E11 == 1 | (E12 >= 6 & E12 <=9),1,0))
-  d_fmla <- d_fmla %>% mutate(covwrkplace = ifelse(is.na(covwrkplace) ==  1,0,covwrkplace),
-                                                cond1 = ifelse(is.na(E11) == 1 & is.na(E12) == 1,1,0),
-                                                cond2 = ifelse(E11 == 2 & is.na(E11) == 0 & is.na(E12) == 1,1,0),
-                                                miscond = ifelse(cond1 == 1 | cond2 == 1,1,0))
-  d_fmla <- d_fmla %>% mutate(covwrkplace = ifelse(miscond == 1,NA,covwrkplace))
+  # d_fmla <- d_fmla %>% mutate(fmla_eligworker = ifelse(E13 == 1 & (E14 == 1 | (E15_CAT >= 5 & E15_CAT <= 8)) & (E12 >=6 & E12 <=9),1,0))
+  # 
+  # # FMLA ineligible workers
+  # # E13 same job past year fails
+  # d_fmla <- d_fmla %>% mutate(fmla_eligworker = ifelse(is.na(E13)==FALSE & E13!=1, 0, fmla_eligworker))
+  # # E14 (FT) and E15 (hrs) fails
+  # d_fmla <- d_fmla %>% mutate(fmla_eligworker = ifelse(is.na(E14)==FALSE & E14!=1 & is.na(E15_CAT)==FALSE & (E15_CAT<5 | E15_CAT>8), 0, fmla_eligworker))
+  # # E12 (distance) fails 
+  # d_fmla <- d_fmla %>% mutate(fmla_eligworker = ifelse(is.na(E12)==FALSE & (E12 <=6 | E12 >=9), 0, fmla_eligworker))
+  # 
+  # # covered workplace
+  # d_fmla <- d_fmla %>% mutate(covwrkplace = ifelse(E11 == 1 | (E12 >= 6 & E12 <=9),1,0))
+  # d_fmla <- d_fmla %>% mutate(covwrkplace = ifelse(is.na(covwrkplace) ==  1,0,covwrkplace),
+  #                                               cond1 = ifelse(is.na(E11) == 1 & is.na(E12) == 1,1,0),
+  #                                               cond2 = ifelse(E11 == 2 & is.na(E11) == 0 & is.na(E12) == 1,1,0),
+  #                                               miscond = ifelse(cond1 == 1 | cond2 == 1,1,0))
+  # d_fmla <- d_fmla %>% mutate(covwrkplace = ifelse(miscond == 1,NA,covwrkplace))
   
   # covered and eligible 
-  d_fmla <-  d_fmla %>% mutate(fmla_eligible = ifelse(covwrkplace == 1 & fmla_eligworker == 1,1,0))
-  d_fmla <-  d_fmla %>% mutate(fmla_eligible = ifelse(is.na(covwrkplace)== 1 | is.na(fmla_eligworker) == 1,NA,fmla_eligible))
+  # d_fmla <-  d_fmla %>% mutate(fmla_eligible = ifelse(covwrkplace == 1 & fmla_eligworker == 1,1,0))
+  # d_fmla <-  d_fmla %>% mutate(fmla_eligible = ifelse(is.na(covwrkplace)== 1 | is.na(fmla_eligworker) == 1,NA,fmla_eligible))
+  
+  d_fmla <- d_fmla %>% mutate(fmla_eligible = 0)
+  d_fmla <- d_fmla %>% mutate(fmla_eligible = ifelse(E13 == 1 & (E14 == 1 | (E15_CAT >= 5 & E15_CAT <= 8)) & (E12 >=6 & E12 <=9),1,fmla_eligible))
+  d_fmla <- d_fmla %>% mutate(fmla_eligible = ifelse(is.na(E12) | (is.na(E14) & is.na(E15_CAT) | is.na(E13)), NA, fmla_eligible))
   
   # hourly worker
   d_fmla <- d_fmla %>% mutate(hourly = ifelse(E9_1 == 2,1,0))
@@ -95,6 +100,7 @@ clean_fmla <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
   d_fmla <- d_fmla %>% mutate(empgov_fed = ifelse(D2 == 1,1,0))
   d_fmla <- d_fmla %>% mutate(empgov_st = ifelse(D2 == 2,1,0))
   d_fmla <- d_fmla %>% mutate(empgov_loc = ifelse(D2 == 3,1,0))
+  d_fmla <- d_fmla %>% mutate(emp_gov= ifelse(D2==1 | D2==2 | D2==3, 1,0))
   
   # sex
   d_fmla <- d_fmla %>% mutate(male = ifelse(GENDER_CAT == 1,1,0),
@@ -106,6 +112,10 @@ clean_fmla <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
   
   # no children
   d_fmla <- d_fmla %>% mutate(nochildren = ifelse(D7_CAT==0,1,0))  
+  
+  # no elderly dependents
+  d_fmla <- d_fmla %>% mutate(noelderly = ifelse(D8_CAT==0,1,0))
+  d_fmla <- d_fmla %>% mutate(noelderly = ifelse(is.na(D8_CAT),NA,noelderly))
   
   # educational level
   d_fmla <- d_fmla %>% mutate(ltHS = ifelse(D1_CAT == 1,1,0),
@@ -330,6 +340,10 @@ clean_fmla <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
   # for set to sensitive to be conservative
   d_fmla <- d_fmla %>% mutate(resp_len = ifelse((is.na(resp_len)), 1, resp_len))
   
+  # employed 
+  d_fmla <- d_fmla %>% mutate(employed = ifelse(E1 == 1, 1,0))
+  d_fmla <- d_fmla %>% mutate(employed = ifelse(is.na(E1), NA,employed))
+  
   # any pay received
   d_fmla <- d_fmla %>% mutate(anypay = ifelse(A45 == 1, 1, 0))
   
@@ -519,8 +533,17 @@ clean_fmla <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
   d_fmla <- d_fmla %>% mutate(length_illparent = ifelse(take_illparent==1,length, 0))
   d_fmla <- d_fmla %>% mutate(longlength_illparent = ifelse(long_illparent==1,long_length, 0))
   
-  # taking or needing any leave
+  # need type
   leave_types <- c("own","illspouse","illchild","illparent","matdis","bond")
+  d_fmla$take_type <- NA
+  d_fmla$need_type <- NA
+  for (i in leave_types) {
+    take_var <- paste0('take_',i)
+    d_fmla <- d_fmla %>% mutate(take_type=ifelse(get(take_var)==1 & is.na(take_type),i, take_type))
+    need_var <- paste0('need_',i)
+    d_fmla <- d_fmla %>% mutate(need_type=ifelse(get(need_var)==1 & is.na(need_type),i, need_type))
+  }
+  # taking or needing any leave
   d_fmla['taker']=rowSums(d_fmla[,paste('take',c("own","illspouse","illchild","illparent","matdis","bond"),sep="_")], na.rm=TRUE)
   d_fmla['needer']=rowSums(d_fmla[,paste('need',c("own","illspouse","illchild","illparent","matdis","bond"),sep="_")], na.rm=TRUE)
   d_fmla <- d_fmla %>% mutate(taker=ifelse(taker>=1, 1, 0))
@@ -691,6 +714,9 @@ clean_fmla_2018 <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
                                divorced = ifelse(d10 == 4,1,0),
                                widowed = ifelse(d10 == 5,1,0),
                                nevermarried = ifelse(d10 == 6,1,0))
+  
+  # no spouse 
+  d_fmla <- d_fmla %>% mutate(nospouse= ifelse(d10>=3 | d10<=6, 1, 0))
   
   # race/ethnicity
   d_fmla <- d_fmla %>% mutate(raceth = ifelse(is.na(d5) == 0 & d5 == 1,7,race_cat),
@@ -973,7 +999,10 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
 
   # create variables
   
-  d_hh$nochildren <- as.data.frame(dummy("FPARC",d_hh))$FPARC4
+  #d_hh$nochildren <- as.data.frame(dummy("FPARC",d_hh))$FPARC4
+  d_hh <- d_hh %>% mutate(nochildren = ifelse(NOC==0, 1, 0))
+  d_hh <- d_hh %>% mutate(nochildren = ifelse(is.na(NOC), NA, nochildren))
+  
   # adjust  dollars to FMLA/ACS year
   # don't multiple ADJINC directly to faminc to avoid integer overflow issue in R
   if (fmla_year==2012 & acs_year==2016){
@@ -997,7 +1026,7 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
   
   d_hh$faminc <- d_hh$FINCP * d_hh$adjinc 
   d_hh <- d_hh %>% mutate(faminc=ifelse(is.na(faminc)==FALSE & faminc<=0, 0.01, faminc)) # force non-positive income to be epsilon to get meaningful log-income
-  d_hh$lnfaminc <- log(d_hh$faminc)
+  d_hh$ln_faminc <- log(d_hh$faminc)
 
   
   # number of dependents
@@ -1008,7 +1037,8 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
   d_hh <- d_hh %>% mutate(noelderly=ifelse(ndep_old==0, 1, 0))
   
   # cut down vars to save on memory
-  d_hh <- d_hh[c("SERIALNO","nochildren","lnfaminc","faminc", "PARTNER","ndep_kid","ndep_old",'NPF','NOC','R65','FES','noelderly')]
+  d_hh <- d_hh[c("SERIALNO","nochildren","ln_faminc","faminc", "PARTNER","ndep_kid","ndep_old",'NPF','NOC','R65','FES','noelderly','ndep_spouse',
+                'ndep_spouse_kid')]
   
   # -------------------------- #
   # ACS Person File
@@ -1017,6 +1047,7 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
   d$SERIALNO <- as.character(d$SERIALNO)
   # merge with household level vars 
   d <- merge(d,d_hh, by="SERIALNO")
+
   rm(d_hh)
   # rename ACS vars to be consistent with FMLA data
   d$age <- d$AGEP
@@ -1066,7 +1097,7 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
   
   # ed level
   d <- d %>% mutate(SCHL=ifelse(is.na(SCHL),0,SCHL)) 
-  d <- d %>% mutate(ltHS=ifelse(SCHL<=15,1,0)) 
+  d <- d %>% mutate(noHSdegree=ifelse(SCHL<=15,1,0)) 
   d <- d %>% mutate(HSgrad=ifelse(SCHL==16 | SCHL==17 ,1,0)) 
   d <- d %>% mutate(someCol=ifelse(SCHL>=18 & SCHL<=20,1,0)) 
   d <- d %>% mutate(BA =ifelse(SCHL==21,1,0)) 
@@ -1225,17 +1256,24 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
       d[i] <- d[i] * 1.02
     }
   }
-  
-  d <- d[c('SERIALNO','SPORDER',"nochildren", "lnfaminc", "faminc", "lnearn","fem_cu6","fem_c617","fem_cu6and617","fem_nochild",
-           "age", "a_age",  "hiemp", "widowed", "divorced", 'married',
-           "separated", "nevermarried", "male", "female", "agesq", "ltHS", "someCol", "BA", 
-           "GradSch", "black", "white", "asian", "other",'native', "hisp", "OCC", "occ_1", "occ_2", "occ_3", 
-           "occ_4", "occ_5", "occ_6", "occ_7", "occ_8", "occ_9", "occ_10", "ind_1", "ind_2", "ind_3", "ind_4", 
-           "ind_5", "ind_6", "ind_7", "ind_8", "ind_9", "ind_10", "ind_11", "ind_12", "ind_13", "weeks_worked",
-           "WAGP",'wage12',"WKHP","PWGTP", replicate_weights,"FER", "WKW","COW","ESR",'NPF',"partner","ndep_kid",
-           "ndep_old",'emp_gov','empgov_fed','empgov_st', 'wkhours','wkswork', 'empgov_loc','emp_nonprofit', 
-           'ST','POWSP','age_cat','faminc_cat','employed', 'low_wage',
-           'HSgrad','BAplus','INDP','OCCP','SPORDER','FES','NOC','R65', 'noelderly')]
+  cols<- c('SERIALNO','SPORDER',"nochildren", "ln_faminc", "faminc", "lnearn","fem_cu6","fem_c617","fem_cu6and617","fem_nochild",
+    "age", "a_age",  "hiemp", "widowed", "divorced", 'married',
+    "separated", "nevermarried", "male", "female", "agesq", "someCol", "BA", 
+    "GradSch", "black", "white", "asian", "other",'native', "hisp", "OCC", "occ_1", "occ_2", "occ_3", 
+    "occ_4", "occ_5", "occ_6", "occ_7", "occ_8", "occ_9", "occ_10", "ind_1", "ind_2", "ind_3", "ind_4", 
+    "ind_5", "ind_6", "ind_7", "ind_8", "ind_9", "ind_10", "ind_11", "ind_12", "ind_13", "weeks_worked",
+    "WAGP",'wage12',"WKHP","PWGTP", replicate_weights,"FER", "WKW","COW","ESR",'NPF',"partner","ndep_kid",
+    "ndep_old",'emp_gov','empgov_fed','empgov_st', 'wkhours','wkswork', 'empgov_loc','emp_nonprofit', 
+    'ST','POWSP','age_cat','faminc_cat','employed', 'low_wage', 'noHSdegree',
+    'HSgrad','BAplus','INDP','OCCP','SPORDER','FES','NOC','R65', 'noelderly','ndep_spouse',
+    'ndep_spouse_kid')
+  for (i in cols) {
+    if (i %in% names(d) == FALSE){
+      print(i)
+      stopifnot(FALSE)
+    }
+  }
+  d <- d[,cols]
 
   # id variable from SERIALNO [Household ID] and SPORDER [Individual ID within Household]
   d$id <- paste0(as.character(d$SERIALNO),as.character(d$SPORDER))
@@ -1570,7 +1608,7 @@ impute_cps_to_acs <- function(d_acs, d_cps){
     mutate(weeks_worked=iweeks_worked)
   
   # generate FMLA coverage eligibility based on these vars:
-  d_acs <- d_acs %>% mutate(fmla_eligible=ifelse(WKHP*weeks_worked>=1250 & oneemp==1 & empsize>=50,1,0))
+  d_acs <- d_acs %>% mutate(fmla_eligible=ifelse(WKHP*weeks_worked>=1250 & oneemp==1 & empsize>=3,1,0))
   
   # impute union
   varname= 'union'

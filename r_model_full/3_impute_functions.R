@@ -218,7 +218,6 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
   # Two-stage estimation is implemented by giving anypay prescendence - prop_pay_employer set to 0 if anypay==0. 
   # prop_pay_employer unchanged if anypay==1.
   d_acs <- d_acs %>% mutate(prop_pay_employer=ifelse(anypay==0,0,prop_pay_employer))
-  
   return(d_acs)
 }
 

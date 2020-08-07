@@ -9,7 +9,7 @@ d <- policy_simulation(
                   impute_method = meth,
 		              makelog = FALSE,
                   sample_prop=1,
-		              state='WY',
+		              state='RI',
 		              SELFEMP=FALSE,
 		              place_of_work = TRUE,
 		              dual_receiver = .75,

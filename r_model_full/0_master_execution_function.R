@@ -185,18 +185,18 @@ policy_simulation <- function(
   # If xvars is null, set to be defaults based on fmla wave 
   if (is.null(xvars) & fmla_year==2012) {
     xvars <-c("widowed", "divorced", "separated", "nevermarried", "female", 
-              "ltHS", "someCol", "BA", "GradSch", "black", 
+              "noHSdegree", "someCol", "BA", "GradSch", "black", 
               "other", "asian",'native', "hisp","nochildren",'fmla_eligible',
-              'union','hourly',
+              'union','hourly', 'noelderly','emp_gov',
               'age',"agesq",'wkhours','faminc')
   }
   if (is.null(xvars) & fmla_year==2018) {
     xvars <-c("widowed", "divorced", "separated", "nevermarried", "female", 
-              "ltHS", "someCol", "BA", "GradSch", "black", 
+              "noHSdegree", "someCol", "BA", "GradSch", "black", 
               "other", "asian",'native', "hisp","nochildren",'fmla_eligible',
               'union','noelderly','hourly',
               'age',"agesq",'wkhours','faminc',
-              'emp_nonprofit','low_wage','occ_1','occ_2','occ_3','occ_4','occ_5','occ_6'
+              'emp_gov','emp_nonprofit','low_wage','occ_1','occ_2','occ_3','occ_4','occ_5','occ_6'
               ,'occ_7','occ_8','occ_9','occ_10','ind_1','ind_2','ind_3','ind_4','ind_5','ind_6'
               ,'ind_7','ind_8','ind_9','ind_10','ind_11','ind_12','ind_13')
   }
@@ -384,6 +384,7 @@ policy_simulation <- function(
     write.csv(d_acs, file=paste0('../data/acs', '/ACS_cleaned_forsimulation_',acs_year,'_',state,'.csv'),row.names=FALSE)
     write.csv(d_fmla, file=paste0('../data/fmla/fmla_',fmla_year,'/fmla_clean_',fmla_year,'.csv'), row.names = FALSE)
   }
+  
   
   if (!is.null(progress_file)) {
     message <- paste0('{"type": "message", "engine": ', engine_num, ', "value": "Cleaned data files before CPS imputation."}')
