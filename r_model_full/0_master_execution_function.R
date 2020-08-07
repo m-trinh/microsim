@@ -35,6 +35,7 @@ policy_simulation <- function(
                               progress_file=NULL,
                               fulloutput=FALSE,
                               saveCSV=TRUE,
+                              save_intermediate_clean=TRUE,
                               out_dir="../output",
                               output=NULL,
                               output_stats=NULL,
@@ -379,6 +380,11 @@ policy_simulation <- function(
     d_acs <- sample_acs(d_acs, sample_prop=sample_prop, sample_num=sample_num)  
   }
   
+  if (save_intermediate_clean) {
+    write.csv(d_acs, file=paste0('../data/acs', '/ACS_cleaned_forsimulation_',acs_year,'_',state,'.csv'),row.names=FALSE)
+    write.csv(d_fmla, file=paste0('../data/fmla/fmla_',fmla_year,'/fmla_clean_',fmla_year,'.csv'), row.names = FALSE)
+  }
+  
   if (!is.null(progress_file)) {
     message <- paste0('{"type": "message", "engine": ', engine_num, ', "value": "Cleaned data files before CPS imputation."}')
     cat(message, file = progress_file, sep = "\n", append = TRUE)
@@ -680,7 +686,7 @@ policy_simulation <- function(
   }
   
   if (!is.null(output) & saveCSV==TRUE) {
-    write.csv(d_acs_imp, file=file.path(out_dir, paste0('/',output,'.csv'), fsep = .Platform$file.sep))
+    write.csv(d_acs_imp, file=paste0(out_dir, '/',output,'.csv'), row.names=FALSE)
   }  
   
   
