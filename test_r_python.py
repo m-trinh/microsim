@@ -75,15 +75,6 @@ for c in num_cols:
     print(fmla_r[c].describe())
     print('-----------------------------')
 
-## fmla_eligible = 0 has 546 rows in Py, but 540 rows in R, check below
-fmla_p['empid'] = fmla_p['empid']+1
-cols = ['fmla_eligible', 'E12', 'E13', 'E14', 'E15_CAT']
-fmla_p_sub = fmla_p.loc[fmla_p['fmla_eligible']==0, ['empid'] + cols]
-fmla_r_sub = fmla_r.loc[fmla_r['fmla_eligible']==0, ['empid'] + cols]
-m = pd.merge(fmla_p_sub, fmla_r_sub, on='empid', how='left', indicator=True)
-print(m[m['_merge']!='both'])
-
-pd.merge(fmla_r, m, on='empid', )
 # check clean ACS
 acs_p = pd.read_csv('./data/acs/ACS_cleaned_forsimulation_2016_ri_Py.csv')
 acs_r = pd.read_csv('./data/acs/ACS_cleaned_forsimulation_2016_ri_R.csv')
@@ -94,17 +85,32 @@ for c in (set(acs_p.columns) - set(acs_r.columns)):
     print(c)
 # xvars in prediction sample (ACS)
 for c in bool_cols:
-    print('clean ACS, Py')
-    print(acs_p[c].value_counts())
-    print('clean ACS, R')
-    print(acs_r[c].value_counts())
-    print('-----------------------------')
+    if c not in ['ltHS']:
+        print('clean ACS, Py')
+        print(acs_p[c].value_counts())
+        print('clean ACS, R')
+        print(acs_r[c].value_counts())
+        print('-----------------------------')
 for c in num_cols:
     print('clean ACS, Py')
     print(acs_p[c].describe())
     print('clean ACS, R')
     print(acs_r[c].describe())
     print('-----------------------------')
+
+## Check CPS input data NAs
+# xvars: no NAs for all years
+# yvars: NAs only for hourly, union (will drop NA rows when training for these)
+xvars_in_acs = ['female', 'black', 'asian', 'native', 'other', 'age', 'agesq', 'BA', 'GradSch', 'married']
+xvars_in_acs += ['wage12', 'wkswork', 'wkhours', 'emp_gov']
+xvars_in_acs += ['occ_%s' % x for x in range(1, 11)] + ['ind_%s' % x for x in range(1, 14)]
+yvars_cps = ['hourly', 'empsize', 'oneemp', 'union']
+for year in [2014, 2015, 2016]:
+    cps = pd.read_csv('./data/cps/cps_clean_%s.csv' % year)
+    print('-'*30)
+    print(cps[xvars_in_acs].describe())
+    print(cps[yvars_cps].describe())
+    print(cps.shape)
 
 # get diff in eligible workers' IDs between dr and dp
 # NOTE: SERIALNO is id for household not person.

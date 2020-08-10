@@ -28,7 +28,7 @@ def get_columns(fmla_wave, leave_types, gov_workers_only=False):
     if fmla_wave==2012:
         Xs = ['widowed', 'divorced', 'separated', 'nevermarried',
               'female',
-              'ltHS', 'someCol', 'BA', 'GradSch',
+              'noHSdegree', 'someCol', 'BA', 'GradSch',
               'black', 'other', 'asian','native','hisp',
               'nochildren']
         Xs += ['fmla_eligible', 'union', 'noelderly', 'hourly']
@@ -37,7 +37,7 @@ def get_columns(fmla_wave, leave_types, gov_workers_only=False):
     elif fmla_wave==2018:
         Xs = ['widowed', 'divorced', 'separated', 'nevermarried',
               'female',
-              'ltHS', 'someCol', 'BA', 'GradSch',
+              'noHSdegree', 'someCol', 'BA', 'GradSch',
               'black', 'other', 'asian','native','hisp',
               'nochildren']
         Xs +=['fmla_eligible', 'noelderly', 'hourly', 'union'] #

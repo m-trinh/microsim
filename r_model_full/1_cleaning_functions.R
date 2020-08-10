@@ -1293,7 +1293,7 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
   }
   cols<- c('SERIALNO',"nochildren", "ln_faminc", "faminc", "lnearn",
     "age", "a_age",  "hiemp", "widowed", "divorced", 'married',
-    "separated", "nevermarried", "male", "female", "agesq", "someCol", "BA", 
+    "separated", "nevermarried", "male", "female", "agesq", "someCol", "BA",
     "GradSch", "black", "white", "asian", "other",'native', "hisp", "occ_1", "occ_2", "occ_3", 
     "occ_4", "occ_5", "occ_6", "occ_7", "occ_8", "occ_9", "occ_10", "ind_1", "ind_2", "ind_3", "ind_4", 
     "ind_5", "ind_6", "ind_7", "ind_8", "ind_9", "ind_10", "ind_11", "ind_12", "ind_13",
