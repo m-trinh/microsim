@@ -68,7 +68,7 @@ clean_fmla <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
         (is.na(E12)==FALSE & E12 >=6 & E12 <=9)
       ,1,fmla_eligible))
   d_fmla <- d_fmla %>% mutate(fmla_eligible = ifelse(is.na(E12) | (is.na(E14) & is.na(E15_CAT)) | is.na(E13), NA, fmla_eligible))
-  browser()
+
   # hourly worker
   d_fmla <- d_fmla %>% mutate(hourly = ifelse(E9_1 == 2,1,0))
   
