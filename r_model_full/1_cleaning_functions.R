@@ -549,6 +549,20 @@ clean_fmla <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
   d_fmla <- d_fmla %>% mutate(taker=ifelse(taker>=1, 1, 0))
   d_fmla <- d_fmla %>% mutate(needer=ifelse(needer>=1, 1, 0))
   
+  # remove unneeded vars
+  vars <- c("freq_weight", "covwrkplace", "particip", "hospital_need", "id", "num_leaves_need", "long_bond", "YNhospital_take ", 
+            "long_illspouse", "longlength_illparent", "fullyPaid", "longlength_matdis", "long_own", "length_matdis", "length", "long_illchild ", 
+            "fixed_weight", "long_length", "num_leaves_take", "hospital_take", "doctor1", "miscond", "long_reason", "doctor_need", "fmla_eligworker", 
+            "length_illchild", "length_bond", "cond1", "age_cat", "A19_2_vals", "A19_1_vals", "long_matdis", "longlength_illchild", "benefit_prop", 
+            "YNdoctor_take", "lengthsq", "lnlength", "doctor_take", "faminc_cat", "doctor", "long_illparent", "hospital2", "length_illparent", "hospital", 
+            "longlength_own", "length_illspouse", "lnlengthsq", "hospital1", "length_own", "cond2", "longlength_illspouse", "doctor2", 
+            "cost_prop", "longlength_bond ")
+  for (i in vars){
+    if (i %in% names(d_fmla)){
+      d_fmla[i] <- NULL
+    }
+  }
+  
   # saving data
   if (save_csv==TRUE) {
     write.csv(d_fmla, file = "fmla_clean_2012.csv", row.names = FALSE)  
@@ -979,6 +993,20 @@ clean_fmla_2018 <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
     val <- val + 1
   }
   
+  # remove unneeded vars
+  vars <- c("freq_weight", "covwrkplace", "particip", "hospital_need", "id", "num_leaves_need", "long_bond", "YNhospital_take ", 
+    "long_illspouse", "longlength_illparent", "fullyPaid", "longlength_matdis", "long_own", "length_matdis", "length", "long_illchild ", 
+    "fixed_weight", "long_length", "num_leaves_take", "hospital_take", "doctor1", "miscond", "long_reason", "doctor_need", "fmla_eligworker", 
+    "length_illchild", "length_bond", "cond1", "age_cat", "A19_2_vals", "A19_1_vals", "long_matdis", "longlength_illchild", "benefit_prop", 
+    "YNdoctor_take", "lengthsq", "lnlength", "doctor_take", "faminc_cat", "doctor", "long_illparent", "hospital2", "length_illparent", "hospital", 
+    "longlength_own", "length_illspouse", "lnlengthsq", "hospital1", "length_own", "cond2", "longlength_illspouse", "doctor2", 
+    "cost_prop", "longlength_bond ")
+  for (i in vars){
+    if (i %in% names(d_fmla)){
+      d_fmla[i] <- NULL
+    }
+  }
+  
   # saving data
   if (save_csv==TRUE) {
     write.csv(d_fmla, file = "./data/fmla_clean_2018.csv", row.names = FALSE)  
@@ -1256,16 +1284,16 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
       d[i] <- d[i] * 1.02
     }
   }
-  cols<- c('SERIALNO','SPORDER',"nochildren", "ln_faminc", "faminc", "lnearn","fem_cu6","fem_c617","fem_cu6and617","fem_nochild",
+  cols<- c('SERIALNO',"nochildren", "ln_faminc", "faminc", "lnearn",
     "age", "a_age",  "hiemp", "widowed", "divorced", 'married',
     "separated", "nevermarried", "male", "female", "agesq", "someCol", "BA", 
-    "GradSch", "black", "white", "asian", "other",'native', "hisp", "OCC", "occ_1", "occ_2", "occ_3", 
+    "GradSch", "black", "white", "asian", "other",'native', "hisp", "occ_1", "occ_2", "occ_3", 
     "occ_4", "occ_5", "occ_6", "occ_7", "occ_8", "occ_9", "occ_10", "ind_1", "ind_2", "ind_3", "ind_4", 
-    "ind_5", "ind_6", "ind_7", "ind_8", "ind_9", "ind_10", "ind_11", "ind_12", "ind_13", "weeks_worked",
-    "WAGP",'wage12',"WKHP","PWGTP", replicate_weights,"FER", "WKW","COW","ESR",'NPF',"partner","ndep_kid",
-    "ndep_old",'emp_gov','empgov_fed','empgov_st', 'wkhours','wkswork', 'empgov_loc','emp_nonprofit', 
-    'ST','POWSP','age_cat','faminc_cat','employed', 'low_wage', 'noHSdegree',
-    'HSgrad','BAplus','INDP','OCCP','SPORDER','FES','NOC','R65', 'noelderly','ndep_spouse',
+    "ind_5", "ind_6", "ind_7", "ind_8", "ind_9", "ind_10", "ind_11", "ind_12", "ind_13",
+    "WAGP",'wage12',"PWGTP", replicate_weights,"WKW",'WKHP',"COW","ESR",'NPF',"partner","ndep_kid",
+    'emp_gov','empgov_fed','empgov_st', 'wkhours','wkswork', 'empgov_loc','emp_nonprofit', 
+    'ST','POWSP','employed', 'low_wage', 'noHSdegree',
+    'HSgrad','BAplus','INDP','OCCP','SPORDER', 'noelderly','ndep_spouse',
     'ndep_spouse_kid')
   for (i in cols) {
     if (i %in% names(d) == FALSE){
@@ -1278,8 +1306,6 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
   # id variable from SERIALNO [Household ID] and SPORDER [Individual ID within Household]
   d$id <- paste0(as.character(d$SERIALNO),as.character(d$SPORDER))
   d <- d[order(d$id),]
-  
-
   
   # -------------------------- #
   # Remove ineligible workers
@@ -1379,9 +1405,11 @@ clean_cps <-function(d_cps) {
                             ind_13 = ifelse(a_mjind == 0|a_mjind == 14,NA,ind_13))
   
   # hourly pay
-  d_cps <- d_cps %>% mutate(paid_hrly= ifelse(prerelg == 1, 0,NA))
-  d_cps <- d_cps %>% mutate(paid_hrly= ifelse(prerelg == 1 & a_hrlywk == 1, 1, paid_hrly))
-  
+  # d_cps <- d_cps %>% mutate(paid_hrly= ifelse(prerelg == 1, 0,NA))
+  # d_cps <- d_cps %>% mutate(paid_hrly= ifelse(prerelg == 1 & a_hrlywk == 1, 1, paid_hrly))
+  d_cps <- d_cps %>% mutate(paid_hrly= ifelse(a_hrlywk == 1, 1,0))
+  d_cps <- d_cps %>% mutate(paid_hrly= ifelse(a_hrlywk == 0 | is.na(a_hrlywk), NA, paid_hrly))
+
   # Making zero/negative earnings into NaN so we can take natural log
   d_cps <- d_cps %>% mutate(lnearn = ifelse(pearnval<=0,NA,pearnval))  
   d_cps <- d_cps %>% mutate(lnearn = log(lnearn))  
@@ -1436,11 +1464,12 @@ impute_cps_to_acs <- function(d_acs, d_cps){
                         "+ occ_9 + occ_10 + ind_1 + ind_2 + ind_3 + ind_4 + ind_5 + ind_6 + ind_7 + ind_8 + ind_9 + ind_10 + ind_11 + ind_12 + ind_13")
   varname= 'hourly'
   formula = paste("hourly ~", xvar_formula)
-  filt = c(paid_hrly= "TRUE")
-  weight = c(paid_hrly = "~ marsupwt")
+  test_filt = c(hourly= "TRUE")
+  train_filt = c(hourly= "prerelg==1")
+  weight = c(hourly = "~ marsupwt")
   
   # INPUTS: CPS (training) data set, logit regression model specification, training filter condition, weight to use
-  d_filt <- runLogitEstimate(d_train=d_cps,d_test=d_acs, formula=formula, test_filt=filt, train_filt=filt, 
+  d_filt <- runLogitEstimate(d_train=d_cps,d_test=d_acs, formula=formula, test_filt=test_filt, train_filt=train_filt, 
                              weight=weight, varname=varname, create_dummies=TRUE)
   
   # running into memory issues with merge, using match instead
@@ -1571,20 +1600,20 @@ impute_cps_to_acs <- function(d_acs, d_cps){
   }
   
   # create single weeks worked var
-  d_acs <- d_acs %>% mutate (iweeks_worked= ifelse(!is.na(wks_50_52),wks_50_52+49,0)) %>% 
-    mutate (iweeks_worked= ifelse(!is.na(wks_48_49),wks_48_49+48,iweeks_worked)) %>% # "+48" is intentaional, this is a 0/1 var
-    mutate (iweeks_worked= ifelse(!is.na(wks_40_47),wks_40_47+39,iweeks_worked)) %>%
-    mutate (iweeks_worked= ifelse(!is.na(wks_27_39),wks_27_39+26,iweeks_worked)) %>%
-    mutate (iweeks_worked= ifelse(!is.na(wks_14_26),wks_14_26+13,iweeks_worked)) %>%
-    mutate (iweeks_worked= ifelse(!is.na(wks_0_13),wks_0_13,iweeks_worked))
+  d_acs <- d_acs %>% mutate (weeks_worked= ifelse(!is.na(wks_50_52),wks_50_52+49,0)) %>% 
+    mutate (weeks_worked= ifelse(!is.na(wks_48_49),wks_48_49+48,weeks_worked)) %>% # "+48" is intentaional, this is a 0/1 var
+    mutate (weeks_worked= ifelse(!is.na(wks_40_47),wks_40_47+39,weeks_worked)) %>%
+    mutate (weeks_worked= ifelse(!is.na(wks_27_39),wks_27_39+26,weeks_worked)) %>%
+    mutate (weeks_worked= ifelse(!is.na(wks_14_26),wks_14_26+13,weeks_worked)) %>%
+    mutate (weeks_worked= ifelse(!is.na(wks_0_13),wks_0_13,weeks_worked))
   
   # Ordered logit employer size categories
   varname = 'empsize'
-  #formula = paste("factor(empsize) ~ ", xvar_formula)
-  # reverting back to old formula as POLR won't converge with new formula
-  formula = paste("factor(empsize) ~ age + black + BA + GradSch",
-                  " + occ_1 + occ_2 + occ_3 + occ_3 + occ_4 +  occ_5 + occ_6 + occ_7 + occ_8",
-                  "+ occ_9 + occ_10 + ind_1 + ind_2 + ind_3 + ind_4 + ind_5 + ind_6 + ind_7 + ind_8 + ind_9 + ind_10 + ind_11 + ind_12 + ind_13")
+  formula = paste("factor(empsize) ~ ", xvar_formula)
+  # preserving old formula in case failed to get starting values error pops back up
+  # formula = paste("factor(empsize) ~ age + black + BA + GradSch",
+  #                 " + occ_1 + occ_2 + occ_3 + occ_3 + occ_4 +  occ_5 + occ_6 + occ_7 + occ_8",
+  #                 "+ occ_9 + occ_10 + ind_1 + ind_2 + ind_3 + ind_4 + ind_5 + ind_6 + ind_7 + ind_8 + ind_9 + ind_10 + ind_11 + ind_12 + ind_13")
   filt = "TRUE"
   weight = "marsupwt"
   d_filt <- runOrdinalEstimate(d_train=d_cps,d_test=d_acs, formula=formula,test_filt=filt,
@@ -1594,7 +1623,7 @@ impute_cps_to_acs <- function(d_acs, d_cps){
   # keeping as categories rather than converting to actual numbers 
   # then do random draw within assigned size range
   # d_acs <- d_acs %>% mutate(tempsize=ifelse(empsize==1,sample(1:9, nrow(d_acs), replace=T),0)) 
-  d_acs <- d_acs %>%
+  # d_acs <- d_acs %>%
    
     # mutate(tempsize=ifelse(empsize==2,sample(10:49, nrow(d_acs), replace=T),tempsize)) %>%
     # mutate(tempsize=ifelse(empsize==3,sample(50:99, nrow(d_acs), replace=T),tempsize)) %>%
@@ -1602,21 +1631,20 @@ impute_cps_to_acs <- function(d_acs, d_cps){
     # mutate(tempsize=ifelse(empsize==5,sample(500:999, nrow(d_acs), replace=T),tempsize)) %>%
     # mutate(tempsize=ifelse(empsize==6,sample(1000:99999, nrow(d_acs), replace=T),tempsize)) %>%
     # mutate(tempsize=ifelse(empsize==7,sample(100000:999999, nrow(d_acs), replace=T),tempsize)) %>%
-    # mutate(empsize=tempsize) %>%
-    # clean up weeks worked variables
-    mutate(weeks_worked_cat=weeks_worked) %>%
-    mutate(weeks_worked=iweeks_worked)
+    # mutate(empsize=tempsize) 
   
   # generate FMLA coverage eligibility based on these vars:
   d_acs <- d_acs %>% mutate(fmla_eligible=ifelse(WKHP*weeks_worked>=1250 & oneemp==1 & empsize>=3,1,0))
+  d_acs$WKHP <- NULL
   
   # impute union
   varname= 'union'
   formula = paste("union ~", xvar_formula, '+ hourly + oneemp + empsize')
-  filt = c(paid_hrly= "TRUE")
-  weight = c(paid_hrly = "~ marsupwt")
+  test_filt = c(union= "TRUE")
+  train_filt = c(union= "prerelg==1")
+  weight = c(union = "~ marsupwt")
   
-  d_filt <- runLogitEstimate(d_train=d_cps,d_test=d_acs, formula=formula, test_filt=filt, train_filt=filt, 
+  d_filt <- runLogitEstimate(d_train=d_cps,d_test=d_acs, formula=formula, test_filt=test_filt, train_filt=train_filt, 
                              weight=weight, varname=varname, create_dummies=TRUE)
   # running into memory issues with merge, using match instead
   #d_acs <- merge(d_filt, d_acs, by='id', all.y=TRUE)

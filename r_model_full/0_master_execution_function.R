@@ -379,10 +379,14 @@ policy_simulation <- function(
   if (!is.null(sample_prop) & !is.null(sample_num)) {
     d_acs <- sample_acs(d_acs, sample_prop=sample_prop, sample_num=sample_num)  
   }
-  
+  # save intermediate clean data, remove some variables to be consistent with python output
   if (save_intermediate_clean) {
-    write.csv(d_acs, file=paste0('../data/acs', '/ACS_cleaned_forsimulation_',acs_year,'_',state,'.csv'),row.names=FALSE)
-    write.csv(d_fmla, file=paste0('../data/fmla/fmla_',fmla_year,'/fmla_clean_',fmla_year,'.csv'), row.names = FALSE)
+    d_acs_out <- d_acs
+    d_acs_out$id <- NULL
+    d_fmla_out <- d_fmla 
+    d_fmla_out$longerLeave <- NULL
+    write.csv(d_acs_out, file=paste0('../data/acs', '/ACS_cleaned_forsimulation_',acs_year,'_',tolower(state),'.csv'),row.names=FALSE)
+    write.csv(d_fmla_out, file=paste0('../data/fmla/fmla_',fmla_year,'/fmla_clean_',fmla_year,'.csv'), row.names = FALSE)
   }
   
   

@@ -1,12 +1,13 @@
 
 # sample master execution function for testing code
 source("0_master_execution_function.R")
-
+options(error=recover)
 meth <- 'Logistic Regression GLM'
 timestart <<- Sys.time()
 d <- policy_simulation(
                   base_bene_level=.55,
                   impute_method = meth,
+                  acs_year=2018,
 		              makelog = FALSE,
                   sample_prop=1,
 		              state='RI',
