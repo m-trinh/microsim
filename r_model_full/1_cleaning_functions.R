@@ -1132,6 +1132,7 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
   
   # ed level
   d <- d %>% mutate(SCHL=ifelse(is.na(SCHL),0,SCHL)) 
+  d <- d %>% mutate(ltHS=ifelse(SCHL<=11,1,0)) 
   d <- d %>% mutate(noHSdegree=ifelse(SCHL<=15,1,0)) 
   d <- d %>% mutate(HSgrad=ifelse(SCHL==16 | SCHL==17 ,1,0)) 
   d <- d %>% mutate(someCol=ifelse(SCHL>=18 & SCHL<=20,1,0)) 
@@ -1282,7 +1283,6 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
   
   # if state of work is missing, impute the state of residence
   d <- d %>% mutate(POWSP= ifelse(is.na(POWSP)==TRUE, ST, POWSP))
-  
   # strip to only required variables to save memory
   replicate_weights <- paste0('PWGTP',seq(1,80))
   if (POW_weight==TRUE) {
@@ -1299,7 +1299,7 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
     "ind_5", "ind_6", "ind_7", "ind_8", "ind_9", "ind_10", "ind_11", "ind_12", "ind_13",
     "WAGP",'wage12',"PWGTP", replicate_weights,"WKW",'WKHP',"COW","ESR",'NPF',"partner","ndep_kid",
     'emp_gov','empgov_fed','empgov_st', 'wkhours','wkswork', 'empgov_loc','emp_nonprofit', 
-    'ST','POWSP','employed', 'low_wage', 'noHSdegree',
+    'ST','POWSP','employed', 'low_wage','ltHS', 'noHSdegree',
     'HSgrad','BAplus','INDP','OCCP','SPORDER', 'noelderly','ndep_spouse',
     'ndep_spouse_kid')
   for (i in cols) {
