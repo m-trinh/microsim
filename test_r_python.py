@@ -11,8 +11,8 @@ pd.set_option('display.width', 200)
 import numpy as np
 from _5a_aux_functions import *
 ## Read in post-sim ACS
-dr = pd.read_csv('./output/output_20200806_210828/acs_sim_ri_20200806_210828.csv')
-dp = pd.read_csv('./output/output_20200806_210528_main simulation/acs_sim_ri_20200806_210528.csv')
+dp = pd.read_csv('./output/output_20200810_111106_main simulation/acs_sim_ri_20200810_111106.csv')
+dr = pd.read_csv('./output/output_20200810_105851/acs_sim_ri_20200810_105851.csv')
 
 ## Find which persons are in R but not Python
 dm = pd.merge(dp[['SERIALNO', 'SPORDER']], dr[['SERIALNO', 'SPORDER']], how='outer', indicator=True)
@@ -63,12 +63,11 @@ print(fmla_r['resp_len'].value_counts())
 xvars, yvars, w = get_columns(2012, types)
 bool_cols, num_cols = get_bool_num_cols(fmla_p[xvars])
 for c in bool_cols:
-    if c not in ['noelderly', 'emp_gov']: # some xvars not generated in R, NT fix by Luke
-        print('clean fmla, Py')
-        print(fmla_p[c].value_counts())
-        print('clean fmla, R')
-        print(fmla_r[c].value_counts())
-        print('-----------------------------')
+    print('clean fmla, Py')
+    print(fmla_p[c].value_counts())
+    print('clean fmla, R')
+    print(fmla_r[c].value_counts())
+    print('-----------------------------')
 for c in num_cols:
     print('clean fmla, Py')
     print(fmla_p[c].describe())
@@ -76,6 +75,15 @@ for c in num_cols:
     print(fmla_r[c].describe())
     print('-----------------------------')
 
+## fmla_eligible = 0 has 546 rows in Py, but 540 rows in R, check below
+fmla_p['empid'] = fmla_p['empid']+1
+cols = ['fmla_eligible', 'E12', 'E13', 'E14', 'E15_CAT']
+fmla_p_sub = fmla_p.loc[fmla_p['fmla_eligible']==0, ['empid'] + cols]
+fmla_r_sub = fmla_r.loc[fmla_r['fmla_eligible']==0, ['empid'] + cols]
+m = pd.merge(fmla_p_sub, fmla_r_sub, on='empid', how='left', indicator=True)
+print(m[m['_merge']!='both'])
+
+pd.merge(fmla_r, m, on='empid', )
 # check clean ACS
 acs_p = pd.read_csv('./data/acs/ACS_cleaned_forsimulation_2016_ri_Py.csv')
 acs_r = pd.read_csv('./data/acs/ACS_cleaned_forsimulation_2016_ri_R.csv')

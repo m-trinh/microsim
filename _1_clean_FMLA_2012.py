@@ -39,7 +39,7 @@ class DataCleanerFMLA:
                                       , 1, 0)
         d['fmla_eligible'] = np.where((d['E13'].isna()) |
                                       ((d['E14'].isna()) & (d['E15_CAT'].isna())) |
-                                      (d['E13'].isna())
+                                      (d['E12'].isna())
                                       , np.nan, d['fmla_eligible'])
 
         # Hourly worker

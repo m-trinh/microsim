@@ -61,7 +61,7 @@ clean_fmla <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
   d_fmla <- d_fmla %>% mutate(fmla_eligible = 0)
   d_fmla <- d_fmla %>% mutate(fmla_eligible = ifelse(E13 == 1 & (E14 == 1 | (E15_CAT >= 5 & E15_CAT <= 8)) & (E12 >=6 & E12 <=9),1,fmla_eligible))
   d_fmla <- d_fmla %>% mutate(fmla_eligible = ifelse(is.na(E12) | (is.na(E14) & is.na(E15_CAT) | is.na(E13)), NA, fmla_eligible))
-  
+
   # hourly worker
   d_fmla <- d_fmla %>% mutate(hourly = ifelse(E9_1 == 2,1,0))
   
