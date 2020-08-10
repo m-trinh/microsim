@@ -1634,8 +1634,7 @@ impute_cps_to_acs <- function(d_acs, d_cps){
     # mutate(empsize=tempsize) 
   
   # generate FMLA coverage eligibility based on these vars:
-  d_acs <- d_acs %>% mutate(fmla_eligible=ifelse(WKHP*weeks_worked>=1250 & oneemp==1 & empsize>=3,1,0))
-  d_acs$WKHP <- NULL
+  d_acs <- d_acs %>% mutate(fmla_eligible=ifelse(wkhours*weeks_worked>=1250 & oneemp==1 & empsize>=3,1,0))
   
   # impute union
   varname= 'union'
