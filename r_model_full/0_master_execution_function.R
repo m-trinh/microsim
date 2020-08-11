@@ -343,7 +343,7 @@ policy_simulation <- function(
     # cps is pre-cleaned in python, so don't run clean_cps anymore
     #d_cps <- clean_cps(d_cps)
     # impute wage12 missing values 
-    mean_wage12 <- weighted.mean(d_cps$wage12,d_cps$marsupwt, na.rm=TRUE)
+    mean_wage12 <- mean(d_cps$wage12, na.rm=TRUE)
     d_cps[is.na(d_cps$wage12),'wage12'] <- mean_wage12 
     
     # Load and clean FMLA 
