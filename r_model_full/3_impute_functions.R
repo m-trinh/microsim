@@ -456,7 +456,7 @@ logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, t
 # returns a separate copy of only those observations with valid imputed values
 
 runLogitEstimate <- function(d_train,d_test, formula, test_filt,train_filt, weight, 
-                             varname, create_dummies){
+                             varname, create_dummies, print_coefs=FALSE){
   options(warn=-1)
   des <- svydesign(id = ~1,  weights = as.formula(weight), data = d_train %>% filter_(train_filt))
   complete <- svyglm(as.formula(formula), data = d_train %>% filter_(train_filt), family = "quasibinomial",design = des)
@@ -500,7 +500,14 @@ runLogitEstimate <- function(d_train,d_test, formula, test_filt,train_filt, weig
     d_filt[varname] <- with(d_filt, ifelse(rand>get(var_prob),0,1))    
     d_filt <- d_filt[,c(varname, 'id')]
   }
-  
+
+  # print coefs if needed
+  if (print_coefs==TRUE){
+    print(summary(complete))
+    print(dim(d_train))
+    print('------------------------')
+    print(dim(d_train %>% filter_(train_filt)))
+  }
   return(d_filt)
 }
 

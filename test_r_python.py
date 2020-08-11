@@ -85,12 +85,11 @@ for c in (set(acs_p.columns) - set(acs_r.columns)):
     print(c)
 # xvars in prediction sample (ACS)
 for c in bool_cols:
-    if c not in ['ltHS']:
-        print('clean ACS, Py')
-        print(acs_p[c].value_counts())
-        print('clean ACS, R')
-        print(acs_r[c].value_counts())
-        print('-----------------------------')
+    print('clean ACS, Py')
+    print(acs_p[c].value_counts())
+    print('clean ACS, R')
+    print(acs_r[c].value_counts())
+    print('-----------------------------')
 for c in num_cols:
     print('clean ACS, Py')
     print(acs_p[c].describe())
@@ -103,7 +102,7 @@ for c in num_cols:
 # yvars: NAs only for hourly, union (will drop NA rows when training for these)
 xvars_in_acs = ['female', 'black', 'asian', 'native', 'other', 'age', 'agesq', 'BA', 'GradSch', 'married']
 xvars_in_acs += ['wage12', 'wkswork', 'wkhours', 'emp_gov']
-xvars_in_acs += ['occ_%s' % x for x in range(1, 11)] + ['ind_%s' % x for x in range(1, 14)]
+xvars_in_acs += ['occ_%s' % x for x in range(1, 10)] + ['ind_%s' % x for x in range(1, 13)]
 yvars_cps = ['hourly', 'empsize', 'oneemp', 'union']
 for year in [2014, 2015, 2016]:
     cps = pd.read_csv('./data/cps/cps_clean_%s.csv' % year)
@@ -111,6 +110,29 @@ for year in [2014, 2015, 2016]:
     print(cps[xvars_in_acs].describe())
     print(cps[yvars_cps].describe())
     print(cps.shape)
+
+
+for year in [2014, 2015, 2016]:
+    cps = pd.read_csv('./data/cps/cps_clean_%s.csv' % year)
+    print(cps[cps['agesq']<0][['age', 'agesq']].head())
+# check coefs of logit GLM
+import statsmodels.api as sm
+
+cps = pd.read_csv('./data/cps/cps_clean_%s.csv' % 2014)
+cps = cps[cps['hourly'].notna()]
+ix_train_cps = cps.index
+col_y = 'hourly'
+y = cps.loc[ix_train_cps, col_y]
+X = cps.loc[ix_train_cps, xvars_in_acs]
+w = cps.loc[ix_train_cps, 'marsupwt']
+random_state = np.random.RandomState(12345)
+X = fillna_df(X, random_state=random_state)
+clf = sm.GLM(y, sm.add_constant(X), family=sm.families.Binomial(), freq_weights=w).fit()
+
+for x in xvars_in_acs:
+    v = cps[x].isna().value_counts()
+    if len(v)>1:
+        print(v)
 
 # get diff in eligible workers' IDs between dr and dp
 # NOTE: SERIALNO is id for household not person.

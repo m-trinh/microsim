@@ -1468,13 +1468,12 @@ impute_cps_to_acs <- function(d_acs, d_cps){
   # logit for hourly paid regression
   xvar_formula <- paste('female + black + asian + native + other + age + agesq + BA + GradSch + married + wage12 + wkswork + wkhours + emp_gov',
                         "+ occ_1 + occ_2 + occ_3 + occ_3 + occ_4 +  occ_5 + occ_6 + occ_7 + occ_8",
-                        "+ occ_9 + occ_10 + ind_1 + ind_2 + ind_3 + ind_4 + ind_5 + ind_6 + ind_7 + ind_8 + ind_9 + ind_10 + ind_11 + ind_12 + ind_13")
+                        "+ occ_9 + ind_1 + ind_2 + ind_3 + ind_4 + ind_5 + ind_6 + ind_7 + ind_8 + ind_9 + ind_10 + ind_11 + ind_12")
   varname= 'hourly'
   formula = paste("hourly ~", xvar_formula)
   test_filt = c(hourly= "TRUE")
   train_filt = c(hourly= "prerelg==1")
   weight = c(hourly = "~ marsupwt")
-  
   # INPUTS: CPS (training) data set, logit regression model specification, training filter condition, weight to use
   d_filt <- runLogitEstimate(d_train=d_cps,d_test=d_acs, formula=formula, test_filt=test_filt, train_filt=train_filt, 
                              weight=weight, varname=varname, create_dummies=TRUE)
@@ -1493,10 +1492,10 @@ impute_cps_to_acs <- function(d_acs, d_cps){
   formula = paste("oneemp ~", xvar_formula)
   filt = c(num_emp= "TRUE")
   weight = c(num_emp = "~ marsupwt")
-  
-  # INPUTS: CPS (training) data set, ordinal regression model specification, filter conditions, var to create 
+  d_cps[is.na(d_cps[, "wage12"]), "wage12"] <- mean(d_cps[, "wage12"], na.rm = TRUE)
+  # INPUTS: CPS (training) data set, ordinal regression model specification, filter conditions, var to create
   d_filt <-  runLogitEstimate(d_train=d_cps,d_test=d_acs, formula=formula, test_filt=filt, train_filt=filt, 
-                              weight=weight, varname=varname, create_dummies=TRUE)
+                              weight=weight, varname=varname, create_dummies=TRUE, print_coefs=TRUE)
   
   # running into memory issues with merge, using match instead
   #d_acs <- merge(d_filt, d_acs, by='id', all.y=TRUE)
