@@ -340,8 +340,12 @@ policy_simulation <- function(
     # if loadCSV, look for csvs and conduct cleaning
     # Load and clean CPS
     d_cps <- read.csv(paste0(cps_dir,'/cps_clean_',acs_year-2,'.csv'))
+    # cps is pre-cleaned in python, so don't run clean_cps anymore
     #d_cps <- clean_cps(d_cps)
-  
+    # impute wage12 missing values 
+    mean_wage12 <- weighted.mean(d_cps$wage12,d_cps$marsupwt, na.rm=TRUE)
+    d_cps[is.na(d_cps$wage12),'wage12'] <- mean_wage12 
+    
     # Load and clean FMLA 
     d_fmla <- read.csv(fmla_file)
     stopifnot(fmla_year == 2012 | fmla_year == 2018)

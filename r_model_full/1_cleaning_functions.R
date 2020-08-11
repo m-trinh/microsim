@@ -1468,7 +1468,7 @@ impute_cps_to_acs <- function(d_acs, d_cps){
   # logit for hourly paid regression
   xvar_formula <- paste('female + black + asian + native + other + age + agesq + BA + GradSch + married + wage12 + wkswork + wkhours + emp_gov',
                         "+ occ_1 + occ_2 + occ_3 + occ_3 + occ_4 +  occ_5 + occ_6 + occ_7 + occ_8",
-                        "+ occ_9 + occ_10 + ind_1 + ind_2 + ind_3 + ind_4 + ind_5 + ind_6 + ind_7 + ind_8 + ind_9 + ind_10 + ind_11 + ind_12 + ind_13")
+                        "+ occ_9 + ind_1 + ind_2 + ind_3 + ind_4 + ind_5 + ind_6 + ind_7 + ind_8 + ind_9 + ind_10 + ind_11 + ind_12")
   varname= 'hourly'
   formula = paste("hourly ~", xvar_formula)
   test_filt = c(hourly= "TRUE")
@@ -1491,8 +1491,8 @@ impute_cps_to_acs <- function(d_acs, d_cps){
   # ordered logit for number of employers
   varname= 'oneemp'
   formula = paste("oneemp ~", xvar_formula)
-  filt = c(num_emp= "TRUE")
-  weight = c(num_emp = "~ marsupwt")
+  filt = c(oneemp= "TRUE")
+  weight = c(oneemp = "~ marsupwt")
   
   # INPUTS: CPS (training) data set, ordinal regression model specification, filter conditions, var to create 
   d_filt <-  runLogitEstimate(d_train=d_cps,d_test=d_acs, formula=formula, test_filt=filt, train_filt=filt, 
