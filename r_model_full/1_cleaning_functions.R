@@ -1490,11 +1490,11 @@ impute_cps_to_acs <- function(d_acs, d_cps){
   # ordered logit for number of employers
   varname= 'oneemp'
   formula = paste("oneemp ~", xvar_formula)
-  filt = c(num_emp= "TRUE")
-  weight = c(num_emp = "~ marsupwt")
-  d_cps[is.na(d_cps[, "wage12"]), "wage12"] <- mean(d_cps[, "wage12"], na.rm = TRUE)
-  # INPUTS: CPS (training) data set, ordinal regression model specification, filter conditions, var to create
-  d_filt <-  runLogitEstimate(d_train=d_cps,d_test=d_acs, formula=formula, test_filt=filt, train_filt=filt, 
+  filt = c(oneemp= "TRUE")
+  weight = c(oneemp = "~ marsupwt")
+
+  # INPUTS: CPS (training) data set, ordinal regression model specification, filter conditions, var to create 
+  d_filt <-  runLogitEstimate(d_train=d_cps,d_test=d_acs, formula=formula, test_filt=filt, train_filt=filt,
                               weight=weight, varname=varname, create_dummies=TRUE, print_coefs=TRUE)
   
   # running into memory issues with merge, using match instead
