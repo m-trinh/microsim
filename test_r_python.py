@@ -134,6 +134,40 @@ for x in xvars_in_acs:
     if len(v)>1:
         print(v)
 
+###################################
+# check MORD estimation of empsize in CPS
+###################################
+import mord
+from bisect import bisect_right, bisect_left
+
+cps = pd.read_csv('./data/cps/cps_clean_2014.csv')
+random_state = np.random.RandomState(12345)
+cps[xvars_in_acs] = fillna_df(cps[xvars_in_acs], random_state=random_state)
+y = cps['empsize']
+X = cps[xvars_in_acs]
+clf = mord.LogisticAT(alpha=0).fit(X, y)
+# predict - direct
+Xd = fillna_df(acs_p[xvars_in_acs], random_state=random_state)
+acs_p['empsize'] = pd.Series(clf.predict(Xd), index=acs_p.index)
+# predict - wheel of fortune
+acs_p['empsize'] = pd.Series(clf.predict(Xd), index=acs_p.index)
+phats = clf.predict_proba(Xd)
+cum_phats = np.cumsum(phats, axis=1)
+us = random_state.rand(len(phats))  # random number
+yhats = []
+for i, row in enumerate(cum_phats):
+    yhats.append(bisect_right(row, us[i])+1)
+yhats = pd.Series(yhats)
+yhats.value_counts().hist()
+j = min(bisect_right(cum_phats, us), len(cumWeights) - 1)
+
+d[c] = [int(x) for x in ps > us]  # flag 1 if p1 > random number
+
+a = np.array([[1,3,5], [2,4,10]])
+x = np.array([6, 7])
+np.searchsorted(a, x)
+
+
 # get diff in eligible workers' IDs between dr and dp
 # NOTE: SERIALNO is id for household not person.
 ids_r = pd.DataFrame(dr['SERIALNO']).sort_values(by='SERIALNO')
