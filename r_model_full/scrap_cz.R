@@ -8,10 +8,16 @@
 
 library(MASS)
 library(dplyr)
+library(glm.predict)
 ## Read in CPS data
 fp_cps <- '../data/cps/cps_clean_2014.csv'
 cps <- read.csv(fp_cps)
+cps[is.na(cps[, "wage12"]), "wage12"] <- mean(cps[, "wage12"], na.rm = TRUE)
+# below seems to solve warning
+# 1: In eval(family$initialize) : non-integer #successes in a binomial glm!
+# cps[, "marsupwt"] <- round(cps[, "marsupwt"], 0)
 
+# add constant? (cause rank problem so seems polr has this accounted for? Through zeta? intuition??)
 ## Run ordinal regression
 xvar_formula <- paste('female + black + asian + native + other + age + agesq + BA + GradSch + married + wage12 + wkswork + wkhours + emp_gov',
                       "+ occ_1 + occ_2 + occ_3 + occ_3 + occ_4 +  occ_5 + occ_6 + occ_7 + occ_8",
@@ -19,10 +25,17 @@ xvar_formula <- paste('female + black + asian + native + other + age + agesq + B
 
 formula <- paste("factor(empsize) ~ ", xvar_formula)
 train_filt = "TRUE"
+# use , weight=marsupwt below will trigger starting value issue
+# Error in polr(as.formula(formula), data = cps %>% filter_(train_filt),  : 
+# attempt to find suitable starting values failed
 estimate <- polr(as.formula(formula), data = cps %>% filter_(train_filt))
+
 # predict
 fp_acs <- '../data/acs/ACS_cleaned_forsimulation_2016_ri_Py.csv'
 acs <- read.csv(fp_acs)
-Xd <- acs[, c("female", "black",  asian + native + other + age + agesq + BA + GradSch + married + wage12 + wkswork + wkhours + emp_gov)]
-polr.predict(estimate, c(1,170))
+Xd <- acs[, c(c("female", "black", "asian", "native", "other", "age", "agesq", "BA", "GradSch", 
+              "married", "wage12", "wkswork", "wkhours", "emp_gov"), 
+          paste0("occ_", seq(1, 9)),
+          paste0("ind_", seq(1, 12)))]
+yhat <- predict(estimate, Xd)
 

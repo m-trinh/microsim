@@ -542,7 +542,7 @@ runOrdinalEstimate <- function(d_train,d_test, formula, test_filt,train_filt, va
     d_filt['var_score']=0
     for (dem in names(model)) {
       if (dem !='(Intercept)') { 
-        d_filt[is.na(d_filt[,dem]),dem]=0
+        d_filt[is.na(d_filt[,dem]),dem]=mean(d_filt[, dem], na.rm = TRUE)
         d_filt[,'var_score']= d_filt[,'var_score'] + d_filt[,dem]*model[dem]
       }
     }
@@ -554,8 +554,15 @@ runOrdinalEstimate <- function(d_train,d_test, formula, test_filt,train_filt, va
     d_filt['rand']=runif(nrow(d_filt))
     for (i in seq(cat_num)) {
       if (i!=cat_num) {
+        # logit P(Y <= k | x) = zeta_k - eta
+        #
+        # See https://rdrr.io/cran/MASS/man/polr.html
+        # logit(1-cumprob2) = cuts[i]-var_score
+        # so prob(cat<=2) = cumprob2 = 1-invlogit(cuts[i]-var_score) = invlogit(var_score-cuts[i])
+        # so assign cat=2 if rand<prob(cat<=2)=cumprob2, or 1-rand>=cumprob2
+        # WLOG, assign cat=2 if rand>=cumprob2
         d_filt <- d_filt %>% mutate(cumprob= var_score-cuts[i])
-        d_filt <- d_filt %>% mutate(cumprob2= exp(cumprob)/(1+exp(cumprob)))
+        d_filt <- d_filt %>% mutate(cumprob2= exp(cumprob)/(1+exp(cumprob))) # invlogit(cumprob)
         d_filt[varname] <- with (d_filt, ifelse(get(varname)==0 & rand>=cumprob2,i,get(varname)))
       }
       else {

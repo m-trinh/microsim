@@ -150,22 +150,12 @@ clf = mord.LogisticAT(alpha=0).fit(X, y)
 Xd = fillna_df(acs_p[xvars_in_acs], random_state=random_state)
 acs_p['empsize'] = pd.Series(clf.predict(Xd), index=acs_p.index)
 # predict - wheel of fortune
-acs_p['empsize'] = pd.Series(clf.predict(Xd), index=acs_p.index)
 phats = clf.predict_proba(Xd)
 cum_phats = np.cumsum(phats, axis=1)
 us = random_state.rand(len(phats))  # random number
-yhats = []
-for i, row in enumerate(cum_phats):
-    yhats.append(bisect_right(row, us[i])+1)
-yhats = pd.Series(yhats)
-yhats.value_counts().hist()
-j = min(bisect_right(cum_phats, us), len(cumWeights) - 1)
+yhats = pd.Series([bisect_right(row, us[i])+1 for i, row in enumerate(cum_phats)])
+acs_p['empsize'] = pd.Series(yhats, index=acs_p.index)
 
-d[c] = [int(x) for x in ps > us]  # flag 1 if p1 > random number
-
-a = np.array([[1,3,5], [2,4,10]])
-x = np.array([6, 7])
-np.searchsorted(a, x)
 
 
 # get diff in eligible workers' IDs between dr and dp

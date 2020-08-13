@@ -14,6 +14,7 @@ from _5a_aux_functions import fillna_df, get_wquantile
 import sklearn.linear_model
 import statsmodels.api as sm
 import mord
+from bisect import bisect_right
 from time import time
 from Utils import STATE_CODES
 import os
@@ -398,7 +399,11 @@ class DataCleanerACS:
                     Xd = Xd.join(d[['hourly', 'oneemp', 'empsize']])
                 # make prediction
                 if c=='empsize': # ordered logit via mord, predict category directly
-                    d[c] = pd.Series(clf.predict(Xd), index=d.index)
+                    phats = clf.predict_proba(Xd)
+                    cum_phats = np.cumsum(phats, axis=1)
+                    us = self.random_state.rand(len(phats))  # random number
+                    yhats = [bisect_right(row, us[i]) + 1 for i, row in enumerate(cum_phats)]
+                    d[c] = yhats
                 else: # simulate from logit GLM phat, not yhat, to avoid loss of predicted minor class (e.g. union=0)
                     xts_with_constant = Xd.copy()
                     # add constant manually - sm.add_constant() may fail for small xts with exist const col
