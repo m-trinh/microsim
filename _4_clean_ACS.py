@@ -157,8 +157,7 @@ class DataCleanerACS:
             #                                               random_state=self.random_state).fit(X, y, sample_weight=w)
             clf = sm.GLM(y, sm.add_constant(X), family=sm.families.Binomial(), freq_weights=w).fit()
             dct_cps_clfs[col_y] = clf
-        # print coefs to reconcile with R
-        print(dct_cps_clfs['oneemp'].summary())
+
         ## Get household data for merging to person data chunks
         d_hh = self.load_hh_data(st)
 
@@ -398,7 +397,7 @@ class DataCleanerACS:
                 if c=='union':
                     Xd = Xd.join(d[['hourly', 'oneemp', 'empsize']])
                 # make prediction
-                if c=='empsize': # ordered logit via mord, predict category directly
+                if c=='empsize': # ordered logit via mord, predict category using wof
                     phats = clf.predict_proba(Xd)
                     cum_phats = np.cumsum(phats, axis=1)
                     us = self.random_state.rand(len(phats))  # random number

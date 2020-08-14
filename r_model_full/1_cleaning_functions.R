@@ -109,6 +109,12 @@ clean_fmla <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
   d_fmla <- d_fmla %>% mutate(empgov_loc = ifelse(D2 == 3,1,0))
   d_fmla <- d_fmla %>% mutate(emp_gov= ifelse(D2==1 | D2==2 | D2==3, 1,0))
   
+  d_fmla <- d_fmla %>% mutate(empgov_fed = ifelse(is.na(D2),0,empgov_fed))
+  d_fmla <- d_fmla %>% mutate(empgov_st = ifelse(is.na(D2),0,empgov_st))
+  d_fmla <- d_fmla %>% mutate(empgov_loc = ifelse(is.na(D2),0,empgov_loc))
+  d_fmla <- d_fmla %>% mutate(emp_gov = ifelse(is.na(D2),0,emp_gov))
+  
+  
   # sex
   d_fmla <- d_fmla %>% mutate(male = ifelse(GENDER_CAT == 1,1,0),
                                                 female = ifelse(GENDER_CAT == 2,1,0))
@@ -1495,7 +1501,7 @@ impute_cps_to_acs <- function(d_acs, d_cps){
 
   # INPUTS: CPS (training) data set, ordinal regression model specification, filter conditions, var to create 
   d_filt <-  runLogitEstimate(d_train=d_cps,d_test=d_acs, formula=formula, test_filt=filt, train_filt=filt,
-                              weight=weight, varname=varname, create_dummies=TRUE, print_coefs=TRUE)
+                              weight=weight, varname=varname, create_dummies=TRUE)
   
   # running into memory issues with merge, using match instead
   #d_acs <- merge(d_filt, d_acs, by='id', all.y=TRUE)

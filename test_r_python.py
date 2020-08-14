@@ -11,8 +11,8 @@ pd.set_option('display.width', 200)
 import numpy as np
 from _5a_aux_functions import *
 ## Read in post-sim ACS
-dp = pd.read_csv('./output/output_20200810_111106_main simulation/acs_sim_ri_20200810_111106.csv')
-dr = pd.read_csv('./output/output_20200810_105851/acs_sim_ri_20200810_105851.csv')
+dp = pd.read_csv('./output/output_20200813_204412_main simulation/acs_sim_ri_20200813_204412.csv')
+dr = pd.read_csv('./output/output_20200813_205313/acs_sim_ri_20200813_205313.csv')
 
 ## Find which persons are in R but not Python
 dm = pd.merge(dp[['SERIALNO', 'SPORDER']], dr[['SERIALNO', 'SPORDER']], how='outer', indicator=True)
@@ -74,7 +74,17 @@ for c in num_cols:
     print('clean fmla, R')
     print(fmla_r[c].describe())
     print('-----------------------------')
+for c in bool_cols + num_cols:
+    print('clean fmla, Py')
+    print(fmla_p[c].isna().value_counts().sort_index())
+    print('clean fmla, R')
+    print(fmla_r[c].isna().value_counts().sort_index())
+    print('-----------------------------')
 
+for c in bool_cols + num_cols:
+    print('clean fmla, matdis sample, Py')
+    print(X[c].isna().value_counts().sort_index())
+    print('-----------------------------')
 # check clean ACS
 acs_p = pd.read_csv('./data/acs/ACS_cleaned_forsimulation_2016_ri_Py.csv')
 acs_r = pd.read_csv('./data/acs/ACS_cleaned_forsimulation_2016_ri_R.csv')
@@ -96,6 +106,7 @@ for c in num_cols:
     print('clean ACS, R')
     print(acs_r[c].describe())
     print('-----------------------------')
+
 
 ## Check CPS input data NAs
 # xvars: no NAs for all years
@@ -156,7 +167,14 @@ us = random_state.rand(len(phats))  # random number
 yhats = pd.Series([bisect_right(row, us[i])+1 for i, row in enumerate(cum_phats)])
 acs_p['empsize'] = pd.Series(yhats, index=acs_p.index)
 
-
+## check take/need_type, resp_len in post-sim ACS
+for t in types:
+    c = 'take_%s' % t
+    print('post-sim ACS, Py')
+    print(dp[c].value_counts())
+    print('post-sim ACS, R')
+    print(dr[c].value_counts())
+    print('-----------------------------')
 
 # get diff in eligible workers' IDs between dr and dp
 # NOTE: SERIALNO is id for household not person.

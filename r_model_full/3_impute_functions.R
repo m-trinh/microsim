@@ -393,7 +393,7 @@ logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, t
   # create columns based on logit estimates  
   if (regularized == FALSE) {
     sets <-  mapply(runLogitEstimate, formula = formulas, train_filt = train_filts,
-                    test_filt=test_filts, weight = weights, varname=yvars,
+                    test_filt=test_filts, weight = weights, varname=yvars, print_coefs=TRUE,
                     MoreArgs=list(d_train=d_train, d_test=d_test, create_dummies=TRUE), 
                     SIMPLIFY = FALSE)
   }
@@ -506,6 +506,7 @@ runLogitEstimate <- function(d_train,d_test, formula, test_filt,train_filt, weig
     print(summary(complete))
     print(dim(d_train))
     print('------------------------')
+    print(varname)
     print(dim(d_train %>% filter_(train_filt)))
   }
   return(d_filt)

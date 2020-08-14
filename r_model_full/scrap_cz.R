@@ -39,3 +39,15 @@ Xd <- acs[, c(c("female", "black", "asian", "native", "other", "age", "agesq", "
           paste0("ind_", seq(1, 12)))]
 yhat <- predict(estimate, Xd)
 
+
+###############
+# check emp_gov in clean fmla
+
+d_fmla <- read.csv('../data/fmla/fmla_2012/fmla_2012_employee_revised_puf.csv')
+d_fmla <- d_fmla %>% mutate(emp_gov= ifelse(D2==1 | D2==2 | D2==3, 1,0))
+
+d_fmla <- read.csv('../data/fmla/fmla_2012/fmla_2012_employee_revised_puf.csv')
+d_fmla <- d_fmla %>% mutate(emp_gov= ifelse(D2==1 | D2==2 | D2==3, 1,0))
+d_fmla <- d_fmla %>% mutate(emp_gov = ifelse(is.na(D2),0,emp_gov))
+
+
