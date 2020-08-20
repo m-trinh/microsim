@@ -108,13 +108,12 @@ clean_fmla <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
   d_fmla <- d_fmla %>% mutate(empgov_st = ifelse(D2 == 2,1,0))
   d_fmla <- d_fmla %>% mutate(empgov_loc = ifelse(D2 == 3,1,0))
   d_fmla <- d_fmla %>% mutate(emp_gov= ifelse(D2==1 | D2==2 | D2==3, 1,0))
-  
-  d_fmla <- d_fmla %>% mutate(empgov_fed = ifelse(is.na(D2),0,empgov_fed))
-  d_fmla <- d_fmla %>% mutate(empgov_st = ifelse(is.na(D2),0,empgov_st))
-  d_fmla <- d_fmla %>% mutate(empgov_loc = ifelse(is.na(D2),0,empgov_loc))
-  d_fmla <- d_fmla %>% mutate(emp_gov = ifelse(is.na(D2),0,emp_gov))
-  
-  
+
+  d_fmla <- d_fmla %>% mutate(empgov_fed = ifelse(is.na(D2),0,empgov_fed)) 
+  d_fmla <- d_fmla %>% mutate(empgov_st = ifelse(is.na(D2),0,empgov_st)) 
+  d_fmla <- d_fmla %>% mutate(empgov_loc = ifelse(is.na(D2),0,empgov_loc)) 
+  d_fmla <- d_fmla %>% mutate(emp_gov = ifelse(is.na(D2),0,emp_gov)) 
+
   # sex
   d_fmla <- d_fmla %>% mutate(male = ifelse(GENDER_CAT == 1,1,0),
                                                 female = ifelse(GENDER_CAT == 2,1,0))
@@ -1472,6 +1471,13 @@ impute_cps_to_acs <- function(d_acs, d_cps){
   # ---------------------------------------------------------------------------------------------------------
   
   # logit for hourly paid regression
+  xvars = c('female', 'black', 'asian', 'native', 'other', 'age', 'agesq', 'BA', 'GradSch', 'married', 'wage12', 'wkswork', 'wkhours', 'emp_gov',
+             'occ_1', 'occ_2', 'occ_3', 'occ_3', 'occ_4', 'occ_5', 'occ_6', 'occ_7', 'occ_8',
+            'occ_9', 'ind_1', 'ind_2', 'ind_3', 'ind_4', 'ind_5', 'ind_6', 'ind_7', 'ind_8', 'ind_9', 'ind_10', 'ind_11', 'ind_12')
+  
+  d_acs <- fill_na_cols(d_acs, xvars)
+  d_cps <- fill_na_cols(d_cps, xvars)
+  
   xvar_formula <- paste('female + black + asian + native + other + age + agesq + BA + GradSch + married + wage12 + wkswork + wkhours + emp_gov',
                         "+ occ_1 + occ_2 + occ_3 + occ_3 + occ_4 +  occ_5 + occ_6 + occ_7 + occ_8",
                         "+ occ_9 + ind_1 + ind_2 + ind_3 + ind_4 + ind_5 + ind_6 + ind_7 + ind_8 + ind_9 + ind_10 + ind_11 + ind_12")

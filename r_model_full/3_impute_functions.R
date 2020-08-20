@@ -15,6 +15,7 @@
 # Table of Contents
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+# 0. fill_na_cols
 # 1. impute_fmla_to_acs
 # Modular imputation methods - can be swaped out for one another for FMLA to ACS imputation of:
 # take_* vars, resp_len, prop_pay_employer variables
@@ -30,6 +31,51 @@
   # 1F. random_forest
   # 1G. svm_impute
   # 1H. xG Boost
+
+#==============================#
+# 0. fill_na_cols
+#==============================#
+# helper function that fills na columns based on population mean (random draw for binary vars)
+
+fill_na_cols <- function(d, cols) {
+  options(warn=-1)
+  # population mean imputation for missing xvars in logit regression
+  if (cols[1]!="" & is.null(cols)==FALSE) {
+    for (i in cols) {
+      # union and hourly have sample restrictions that we need to preserve NA values for
+      if ((i=='union' | i=='hourly') & 'prerelg' %in% names(d)) {
+        d_filt <- d %>% filter(prerelg == 1) %>% select(i)
+      } else {
+        d_filt <- d %>% select(i)
+      }
+      # In test and training data if xvar is numeric, fill missing values with mean value
+      if (is.numeric(d_filt[,i]) & any(unique(d_filt[!is.na(d_filt[,i]), i])!=c(0,1))) {
+        d_filt[is.na(d_filt[,i]), i] <- mean(d_filt[,i], na.rm = TRUE)  
+      }
+      # if it is a dummy var, then take a random draw with probability = to the non-missing mean
+      if (is.numeric(d_filt[,i]) & all(unique(d_filt[!is.na(d_filt[,i]), i])==c(0,1))) {
+        if (any(is.na(d_filt[,i]))){
+          d_filt$prob <- mean(d_filt[,i], na.rm = TRUE)
+          d_filt['rand']=runif(nrow(d))
+          d_filt[is.na(d_filt[,i]), i] <- with(d_filt[is.na(d_filt[,i]), c(i,'rand','prob')], ifelse(rand>prob,0,1))    
+          d_filt['rand'] <- NULL
+          d_filt$prob <- NULL
+        }
+      }
+      # Merge values back into data set 
+      if (i=='union' | i=='hourly') {
+        names(d_filt)[1] <- paste0(i,'_temp')
+        d <- cbind(d, d_filt)
+        d[,i] <- NULL
+        names(d)[names(d)==paste0(i,'_temp')] <- i
+      } else {
+        d[,i] <- d_filt
+      }
+    }
+  }
+  options(warn=0)
+  return(d)
+}
 
 # ============================ #
 # 1. impute_fmla_to_acs
@@ -110,10 +156,15 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
               prop_pay_employer = '~ weight',
               resp_len = "~ weight")
   
+  # fill na cols in the acs and fmla data sets with mean values/random draws 
+  d_acs <- fill_na_cols(d_acs, xvars)
+  d_fmla <- fill_na_cols(d_fmla, xvars)
+  
   # Save ACS and FMLA Dataframes at this point to document format that 
   # alternative imputation methods will need to expect
   # saveRDS(d_fmla, file="./R_dataframes/d_fmla_impute_input.rds") # TODO: Remove from final version
   # saveRDS(d_acs, file="./R_dataframes/d_acs_impute_input.rds") # TODO: Remove from final version
+
   
   # KNN1 imputation method
   if (impute_method=="KNN1") {
@@ -137,6 +188,8 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
     # save output for reference when making other methods
     saveRDS(d_acs, file="./R_dataframes/d_acs_impute_output.rds") # TODO: Remove from final version
   }
+  
+  
   
   # Logit estimation of leave taking to compare with Chris' results in Python
   if (impute_method=="Logistic Regression GLM") {
@@ -331,41 +384,7 @@ logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, t
   #            'ndep_kid', 'ndep_old', 'nevermarried', 'partner',
   #            'widowed', 'divorced', 'separated')
   
-  # population mean imputation for missing xvars in logit regression
-  d_test_no_imp <- d_test
-  if (xvars[1]!="") {
-    options(warn=-1)
-    for (i in xvars) {
-      # In test and training data if xvar is numeric, fill missing values with mean value
-      if (is.numeric(d_test[,i]) & any(unique(d_test[!is.na(d_test[,i]), i])!=c(0,1))) {
-        d_test[is.na(d_test[,i]), i] <- mean(d_test[,i], na.rm = TRUE)  
-      }
-      if (is.numeric(d_train[,i]) & any(unique(d_train[!is.na(d_train[,i]), i])!=c(0,1))) {
-        d_train[is.na(d_train[,i]), i] <- mean(d_train[,i], na.rm = TRUE)  
-      }
-      # if it is a dummy var, then take a random draw with probability = to the non-missing mean
-      if (is.numeric(d_test[,i]) & all(unique(d_test[!is.na(d_test[,i]), i])==c(0,1))) {
-        if (any(is.na(d_test[,i]))){
-          d_test$prob <- mean(d_test[,i], na.rm = TRUE)
-          d_test['rand']=runif(nrow(d_test))
-          d_test[is.na(d_test[,i]), i] <- with(d_test[is.na(d_test[,i]), c(i,'rand','prob')], ifelse(rand>prob,0,1))    
-          d_test['rand'] <- NULL
-          d_test$prob <- NULL
-        }
-      }
-      if (is.numeric(d_train[,i]) & all(unique(d_train[!is.na(d_train[,i]), i])==c(0,1))) {
-        if (any(is.na(d_train[,i]))){
-          d_train$prob <- mean(d_train[,i], na.rm = TRUE)
-          d_train['rand']=runif(nrow(d_train))
-          d_train[is.na(d_train[,i]), i] <- with(d_train[is.na(d_train[,i]), c(i,'rand','prob')], ifelse(rand>prob,0,1))    
-          d_train['rand'] <- NULL
-          d_train$prob <- NULL
-        }
-      }
-    }
-    options(warn=0)
-  }
- 
+  
   
   # remove prop_pay_employer from lists as we need to use ordinal regression for it
   train_filts <- list.remove(train_filts, 'prop_pay_employer')
@@ -410,7 +429,7 @@ logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, t
     # d_test <- merge(i, d_test, by="id",all.y=TRUE)
     for (j in names(i)) {
       if (j %in% names(d_test)==FALSE){
-        d_test_no_imp[j] <- i[match(d_test_no_imp$id, i$id), j]    
+        d_test[j] <- i[match(d_test$id, i$id), j]    
       }
     }
     # set missing probability = 0
@@ -433,10 +452,9 @@ logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, t
   #d_test <- merge(d_filt, d_test, by='id', all.y=TRUE)
   for (i in names(d_filt)) {
     if ((i %in% names(d_test))==FALSE){
-      d_test_no_imp[i] <- d_filt[match(d_test_no_imp$id, d_filt$id), i]    
+      d_test[i] <- d_filt[match(d_test$id, d_filt$id), i]    
     }
   }
-  d_test <- d_test_no_imp
   # replace factor levels with prop_pay_employer proportions
   d_test <- d_test %>% mutate(prop_pay_employer = ifelse(prop_pay_employer == 1, .125, prop_pay_employer))
   d_test <- d_test %>% mutate(prop_pay_employer = ifelse(prop_pay_employer == 2, .375, prop_pay_employer))
