@@ -28,16 +28,16 @@ def get_columns(fmla_wave, leave_types, gov_workers_only=False):
     if fmla_wave==2012:
         Xs = ['widowed', 'divorced', 'separated', 'nevermarried',
               'female',
-              'ltHS', 'someCol', 'BA', 'GradSch',
+              'noHSdegree', 'someCol', 'BA', 'GradSch',
               'black', 'other', 'asian','native','hisp',
               'nochildren']
-        Xs += ['fmla_eligible', 'union', 'noelderly', 'hourly']
+        Xs += ['noelderly', 'fmla_eligible', 'union', 'hourly']
         Xs += ['age',  'agesq', 'faminc', 'wkhours']
 
     elif fmla_wave==2018:
         Xs = ['widowed', 'divorced', 'separated', 'nevermarried',
               'female',
-              'ltHS', 'someCol', 'BA', 'GradSch',
+              'noHSdegree', 'someCol', 'BA', 'GradSch',
               'black', 'other', 'asian','native','hisp',
               'nochildren']
         Xs +=['fmla_eligible', 'noelderly', 'hourly', 'union'] #
@@ -430,6 +430,9 @@ def get_sim_col(X, y, w, Xa, clf, random_state):
     if isinstance(clf, list): # logit GLM = ['logit glm', sklearn logit classifier]
         if len(y.value_counts())==2: # for (almost all) binary yvars, use statsmodel if user chose logit GLM
             clf = sm.GLM(y, sm.add_constant(Z), family=sm.families.Binomial(), freq_weights=w).fit()
+            # TODO: to remove after testing done
+            if y.name in ['take_matdis', 'need_matdis']:
+                print(clf.summary())
         else: # only when yvar is multinomial (e.g. prop_pay), use sklearn logit=clf[1]
             # if user chose logit GLM, to avoid overfitting
             clf = clf[1].fit(Z, y, sample_weight=w)

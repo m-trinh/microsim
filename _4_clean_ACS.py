@@ -12,7 +12,9 @@ import pandas as pd
 import numpy as np
 from _5a_aux_functions import fillna_df, get_wquantile
 import sklearn.linear_model
+import statsmodels.api as sm
 import mord
+from bisect import bisect_right
 from time import time
 from Utils import STATE_CODES
 import os
@@ -127,7 +129,7 @@ class DataCleanerACS:
         # dict from yvar to impute to xvars
         xvars_in_acs = ['female', 'black', 'asian', 'native', 'other', 'age', 'agesq', 'BA', 'GradSch', 'married']
         xvars_in_acs += ['wage12', 'wkswork', 'wkhours', 'emp_gov']
-        xvars_in_acs += ['occ_%s' % x for x in range(1, 11)] + ['ind_%s' % x for x in range(1, 14)]
+        xvars_in_acs += ['occ_%s' % x for x in range(1, 10)] + ['ind_%s' % x for x in range(1, 13)] # omit occ10, ind13
         # xvars_in_acs += ['ind_top1', 'ind_top2', 'ind_top3', 'ind_other', 'ind_na']
         # xvars_in_acs += ['occ_top1', 'occ_top2', 'occ_top3', 'occ_other', 'occ_na']
         dct_cps_yx = {
@@ -143,7 +145,7 @@ class DataCleanerACS:
         X = cps[dct_cps_yx['empsize']]
         clf = mord.LogisticAT().fit(X, y)
         dct_cps_clfs['empsize'] = clf
-        # paid hourly, oneemp, union - logit
+        # paid hourly, oneemp, union - logit GLM
         for col_y in ['hourly', 'oneemp', 'union']:
             ix_train_cps = cps.index
             if col_y in ['hourly', 'union']: # too many NAs for hourly, union (prerelg=0), use non-NA rows to train
@@ -151,8 +153,9 @@ class DataCleanerACS:
             y = cps.loc[ix_train_cps, col_y]
             X = cps.loc[ix_train_cps, dct_cps_yx[col_y]]
             w = cps.loc[ix_train_cps, 'marsupwt']
-            clf = sklearn.linear_model.LogisticRegression(solver='liblinear',
-                                                          random_state=self.random_state).fit(X, y, sample_weight=w)
+            # clf = sklearn.linear_model.LogisticRegression(solver='liblinear',
+            #                                               random_state=self.random_state).fit(X, y, sample_weight=w)
+            clf = sm.GLM(y, sm.add_constant(X), family=sm.families.Binomial(), freq_weights=w).fit()
             dct_cps_clfs[col_y] = clf
 
         ## Get household data for merging to person data chunks
@@ -219,13 +222,13 @@ class DataCleanerACS:
 
             # Educational level
             d['sku'] = np.where(d['SCHL'].isna(), 0, d['SCHL'])
-            d['ltHS'] = np.where(d['sku'] <= 15, 1, 0)
+            d["noHSdegree"] = np.where(d['sku'] <= 15, 1, 0)
             d['HSgrad'] = np.where((d['sku'] >= 16) & (d['sku'] <= 17), 1, 0)
             d['someCol'] = np.where((d['sku'] >= 18) & (d['sku'] <= 20), 1, 0)
             d["BA"] = np.where(d['sku'] == 21, 1, 0)
             d["GradSch"] = np.where(d['sku'] >= 22, 1, 0)
 
-            d["noHSdegree"] = np.where(d['sku'] <= 15, 1, 0)
+            d['ltHS'] = np.where(d['sku'] <= 11, 1, 0)
             d["BAplus"] = np.where(d['sku'] >= 21, 1, 0)
             # variables for imputing hourly status, using CPS estimates from original model
             d["maplus"] = np.where(d['sku'] >= 22, 1, 0)
@@ -394,11 +397,20 @@ class DataCleanerACS:
                 if c=='union':
                     Xd = Xd.join(d[['hourly', 'oneemp', 'empsize']])
                 # make prediction
-                if c=='empsize': # ordered logit via mord, predict category directly
-                    d[c] = pd.Series(clf.predict(Xd), index=d.index)
-                else: # simulate from logit phat, not yhat, to avoid loss of predicted minor class (e.g. union=0)
-                    ps = clf.predict_proba(Xd)  # get prob vector ps where each p = (p0, p1)
-                    ps = ps[:, 1]  # get prob=1 for each row
+                if c=='empsize': # ordered logit via mord, predict category using wof
+                    phats = clf.predict_proba(Xd)
+                    cum_phats = np.cumsum(phats, axis=1)
+                    us = self.random_state.rand(len(phats))  # random number
+                    yhats = [bisect_right(row, us[i]) + 1 for i, row in enumerate(cum_phats)]
+                    d[c] = yhats
+                else: # simulate from logit GLM phat, not yhat, to avoid loss of predicted minor class (e.g. union=0)
+                    xts_with_constant = Xd.copy()
+                    # add constant manually - sm.add_constant() may fail for small xts with exist const col
+                    xts_with_constant['const'] = 1
+                    xts_with_constant = xts_with_constant[['const'] + [x for x in Xd.columns]]
+                    ps = (clf.predict(xts_with_constant))  # statsmodel phat gives pr=1
+                    # ps = clf.predict_proba(Xd)  # get prob vector ps where each p = (p0, p1)
+                    # ps = ps[:, 1]  # get prob=1 for each row
                     us = self.random_state.rand(len(ps))  # random number
                     d[c] = [int(x) for x in ps > us]  # flag 1 if p1 > random number
 

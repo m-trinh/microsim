@@ -186,8 +186,8 @@ policy_simulation <- function(
   if (is.null(xvars) & fmla_year==2012) {
     xvars <-c("widowed", "divorced", "separated", "nevermarried", "female", 
               "noHSdegree", "someCol", "BA", "GradSch", "black", 
-              "other", "asian",'native', "hisp","nochildren",'fmla_eligible',
-              'union','hourly', 'noelderly','emp_gov',
+              "other", "asian",'native', "hisp","nochildren",
+              'noelderly','fmla_eligible', 'union','hourly', 'emp_gov',
               'age',"agesq",'wkhours','faminc')
   }
   if (is.null(xvars) & fmla_year==2018) {

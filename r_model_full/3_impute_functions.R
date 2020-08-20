@@ -412,7 +412,7 @@ logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, t
   # create columns based on logit estimates  
   if (regularized == FALSE) {
     sets <-  mapply(runLogitEstimate, formula = formulas, train_filt = train_filts,
-                    test_filt=test_filts, weight = weights, varname=yvars,
+                    test_filt=test_filts, weight = weights, varname=yvars, print_coefs=TRUE,
                     MoreArgs=list(d_train=d_train, d_test=d_test, create_dummies=TRUE), 
                     SIMPLIFY = FALSE)
   }
@@ -474,7 +474,7 @@ logit_leave_method <- function(d_test, d_train, xvars=NULL, yvars, test_filts, t
 # returns a separate copy of only those observations with valid imputed values
 
 runLogitEstimate <- function(d_train,d_test, formula, test_filt,train_filt, weight, 
-                             varname, create_dummies){
+                             varname, create_dummies, print_coefs=FALSE){
   options(warn=-1)
   des <- svydesign(id = ~1,  weights = as.formula(weight), data = d_train %>% filter_(train_filt))
   complete <- svyglm(as.formula(formula), data = d_train %>% filter_(train_filt), family = "quasibinomial",design = des)
@@ -518,7 +518,15 @@ runLogitEstimate <- function(d_train,d_test, formula, test_filt,train_filt, weig
     d_filt[varname] <- with(d_filt, ifelse(rand>get(var_prob),0,1))    
     d_filt <- d_filt[,c(varname, 'id')]
   }
-  
+
+  # print coefs if needed
+  if (print_coefs==TRUE){
+    print(summary(complete))
+    print(dim(d_train))
+    print('------------------------')
+    print(varname)
+    print(dim(d_train %>% filter_(train_filt)))
+  }
   return(d_filt)
 }
 
@@ -553,7 +561,7 @@ runOrdinalEstimate <- function(d_train,d_test, formula, test_filt,train_filt, va
     d_filt['var_score']=0
     for (dem in names(model)) {
       if (dem !='(Intercept)') { 
-        d_filt[is.na(d_filt[,dem]),dem]=0
+        d_filt[is.na(d_filt[,dem]),dem]=mean(d_filt[, dem], na.rm = TRUE)
         d_filt[,'var_score']= d_filt[,'var_score'] + d_filt[,dem]*model[dem]
       }
     }
@@ -565,8 +573,15 @@ runOrdinalEstimate <- function(d_train,d_test, formula, test_filt,train_filt, va
     d_filt['rand']=runif(nrow(d_filt))
     for (i in seq(cat_num)) {
       if (i!=cat_num) {
+        # logit P(Y <= k | x) = zeta_k - eta
+        #
+        # See https://rdrr.io/cran/MASS/man/polr.html
+        # logit(1-cumprob2) = cuts[i]-var_score
+        # so prob(cat<=2) = cumprob2 = 1-invlogit(cuts[i]-var_score) = invlogit(var_score-cuts[i])
+        # so assign cat=2 if rand<prob(cat<=2)=cumprob2, or 1-rand>=cumprob2
+        # WLOG, assign cat=2 if rand>=cumprob2
         d_filt <- d_filt %>% mutate(cumprob= var_score-cuts[i])
-        d_filt <- d_filt %>% mutate(cumprob2= exp(cumprob)/(1+exp(cumprob)))
+        d_filt <- d_filt %>% mutate(cumprob2= exp(cumprob)/(1+exp(cumprob))) # invlogit(cumprob)
         d_filt[varname] <- with (d_filt, ifelse(get(varname)==0 & rand>=cumprob2,i,get(varname)))
       }
       else {

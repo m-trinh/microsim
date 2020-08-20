@@ -51,8 +51,8 @@ cps['native'] = np.where((cps['hisp'] == 0) & (cps['prdtrace'].isin([3, 5, 14]))
 cps['native'] = np.where((cps['hisp'] == 0) & (cps['prdtrace'].isna()), np.nan, cps['native'])
 cps['other'] = np.where((cps['hisp'] == 0) & (~cps['prdtrace'].isin([1, 2, 3, 4, 5, 14])), 1, 0)
 cps['other'] = np.where((cps['hisp'] == 0) & (cps['prdtrace'].isna()), np.nan, cps['other'])
-cps['age'] = cps['a_age']
-cps['agesq'] = cps['age'] * cps['age']
+cps['age'] = cps['a_age'].astype(float) # so that age, agesq is not int8 bounded by -127, 128
+cps['agesq'] = np.array(cps['age']) ** 2
 cps['BA'] = np.where(cps['a_hga'] == 43, 1, 0)
 cps['BA'] = np.where(cps['a_hga'].isna(), np.nan, cps['BA'])
 cps['GradSch'] = np.where((cps['a_hga'] <= 46) & (cps['a_hga'] >= 44), 1, 0)
@@ -140,4 +140,5 @@ cps = cps[['peridnum', 'marsupwt'] +  # unique person id, weight
 # fillna to get ready for models
 # cps = fillna_df(cps, random_state)
 # save output
+print(cps[['age', 'agesq']].head(20))
 cps.to_csv(fp_out, index=False)

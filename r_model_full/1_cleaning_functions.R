@@ -108,12 +108,12 @@ clean_fmla <-function(d_fmla, save_csv=FALSE, restricted=FALSE) {
   d_fmla <- d_fmla %>% mutate(empgov_st = ifelse(D2 == 2,1,0))
   d_fmla <- d_fmla %>% mutate(empgov_loc = ifelse(D2 == 3,1,0))
   d_fmla <- d_fmla %>% mutate(emp_gov= ifelse(D2==1 | D2==2 | D2==3, 1,0))
-  
+
   d_fmla <- d_fmla %>% mutate(empgov_fed = ifelse(is.na(D2),0,empgov_fed)) 
   d_fmla <- d_fmla %>% mutate(empgov_st = ifelse(is.na(D2),0,empgov_st)) 
   d_fmla <- d_fmla %>% mutate(empgov_loc = ifelse(is.na(D2),0,empgov_loc)) 
   d_fmla <- d_fmla %>% mutate(emp_gov = ifelse(is.na(D2),0,emp_gov)) 
-  
+
   # sex
   d_fmla <- d_fmla %>% mutate(male = ifelse(GENDER_CAT == 1,1,0),
                                                 female = ifelse(GENDER_CAT == 2,1,0))
@@ -1298,7 +1298,7 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
   }
   cols<- c('SERIALNO',"nochildren", "ln_faminc", "faminc", "lnearn",
     "age", "a_age",  "hiemp", "widowed", "divorced", 'married',
-    "separated", "nevermarried", "male", "female", "agesq", "someCol", "BA", 
+    "separated", "nevermarried", "male", "female", "agesq", "someCol", "BA",
     "GradSch", "black", "white", "asian", "other",'native', "hisp", "occ_1", "occ_2", "occ_3", 
     "occ_4", "occ_5", "occ_6", "occ_7", "occ_8", "occ_9", "occ_10", "ind_1", "ind_2", "ind_3", "ind_4", 
     "ind_5", "ind_6", "ind_7", "ind_8", "ind_9", "ind_10", "ind_11", "ind_12", "ind_13",
@@ -1486,7 +1486,6 @@ impute_cps_to_acs <- function(d_acs, d_cps){
   test_filt = c(hourly= "TRUE")
   train_filt = c(hourly= "prerelg==1")
   weight = c(hourly = "~ marsupwt")
-  
   # INPUTS: CPS (training) data set, logit regression model specification, training filter condition, weight to use
   d_filt <- runLogitEstimate(d_train=d_cps,d_test=d_acs, formula=formula, test_filt=test_filt, train_filt=train_filt, 
                              weight=weight, varname=varname, create_dummies=TRUE)
@@ -1505,9 +1504,9 @@ impute_cps_to_acs <- function(d_acs, d_cps){
   formula = paste("oneemp ~", xvar_formula)
   filt = c(oneemp= "TRUE")
   weight = c(oneemp = "~ marsupwt")
-  
+
   # INPUTS: CPS (training) data set, ordinal regression model specification, filter conditions, var to create 
-  d_filt <-  runLogitEstimate(d_train=d_cps,d_test=d_acs, formula=formula, test_filt=filt, train_filt=filt, 
+  d_filt <-  runLogitEstimate(d_train=d_cps,d_test=d_acs, formula=formula, test_filt=filt, train_filt=filt,
                               weight=weight, varname=varname, create_dummies=TRUE)
   
   # running into memory issues with merge, using match instead

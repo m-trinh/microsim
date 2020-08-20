@@ -270,3 +270,5 @@ print('Outlay matdis capped = $%s million' % outlay_matdis_capped)
 outlay_bond_capped = round(((acs.annual_benefit_bond_allocate)*(acs.PWGTP)).sum()/10**6, 1)
 print('Outlay bond capped = $%s million' % outlay_bond_capped)
 print(' --- Total outlay = %s' % (outlay_matdis_capped + outlay_bond_capped))
+
+

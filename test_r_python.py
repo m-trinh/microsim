@@ -11,8 +11,8 @@ pd.set_option('display.width', 200)
 import numpy as np
 from _5a_aux_functions import *
 ## Read in post-sim ACS
-dr = pd.read_csv('./output/output_20200806_210828/acs_sim_ri_20200806_210828.csv')
-dp = pd.read_csv('./output/output_20200806_210528_main simulation/acs_sim_ri_20200806_210528.csv')
+dp = pd.read_csv('./output/output_20200813_204412_main simulation/acs_sim_ri_20200813_204412.csv')
+dr = pd.read_csv('./output/output_20200813_205313/acs_sim_ri_20200813_205313.csv')
 
 ## Find which persons are in R but not Python
 dm = pd.merge(dp[['SERIALNO', 'SPORDER']], dr[['SERIALNO', 'SPORDER']], how='outer', indicator=True)
@@ -63,19 +63,28 @@ print(fmla_r['resp_len'].value_counts())
 xvars, yvars, w = get_columns(2012, types)
 bool_cols, num_cols = get_bool_num_cols(fmla_p[xvars])
 for c in bool_cols:
-    if c not in ['noelderly', 'emp_gov']: # some xvars not generated in R, NT fix by Luke
-        print('clean fmla, Py')
-        print(fmla_p[c].value_counts())
-        print('clean fmla, R')
-        print(fmla_r[c].value_counts())
-        print('-----------------------------')
+    print('clean fmla, Py')
+    print(fmla_p[c].value_counts())
+    print('clean fmla, R')
+    print(fmla_r[c].value_counts())
+    print('-----------------------------')
 for c in num_cols:
     print('clean fmla, Py')
     print(fmla_p[c].describe())
     print('clean fmla, R')
     print(fmla_r[c].describe())
     print('-----------------------------')
+for c in bool_cols + num_cols:
+    print('clean fmla, Py')
+    print(fmla_p[c].isna().value_counts().sort_index())
+    print('clean fmla, R')
+    print(fmla_r[c].isna().value_counts().sort_index())
+    print('-----------------------------')
 
+for c in bool_cols + num_cols:
+    print('clean fmla, matdis sample, Py')
+    print(X[c].isna().value_counts().sort_index())
+    print('-----------------------------')
 # check clean ACS
 acs_p = pd.read_csv('./data/acs/ACS_cleaned_forsimulation_2016_ri_Py.csv')
 acs_r = pd.read_csv('./data/acs/ACS_cleaned_forsimulation_2016_ri_R.csv')
@@ -96,6 +105,75 @@ for c in num_cols:
     print(acs_p[c].describe())
     print('clean ACS, R')
     print(acs_r[c].describe())
+    print('-----------------------------')
+
+
+## Check CPS input data NAs
+# xvars: no NAs for all years
+# yvars: NAs only for hourly, union (will drop NA rows when training for these)
+xvars_in_acs = ['female', 'black', 'asian', 'native', 'other', 'age', 'agesq', 'BA', 'GradSch', 'married']
+xvars_in_acs += ['wage12', 'wkswork', 'wkhours', 'emp_gov']
+xvars_in_acs += ['occ_%s' % x for x in range(1, 10)] + ['ind_%s' % x for x in range(1, 13)]
+yvars_cps = ['hourly', 'empsize', 'oneemp', 'union']
+for year in [2014, 2015, 2016]:
+    cps = pd.read_csv('./data/cps/cps_clean_%s.csv' % year)
+    print('-'*30)
+    print(cps[xvars_in_acs].describe())
+    print(cps[yvars_cps].describe())
+    print(cps.shape)
+
+
+for year in [2014, 2015, 2016]:
+    cps = pd.read_csv('./data/cps/cps_clean_%s.csv' % year)
+    print(cps[cps['agesq']<0][['age', 'agesq']].head())
+# check coefs of logit GLM
+import statsmodels.api as sm
+
+cps = pd.read_csv('./data/cps/cps_clean_%s.csv' % 2014)
+cps = cps[cps['hourly'].notna()]
+ix_train_cps = cps.index
+col_y = 'hourly'
+y = cps.loc[ix_train_cps, col_y]
+X = cps.loc[ix_train_cps, xvars_in_acs]
+w = cps.loc[ix_train_cps, 'marsupwt']
+random_state = np.random.RandomState(12345)
+X = fillna_df(X, random_state=random_state)
+clf = sm.GLM(y, sm.add_constant(X), family=sm.families.Binomial(), freq_weights=w).fit()
+
+for x in xvars_in_acs:
+    v = cps[x].isna().value_counts()
+    if len(v)>1:
+        print(v)
+
+###################################
+# check MORD estimation of empsize in CPS
+###################################
+import mord
+from bisect import bisect_right, bisect_left
+
+cps = pd.read_csv('./data/cps/cps_clean_2014.csv')
+random_state = np.random.RandomState(12345)
+cps[xvars_in_acs] = fillna_df(cps[xvars_in_acs], random_state=random_state)
+y = cps['empsize']
+X = cps[xvars_in_acs]
+clf = mord.LogisticAT(alpha=0).fit(X, y)
+# predict - direct
+Xd = fillna_df(acs_p[xvars_in_acs], random_state=random_state)
+acs_p['empsize'] = pd.Series(clf.predict(Xd), index=acs_p.index)
+# predict - wheel of fortune
+phats = clf.predict_proba(Xd)
+cum_phats = np.cumsum(phats, axis=1)
+us = random_state.rand(len(phats))  # random number
+yhats = pd.Series([bisect_right(row, us[i])+1 for i, row in enumerate(cum_phats)])
+acs_p['empsize'] = pd.Series(yhats, index=acs_p.index)
+
+## check take/need_type, resp_len in post-sim ACS
+for t in types:
+    c = 'take_%s' % t
+    print('post-sim ACS, Py')
+    print(dp[c].value_counts())
+    print('post-sim ACS, R')
+    print(dr[c].value_counts())
     print('-----------------------------')
 
 # get diff in eligible workers' IDs between dr and dp
