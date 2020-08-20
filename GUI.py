@@ -2234,6 +2234,7 @@ class PopulationAnalysis(ScrollFrame):
 
         super().__init__(parent, **kwargs)
         self.results_files = results_files
+        self.data = self.get_results_data()
 
         # Frame to hold inputs for population characteristics
         self.parameters_frame = Frame(self.content, highlightcolor='white', highlightthickness=1, pady=6, padx=8,
@@ -2295,42 +2296,102 @@ class PopulationAnalysis(ScrollFrame):
 
         # Frame to hold histograms
         self.histogram_frame = Frame(self.content, bg=DARK_COLOR)
-        self.histograms = []
+        self.cpl_histograms = []
+        self.add_histograms = []
         self.histogram_frame.pack(side=TOP, fill=BOTH, expand=True)
 
         # Upon first initialization, add histograms to the frame
         self.create_histograms()
 
+    def get_results_data(self, types=None, chunksize=100000):
+        data = []
+        if types is None:
+            types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
+
+        usecols = ['PWGTP', 'female', 'age', 'wage12', 'nochildren', 'asian', 'black', 'white', 'native', 'other',
+                   'hisp'] + ['takeup_%s' % t for t in types] + ['cpl_%s' % t for t in types] + \
+                  ['cfl_%s' % t for t in types] + ['len_%s' % t for t in types]
+
+        for output_fp in self.results_files:
+            # Read in simulated acs, this is just df returned from get_acs_simulated()
+            for df in pd.read_csv(output_fp, usecols=lambda c: c in set(usecols), chunksize=chunksize):
+                # Restrict to workers who take up the program
+                types = [t for t in types if 'takeup_%s' % t in df.columns]
+                df['takeup_any'] = df[['takeup_%s' % t for t in types]].sum(axis=1) > 0
+                df = df[df['takeup_any']]
+
+                # Make sure cpl, cfl, and len type is non-missing
+                for t in types:
+                    df['cpl_%s' % t] = df['cpl_%s' % t].fillna(0)
+                    df['cfl_%s' % t] = df['cfl_%s' % t].fillna(0)
+                    df['len_%s' % t] = df['len_%s' % t].fillna(0)
+
+                # Total covered-by-program length
+                df['cpl'] = [sum(x) for x in df[['cpl_%s' % t for t in types]].values]
+                df['cfl'] = [sum(x) for x in df[['cfl_%s' % t for t in types]].values]
+                df['len'] = [sum(x) for x in df[['len_%s' % t for t in types]].values]
+                df['imp_len'] = df['cfl'] - df['len']
+
+                # Keep needed vars for population analysis plots
+                keepcols = ['PWGTP', 'cpl', 'imp_len', 'female', 'age', 'wage12']
+                df = df[keepcols]
+                data.append(df)
+        return data
+
     def create_histograms(self):
         """Create new histogram charts for each simulation"""
         for sim_num in range(len(self.results_files)):
             # Get data from results files and user inputs
-            leaves, weights = self.get_population_analysis_results(self.results_files[sim_num])
-            title = get_sim_name(sim_num)  # Get title from simulation number
+            # leaves, weights = self.get_population_analysis_results(self.results_files[sim_num])
+            df = self.data[sim_num]
 
             # Create histogram from data
-            histogram = self.create_histogram(leaves, self.bins, title, weights=weights, xticks=self.xticks)
-            self.histograms.append(histogram)  # Add histogram to list of histograms
-            chart_container = ChartContainer(self.histogram_frame, histogram, DARK_COLOR)
-            chart_container.pack()
+            # cpl_histogram = self.create_histogram(leaves, self.bins, title, weights=weights, xticks=self.xticks)
+            cpl_title = self.get_chart_title(sim_num, 'cpl')
+            cpl_histogram = self.create_histogram(df['cpl'], self.bins, cpl_title, weights=df['PWGTP'],
+                                                  xticks=self.xticks)
+            self.cpl_histograms.append(cpl_histogram)  # Add histogram to list of histograms
+            cpl_chart_container = ChartContainer(self.histogram_frame, cpl_histogram, DARK_COLOR)
+            cpl_chart_container.pack()
+
+            add_title = self.get_chart_title(sim_num, 'add')
+            add_histogram = self.create_histogram(df['imp_len'], self.bins, add_title, weights=df['PWGTP'],
+                                                  xticks=self.xticks)
+            self.add_histograms.append(add_histogram)  # Add histogram to list of histograms
+            add_chart_container = ChartContainer(self.histogram_frame, add_histogram, DARK_COLOR)
+            add_chart_container.pack()
 
     def update_histograms(self):
         """Update histogram charts for each simulation"""
         for sim_num in range(len(self.results_files)):
             # Get data from results files and user inputs
-            leaves, weights = self.get_population_analysis_results(self.results_files[sim_num])
+            # leaves, weights = self.get_population_analysis_results(self.results_files[sim_num])
+            df = self.filter_data(self.data[sim_num])
 
             # Find created histogram chart in list
-            fig = self.histograms[sim_num]
-            ax = fig.axes[0]
-            ax.cla()
+            cpl_title = self.get_chart_title(sim_num, 'cpl')
+            self.update_histogram(self.cpl_histograms[sim_num], df['cpl'], df['PWGTP'], cpl_title)
 
-            # Change histogram data
-            ax.hist(leaves, self.bins, weights=weights, color='#1aff8c', rwidth=0.9)
-            # Set the chart's style back to original
-            self.set_histogram_properties(fig, ax, get_sim_name(sim_num), xticks=self.xticks)
-            fig.canvas.draw()
-            fig.canvas.flush_events()
+            add_title = self.get_chart_title(sim_num, 'add')
+            self.update_histogram(self.add_histograms[sim_num], df['imp_len'], df['PWGTP'], add_title)
+
+    def update_histogram(self, fig, leaves, weights, title):
+        ax = fig.axes[0]
+        ax.cla()
+        # Change histogram data
+        ax.hist(leaves, self.bins, weights=weights, color='#1aff8c', rwidth=0.9)
+        # Set the chart's style back to original
+        self.set_histogram_properties(fig, ax, get_sim_name(title), xticks=self.xticks)
+        fig.canvas.draw()
+        fig.canvas.flush_events()
+
+    def get_chart_title(self, sim_num, category):
+        state = self.winfo_toplevel().parent.general_params.state
+        sim_name = get_sim_name(sim_num)
+        if category.lower() == 'cpl':
+            return 'State: {}. Leaves Taken under Program. {}'.format(state, sim_name)
+        elif category.lower() == 'add':
+            return 'State: {}. Additional Leaves Taken due to Program. {}'.format(state, sim_name)
 
     def get_population_analysis_results(self, output_fp, types=None, chunksize=100000):
         """Get the number of leave days per person from simulation results
@@ -2348,9 +2409,11 @@ class PopulationAnalysis(ScrollFrame):
             types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
 
         usecols = ['PWGTP', 'female', 'age', 'wage12', 'nochildren', 'asian', 'black', 'white', 'native', 'other',
-                   'hisp'] + ['takeup_%s' % t for t in types] + ['cpl_%s' % t for t in types]
+                   'hisp'] + ['takeup_%s' % t for t in types] + ['cpl_%s' % t for t in types] + \
+                  ['cfl_%s' % t for t in types] + ['len_%s' % t for t in types]
 
-        leaves = []
+        cpl_len = []
+        imp_len = []
         weights = []
 
         for df in pd.read_csv(output_fp, usecols=lambda c: c in set(usecols), chunksize=chunksize):
@@ -2365,16 +2428,21 @@ class PopulationAnalysis(ScrollFrame):
 
             # Total covered-by-program length
             df['cpl'] = [sum(x) for x in df[['cpl_%s' % t for t in types]].values]
+            df['cfl'] = [sum(x) for x in df[['cfl_%s' % t for t in types]].values]
+            df['len'] = [sum(x) for x in df[['len_%s' % t for t in types]].values]
+            df['imp_len'] = df['cfl'] - df['len']
+
             # Keep needed vars for population analysis plots
             keepcols = ['PWGTP', 'cpl', 'female', 'age', 'wage12', 'nochildren', 'asian', 'black', 'white', 'native',
-                        'other', 'hisp']
+                        'other', 'hisp', 'imp_len']
             df = df[keepcols]
             df = self.filter_data(df)
 
-            leaves += df['cpl'].tolist()
+            cpl_len += df['cpl'].tolist()
+            imp_len += df['imp_len'].tolist()
             weights += df['PWGTP'].tolist()
 
-        return leaves, weights
+        return cpl_len, weights
 
     def filter_data(self, data):
         """Filter out data and keep rows based on user population characteristic inputs
@@ -2429,12 +2497,12 @@ class PopulationAnalysis(ScrollFrame):
         self.set_histogram_properties(fig, ax, title_str, xticks=xticks)  # Set various chart properties
         return fig
 
-    def set_histogram_properties(self, fig, ax, title_str, xticks=None):
+    def set_histogram_properties(self, fig, ax, title, xticks=None):
         """Set histogram title, axis labels, x axis ticks, and various styles
 
         :param fig: matplotlib.figure.Figure, required
         :param ax:  matplotlib.axes.Axes, required
-        :param title_str: str, required
+        :param title: str, required
             Title of chart
         :param xticks:  list or None, optional
             List of x-axis tick locations
@@ -2448,10 +2516,10 @@ class PopulationAnalysis(ScrollFrame):
         # Set axis ticks
         if xticks is not None:
             ax.set_xticks(xticks)
-
-        # Create axis title
-        title = 'State: {}. Leaves Taken under Program. {}'.format(self.winfo_toplevel().parent.general_params.state,
-                                                                   title_str)
+        #
+        # # Create axis title
+        # title = 'State: {}. Leaves Taken under Program. {}'.format(self.winfo_toplevel().parent.general_params.state,
+        #                                                            title_str)
         format_chart(fig, ax, title, DARK_COLOR, 'white')  # Change chart's style
 
 
