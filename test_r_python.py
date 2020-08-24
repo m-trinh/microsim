@@ -11,8 +11,8 @@ pd.set_option('display.width', 200)
 import numpy as np
 from _5a_aux_functions import *
 ## Read in post-sim ACS
-dp = pd.read_csv('./output/output_20200813_204412_main simulation/acs_sim_ri_20200813_204412.csv')
-dr = pd.read_csv('./output/output_20200813_205313/acs_sim_ri_20200813_205313.csv')
+dp = pd.read_csv('./output/output_20200820_094301_main simulation/acs_sim_ri_20200820_094301.csv')
+dr = pd.read_csv('./output/output_20200820_094759/acs_sim_ri_20200820_094759.csv')
 
 ## Find which persons are in R but not Python
 dm = pd.merge(dp[['SERIALNO', 'SPORDER']], dr[['SERIALNO', 'SPORDER']], how='outer', indicator=True)

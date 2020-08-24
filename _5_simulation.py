@@ -330,7 +330,8 @@ class SimulationEngine:
                 elif c in ['take_illspouse', 'need_illspouse']:  # restricted sample for illspouse
                     simcol_indexed = get_sim_col(X, y, w, Xa, clf, self.random_state)
                     simcol_indexed = pd.Series(simcol_indexed, index=Xa[(Xa['nevermarried'] == 0) &
-                                                                        (Xa['divorced'] == 0)].index, name=c)
+                                                                        (Xa['divorced'] == 0) &
+                                                                        (Xa['widowed'] == 0)].index, name=c)
                     acs = acs.join(simcol_indexed)
                 else:  # sim col same length as acs
                     acs[c] = get_sim_col(X, y, w, Xa, clf, self.random_state)
@@ -341,8 +342,8 @@ class SimulationEngine:
             # Post-simluation logic control
             acs.loc[acs['male'] == 1, 'take_matdis'] = 0
             acs.loc[acs['male'] == 1, 'need_matdis'] = 0
-            acs.loc[(acs['nevermarried'] == 1) | (acs['divorced'] == 1), 'take_illspouse'] = 0
-            acs.loc[(acs['nevermarried'] == 1) | (acs['divorced'] == 1), 'need_illspouse'] = 0
+            acs.loc[(acs['nevermarried'] == 1) | (acs['divorced'] == 1) | (acs['widowed'] == 1), 'take_illspouse'] = 0
+            acs.loc[(acs['nevermarried'] == 1) | (acs['divorced'] == 1) | (acs['widowed'] == 1), 'need_illspouse'] = 0
             acs.loc[acs['nochildren'] == 1, 'take_bond'] = 0
             acs.loc[acs['nochildren'] == 1, 'need_bond'] = 0
             acs.loc[acs['nochildren'] == 1, 'take_matdis'] = 0

@@ -334,15 +334,9 @@ def get_sim_col(X, y, w, Xa, clf, random_state):
     # remove female and nochildren from xvar
     if y.name in ['take_matdis', 'need_matdis']:
         X = X.drop(X[(X['female']!=1) | (X['nochildren']==1) | (X['age']>50)].index)
-        # X = X[(X['female']==1) & (X['nochildren']==0) & (X['age']<=50)]
         X = X.drop(columns=['female', 'nochildren'])
-        # del X['female']
-        # del X['nochildren']
         Xa = Xa.drop(Xa[(Xa['female']!=1) | (Xa['nochildren']==1) | (Xa['age']>50)].index)
-        # Xa = Xa[(Xa['female']==1) & (Xa['nochildren']==0) & (Xa['age']<=50)]
         Xa = Xa.drop(columns=['female', 'nochildren'])
-        # del Xa['female']
-        # del Xa['nochildren']
         y = y[X.index]
         w = w[X.index]
     # if bond, reduce to rows that are child bearing/age<=50
@@ -350,23 +344,17 @@ def get_sim_col(X, y, w, Xa, clf, random_state):
     elif y.name in ['take_bond', 'need_bond']:
         X = X[(X['nochildren']==0) & (X['age']<=50)]
         X = X.drop(columns=['nochildren'])
-        # del X['nochildren']
         Xa = Xa[(Xa['nochildren']==0) & (Xa['age']<=50)]
         Xa = Xa.drop(columns=['nochildren'])
-        # del Xa['nochildren']
         y = y[X.index]
         w = w[X.index]
     # if illspouse, reduce to rows that are nevermarried=0 and divorced=0
     # remove nevermarried and divorced
-    elif y.name in ['take_illspouse', 'need_illspouse']:
-        X = X[(X['nevermarried']==0) & (X['divorced']==0)]
-        X = X.drop(columns=['nevermarried', 'divorced'])
-        # del X['nevermarried']
-        # del X['divorced']
-        Xa = Xa[(Xa['nevermarried']==0) & (Xa['divorced']==0)]
-        Xa = Xa.drop(columns=['nevermarried', 'divorced'])
-        # del Xa['nevermarried']
-        # del Xa['divorced']
+    elif y.name in ['take_illspouse', 'need_illspouse', 'widowed']:
+        X = X[(X['nevermarried']==0) & (X['divorced']==0) & (X['widowed']==0)]
+        X = X.drop(columns=['nevermarried', 'divorced', 'widowed'])
+        Xa = Xa[(Xa['nevermarried']==0) & (Xa['divorced']==0) & (Xa['widowed']==0)]
+        Xa = Xa.drop(columns=['nevermarried', 'divorced', 'widowed'])
         y = y[X.index]
         w = w[X.index]
     else:

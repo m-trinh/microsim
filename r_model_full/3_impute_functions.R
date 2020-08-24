@@ -130,7 +130,7 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
                    matdis = "female == 1 & nochildren == 0 & age <= 50",
                    bond = "nochildren == 0 & age <= 50",
                    need_own = "TRUE",
-                   need_illspouse = "nevermarried == 0 & divorced == 0",
+                   need_illspouse = "nevermarried == 0 & divorced == 0 & widowed == 0",
                    need_illchild = "TRUE",
                    need_illparent = "TRUE",
                    need_matdis = "female == 1 & nochildren == 0 & age <= 50",
