@@ -1128,6 +1128,9 @@ CLEANUP <- function(d, week_bene_cap,week_bene_cap_prop,week_bene_min, maxlen_ow
   d['bene_PFL'] <- 0
   
   for (i in leave_types) {
+    take_var <- paste0('take_',i)
+    need_var <- paste0('need_',i)
+    
     plen_var=paste("plen_",i,sep="")
     ben_var=paste("bene_",i,sep="")  
     d[ben_var] <- with(d, actual_benefits*(get(plen_var)/particip_length))
@@ -1156,14 +1159,7 @@ CLEANUP <- function(d, week_bene_cap,week_bene_cap_prop,week_bene_min, maxlen_ow
     if (i=='bond'|i=='illspouse'|i=='illparent'|i=='illchild') {
       d['ptake_PFL'] <- with(d, ifelse(get(plen_var)>0 & get(take_var)>0,1,ptake_PFL))  
     }
-    # create taker and needer vars
-    d['taker'] <- 0
-    d['needer'] <- 0
-    take_var <- paste0('take_',i)
-    need_var <- paste0('need_',i)
-    d <- d %>% mutate(taker=ifelse(get(take_var)==1,1,taker))
-    d <- d %>% mutate(needer=ifelse(get(need_var)==1,1,needer))
-    d$needer[is.na(d$needer)] <- 0
+
     
     # calculate squo and counterfactual employer pay
     len_var=paste("length_",i,sep="")
@@ -1171,6 +1167,25 @@ CLEANUP <- function(d, week_bene_cap,week_bene_cap_prop,week_bene_min, maxlen_ow
     d[paste0('emppay_',i)] <- with(d, actual_leave_pay*(get(len_var)/total_length))
     d[paste0('squo_emppay_',i)] <- with(d, squo_leave_pay*(get(squo_var)/squo_total_length))
   }
+  
+  # generate taker and needer vars
+  d['taker'] <- 0
+  d['needer'] <- 0
+  for (i in leave_types) {
+    take_var <- paste0('take_',i)
+    need_var <- paste0('need_',i)
+    
+    # create taker and needer vars
+    d <- d %>% mutate(taker=ifelse(get(take_var)==1,1,taker))
+    d <- d %>% mutate(needer=ifelse(get(need_var)==1,1,needer))
+  }
+  d$taker[is.na(d$taker)] <- 0
+  d$needer[is.na(d$needer)] <- 0
+  
+  # make anypay and prop_pay_employer = missing if needer==1 | taker ==1 
+  d <- d %>% mutate(anypay=ifelse(needer!=1|taker!=1, NA, anypay))
+  d <- d %>% mutate(prop_pay_employer=ifelse(needer!=1|taker!=1, NA, prop_pay_employer))
+
   return(d)
 }
 

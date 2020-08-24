@@ -16,6 +16,7 @@
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # 0. fill_na_cols
+# 0a. gen_taker_needer
 # 1. impute_fmla_to_acs
 # Modular imputation methods - can be swaped out for one another for FMLA to ACS imputation of:
 # take_* vars, resp_len, prop_pay_employer variables
@@ -44,10 +45,11 @@ fill_na_cols <- function(d, cols) {
     for (i in cols) {
       # union and hourly have sample restrictions that we need to preserve NA values for
       if ((i=='union' | i=='hourly') & 'prerelg' %in% names(d)) {
-        d_filt <- d %>% filter(prerelg == 1) %>% select(i)
+        d_filt <- d %>% filter(prerelg == 1) %>% select(all_of(i))
       } else {
-        d_filt <- d %>% select(i)
+        d_filt <- d %>% select(all_of(i))
       }
+      
       # In test and training data if xvar is numeric, fill missing values with mean value
       if (is.numeric(d_filt[,i]) & any(unique(d_filt[!is.na(d_filt[,i]), i])!=c(0,1))) {
         d_filt[is.na(d_filt[,i]), i] <- mean(d_filt[,i], na.rm = TRUE)  
@@ -164,7 +166,7 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
   # alternative imputation methods will need to expect
   # saveRDS(d_fmla, file="./R_dataframes/d_fmla_impute_input.rds") # TODO: Remove from final version
   # saveRDS(d_acs, file="./R_dataframes/d_acs_impute_input.rds") # TODO: Remove from final version
-
+  
   
   # KNN1 imputation method
   if (impute_method=="KNN1") {
@@ -203,24 +205,24 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
                                 weights=weights, create_dummies=TRUE, regularized= TRUE)
   }
   
-  if (impute_method=="K Nearest Neighbor") {
-    # INPUTS: variable to be imputed, conditionals to filter training and test data on, FMLA data (training), and
-    #         ACS data (test), id variable, and dependent variables to use in imputation, number of nbors
-    impute <- mapply(KNN_multi_class, imp_var=yvars,train_filt=filts, test_filt=filts,
-                     MoreArgs=list(d_train=d_fmla,d_test=d_acs,xvars=xvars, kval=kval), SIMPLIFY = FALSE)
-    
-    # OUTPUTS: list of data sets for each leave taking/other variables requiring imputation. 
-    # merge imputed values with acs data
-    for (i in impute) {
-      # old merge code, caused memory issues. using match instead
-      #d_acs <- merge(i, d_acs, by="id",all.y=TRUE)
-      for (j in names(i)) {
-        if (j %in% names(d_acs)==FALSE){
-          d_acs[j] <- i[match(d_acs$id, i$id), j]    
-        }
-      }
-    }
-  }
+  # if (impute_method=="K Nearest Neighbor") {
+  #   # INPUTS: variable to be imputed, conditionals to filter training and test data on, FMLA data (training), and
+  #   #         ACS data (test), id variable, and dependent variables to use in imputation, number of nbors
+  #   impute <- mapply(KNN_multi_class, imp_var=yvars,train_filt=filts, test_filt=filts,
+  #                    MoreArgs=list(d_train=d_fmla,d_test=d_acs,xvars=xvars, kval=kval), SIMPLIFY = FALSE)
+  #   
+  #   # OUTPUTS: list of data sets for each leave taking/other variables requiring imputation. 
+  #   # merge imputed values with acs data
+  #   for (i in impute) {
+  #     # old merge code, caused memory issues. using match instead
+  #     #d_acs <- merge(i, d_acs, by="id",all.y=TRUE)
+  #     for (j in names(i)) {
+  #       if (j %in% names(d_acs)==FALSE){
+  #         d_acs[j] <- i[match(d_acs$id, i$id), j]    
+  #       }
+  #     }
+  #   }
+  # }
   if (impute_method=="Naive Bayes") {
     # xvars must be all categorical vars for naive bayes
     xvars <-c("widowed", "divorced", "separated", "nevermarried", "female", 
@@ -271,6 +273,21 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
   # Two-stage estimation is implemented by giving anypay prescendence - prop_pay_employer set to 0 if anypay==0. 
   # prop_pay_employer unchanged if anypay==1.
   d_acs <- d_acs %>% mutate(prop_pay_employer=ifelse(anypay==0,0,prop_pay_employer))
+  
+  # generate taker and needer vars
+  d_acs['taker'] <- 0
+  d_acs['needer'] <- 0
+  for (i in leave_types) {
+    take_var <- paste0('take_',i)
+    need_var <- paste0('need_',i)
+    
+    # create taker and needer vars
+    d_acs <- d_acs %>% mutate(taker=ifelse(get(take_var)==1,1,taker))
+    d_acs <- d_acs %>% mutate(needer=ifelse(get(need_var)==1,1,needer))
+  }
+  d_acs$taker[is.na(d_acs$taker)] <- 0
+  d_acs$needer[is.na(d_acs$needer)] <- 0
+  
   return(d_acs)
 }
 
@@ -283,7 +300,8 @@ KNN1_scratch <- function(d_train, d_test, imp_var, train_filt, test_filt, xvars,
   
   # This returns a dataframe of length equal to acs with the employee id and a column for each leave type
   # that indicates whether or not they took the leave.
-
+  
+  
   # create training data
   
   # filter dataset and keep just the variables of interest
