@@ -7,7 +7,7 @@ timestart <<- Sys.time()
 d <- policy_simulation(
                   base_bene_level=.55,
                   impute_method = meth,
-                  acs_year=2018,
+                  acs_year=2016,
 		              makelog = FALSE,
                   sample_prop=1,
 		              state='RI',

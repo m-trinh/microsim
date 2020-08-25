@@ -51,11 +51,11 @@ fill_na_cols <- function(d, cols) {
       }
       
       # In test and training data if xvar is numeric, fill missing values with mean value
-      if (is.numeric(d_filt[,i]) & any(unique(d_filt[!is.na(d_filt[,i]), i])!=c(0,1))) {
+      if (is.numeric(d_filt[,i]) & any(!unique(d_filt[!is.na(d_filt[,i]), i]) %in% c(0,1))) {
         d_filt[is.na(d_filt[,i]), i] <- mean(d_filt[,i], na.rm = TRUE)  
       }
       # if it is a dummy var, then take a random draw with probability = to the non-missing mean
-      if (is.numeric(d_filt[,i]) & all(unique(d_filt[!is.na(d_filt[,i]), i])==c(0,1))) {
+      if (is.numeric(d_filt[,i]) & all(unique(d_filt[!is.na(d_filt[,i]), i]) %in% c(0,1))) {
         if (any(is.na(d_filt[,i]))){
           d_filt$prob <- mean(d_filt[,i], na.rm = TRUE)
           d_filt['rand']=runif(nrow(d))
@@ -126,7 +126,7 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
   
   # filters: logical conditionals always applied to filter vraiable imputation 
   filts <- c(own = "TRUE",
-                   illspouse = "nevermarried == 0 & divorced == 0",
+                   illspouse = "nevermarried == 0 & divorced == 0 & widowed == 0",
                    illchild = "TRUE",
                    illparent = "TRUE",
                    matdis = "female == 1 & nochildren == 0 & age <= 50",
