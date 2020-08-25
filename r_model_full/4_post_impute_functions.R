@@ -1168,6 +1168,21 @@ CLEANUP <- function(d, week_bene_cap,week_bene_cap_prop,week_bene_min, maxlen_ow
     d[paste0('squo_emppay_',i)] <- with(d, squo_leave_pay*(get(squo_var)/squo_total_length))
   }
   
+  # post simulation logic control
+  d <- d %>% mutate(take_matdis=ifelse(male==1,0,take_matdis))
+  d <- d %>% mutate(need_matdis=ifelse(male==1,0,need_matdis))
+  d <- d %>% mutate(take_illspouse=ifelse(nevermarried==1 | divorced==1,0,take_illspouse))
+  d <- d %>% mutate(need_illspouse=ifelse(nevermarried==1 | divorced==1,0,need_illspouse))
+  d <- d %>% mutate(take_bond=ifelse(nochildren,0,take_bond))
+  d <- d %>% mutate(need_bond=ifelse(nochildren,0,need_bond))
+  d <- d %>% mutate(take_matdis=ifelse(nochildren,0,take_matdis))
+  d <- d %>% mutate(need_matdis=ifelse(nochildren,0,need_matdis))
+  d <- d %>% mutate(take_matdis=ifelse(age>50,0,take_matdis))
+  d <- d %>% mutate(need_matdis=ifelse(age>50,0,need_matdis))
+  d <- d %>% mutate(take_bond=ifelse(age>50,0,take_bond))
+  d <- d %>% mutate(need_bond=ifelse(age>50,0,need_bond))
+  
+  
   # generate taker and needer vars
   d['taker'] <- 0
   d['needer'] <- 0
@@ -1176,12 +1191,12 @@ CLEANUP <- function(d, week_bene_cap,week_bene_cap_prop,week_bene_min, maxlen_ow
     need_var <- paste0('need_',i)
     
     # create taker and needer vars
-    d <- d %>% mutate(taker=ifelse(get(take_var)==1,1,taker))
-    d <- d %>% mutate(needer=ifelse(get(need_var)==1,1,needer))
+    d <- d %>% mutate(taker=ifelse(get(take_var)==1 & is.na(take_var)==FALSE,1,taker))
+    d <- d %>% mutate(needer=ifelse(get(need_var)==1& is.na(need_var)==FALSE,1,needer))
   }
   d$taker[is.na(d$taker)] <- 0
   d$needer[is.na(d$needer)] <- 0
-  
+  browser()
   # make anypay and prop_pay_employer = missing if needer==1 | taker ==1 
   d <- d %>% mutate(anypay=ifelse(needer!=1|taker!=1, NA, anypay))
   d <- d %>% mutate(prop_pay_employer=ifelse(needer!=1|taker!=1, NA, prop_pay_employer))
