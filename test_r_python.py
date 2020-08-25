@@ -12,7 +12,7 @@ import numpy as np
 from _5a_aux_functions import *
 ## Read in post-sim ACS
 dp = pd.read_csv('./output/output_20200824_103457_main simulation/acs_sim_ri_20200824_103457.csv')
-dr = pd.read_csv('./output/output_20200824_103817/acs_sim_ri_20200824_103817.csv')
+dr = pd.read_csv('./output/output_20200825_101525/acs_sim_ri_20200825_101525.csv')
 
 ## Find which persons are in R but not Python
 dm = pd.merge(dp[['SERIALNO', 'SPORDER']], dr[['SERIALNO', 'SPORDER']], how='outer', indicator=True)
@@ -38,7 +38,12 @@ print(dr['resp_len'].value_counts())
 dr['taker2'] = [max(z) for z in dr[['take_%s' % t for t in types]].values]
 dr['needer2'] = [max(z) for z in dr[['need_%s' % t for t in types]].values]
 
-dr.loc[(dr['needer2']==1) & (dr['needer']==0), ['needer2', 'needer'] + ['need_%s' % t for t in types]].head(10)
+cols_check = ['needer2', 'needer'] + ['need_%s' % t for t in types]
+cols_check += ['male', 'nevermarried', 'divorced', 'widowed', 'nochildren', 'age']
+dr.loc[(dr['needer2']==1) & (dr['needer']==0), cols_check].head(10)
+
+for df in [dp, dr]:
+    print(df[(df['taker']==1) | (df['needer']==1)].shape)
 
 # check NAs in take/need, resp_len
 for c in ['take_%s' % t for t in types] + ['need_%s' % t for t in types] + ['resp_len']:
