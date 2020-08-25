@@ -11,8 +11,8 @@ pd.set_option('display.width', 200)
 import numpy as np
 from _5a_aux_functions import *
 ## Read in post-sim ACS
-dp = pd.read_csv('./output/output_20200820_094301_main simulation/acs_sim_ri_20200820_094301.csv')
-dr = pd.read_csv('./output/output_20200820_094759/acs_sim_ri_20200820_094759.csv')
+dp = pd.read_csv('./output/output_20200824_103457_main simulation/acs_sim_ri_20200824_103457.csv')
+dr = pd.read_csv('./output/output_20200824_103817/acs_sim_ri_20200824_103817.csv')
 
 ## Find which persons are in R but not Python
 dm = pd.merge(dp[['SERIALNO', 'SPORDER']], dr[['SERIALNO', 'SPORDER']], how='outer', indicator=True)
@@ -25,14 +25,24 @@ dm = dm[dm['_merge']!='both']
 types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
 # check row counts and weight sum
 for t in types:
-    print(dp['take_%s' % t].value_counts())
-    print('PWGTP sum Py = %s\n' % dp[dp['take_%s' % t]==1]['PWGTP'].sum())
-    print(dr['take_%s' % t].value_counts())
-    print('PWGTP sum R = %s' % dr[dr['take_%s' % t]==1]['PWGTP'].sum())
+    # print(dp['take_%s' % t].value_counts())
+    # print(dr['take_%s' % t].value_counts())
+    print(dp['need_%s' % t].value_counts())
+    print(dr['need_%s' % t].value_counts())
     print('-----------------------------')
 print(dp['resp_len'].value_counts())
 print(dr['resp_len'].value_counts())
 ## If any diff in take/need_type, resp_len, check clean FMLA, clean ACS, NA handling, classifier
+
+# check taker/needer
+dr['taker2'] = [max(z) for z in dr[['take_%s' % t for t in types]].values]
+dr['needer2'] = [max(z) for z in dr[['need_%s' % t for t in types]].values]
+
+dr.loc[(dr['needer2']==1) & (dr['needer']==0), ['needer2', 'needer'] + ['need_%s' % t for t in types]].head(10)
+
+# check NAs in take/need, resp_len
+for c in ['take_%s' % t for t in types] + ['need_%s' % t for t in types] + ['resp_len']:
+    print(dr)
 
 # check clean FMLA
 fmla_p = pd.read_csv('./data/fmla/fmla_2012/fmla_clean_2012_Py.csv')
