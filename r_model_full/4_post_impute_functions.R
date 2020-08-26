@@ -1196,9 +1196,10 @@ CLEANUP <- function(d, week_bene_cap,week_bene_cap_prop,week_bene_min, maxlen_ow
   }
   d$taker[is.na(d$taker)] <- 0
   d$needer[is.na(d$needer)] <- 0
+  
   # make anypay and prop_pay_employer = missing if needer==1 | taker ==1 
-  d <- d %>% mutate(anypay=ifelse(needer!=1|taker!=1, NA, anypay))
-  d <- d %>% mutate(prop_pay_employer=ifelse(needer!=1|taker!=1, NA, prop_pay_employer))
+  d <- d %>% mutate(anypay=ifelse(needer!=1 & taker!=1, NA, anypay))
+  d <- d %>% mutate(prop_pay_employer=ifelse(needer!=1 & taker!=1, NA, prop_pay_employer))
 
   return(d)
 }
