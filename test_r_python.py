@@ -12,7 +12,7 @@ import numpy as np
 from _5a_aux_functions import *
 ## Read in post-sim ACS
 dp = pd.read_csv('./output/output_20200824_103457_main simulation/acs_sim_ri_20200824_103457.csv')
-dr = pd.read_csv('./output/output_20200825_101525/acs_sim_ri_20200825_101525.csv')
+dr = pd.read_csv('./output/output_20200825_111155/acs_sim_ri_20200825_111155.csv')
 
 ## Find which persons are in R but not Python
 dm = pd.merge(dp[['SERIALNO', 'SPORDER']], dr[['SERIALNO', 'SPORDER']], how='outer', indicator=True)
