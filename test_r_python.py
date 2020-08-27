@@ -11,8 +11,8 @@ pd.set_option('display.width', 200)
 import numpy as np
 from _5a_aux_functions import *
 ## Read in post-sim ACS
-dp = pd.read_csv('./output/output_20200824_103457_main simulation/acs_sim_ri_20200824_103457.csv')
-dr = pd.read_csv('./output/output_20200825_111155/acs_sim_ri_20200825_111155.csv')
+dp = pd.read_csv('./output/output_20200826_234222_main simulation/acs_sim_ri_20200826_234222.csv')
+dr = pd.read_csv('./output/output_20200826_123602/acs_sim_ri_20200826_123602.csv')
 
 ## Find which persons are in R but not Python
 dm = pd.merge(dp[['SERIALNO', 'SPORDER']], dr[['SERIALNO', 'SPORDER']], how='outer', indicator=True)
@@ -48,6 +48,32 @@ for df in [dp, dr]:
 # check NAs in take/need, resp_len
 for c in ['take_%s' % t for t in types] + ['need_%s' % t for t in types] + ['resp_len']:
     print(dr)
+
+# After take/need_type, resp_len, anypay, prop_pay_employer all checked
+# check sq-len: len_type for taker=1, lentype should =0 for taker=0
+import matplotlib.pyplot as plt
+binwidth = 5
+d_axs = dict(zip(types,[(x, y) for x in range(2) for y in range(3)]))
+fig, axs = plt.subplots(2, 3, tight_layout=True)
+for t in types:
+    ax = d_axs[t]
+    data = dp[dp['len_%s' % t] > 0]['len_%s' % t]
+    axs[ax].hist(data, bins=np.arange(0, max(data) + binwidth, binwidth), alpha=0.4, label='Py')
+    data = dr[dr['len_%s' % t] > 0]['len_%s' % t]
+    axs[ax].hist(data, bins=np.arange(0, max(data) + binwidth, binwidth), alpha=0.4, label='R')
+    axs[ax].title.set_text('len_%s' % t)
+    axs[ax].legend()
+
+# check sq-len NA counts, sq-len>0 counts
+for t in types:
+    print('-------Py---------')
+    #print(dp['len_%s' % t].isna().value_counts())
+    print(dp['take_%s' % t].value_counts())
+    print(dp[dp['len_%s' % t]>0]['len_%s' % t].describe())
+    print('-------R---------')
+    #print(dr['len_%s' % t].isna().value_counts())
+    print(dr['take_%s' % t].value_counts())
+    print(dr[dr['len_%s' % t] > 0]['len_%s' % t].describe())
 
 # check clean FMLA
 fmla_p = pd.read_csv('./data/fmla/fmla_2012/fmla_clean_2012_Py.csv')
