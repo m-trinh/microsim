@@ -272,7 +272,7 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
   # finally, account for two-stage estimation of anypay and prop_pay_employer. prop_pay_employer has no 0 values, just .125-1.
   # Two-stage estimation is implemented by giving anypay prescendence - prop_pay_employer set to 0 if anypay==0. 
   # prop_pay_employer unchanged if anypay==1.
-  d_acs <- d_acs %>% mutate(prop_pay_employer=ifelse(anypay==0,0,prop_pay_employer))
+  d_acs <- d_acs %>% mutate(prop_pay_employer=ifelse(anypay==0,NA,prop_pay_employer))
   
   # generate taker and needer vars
   d_acs['taker'] <- 0
@@ -683,8 +683,8 @@ runRandDraw <- function(d, yvar, filt, leave_dist, ext_resp_len, rr_sensitive_le
             result <- d_result[1, 'Leave.Length..Days']
             
           } else if (nrow(d_result) == 0) { 
-            
-            result <- squo_len
+            # if our leave is higher than any other, just multiply by 1.25
+            result <- squo_len *1.25
             
           }
           
