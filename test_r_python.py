@@ -11,8 +11,8 @@ pd.set_option('display.width', 200)
 import numpy as np
 from _5a_aux_functions import *
 ## Read in post-sim ACS
-dp = pd.read_csv('./output/output_20200826_234222_main simulation/acs_sim_ri_20200826_234222.csv')
-dr = pd.read_csv('./output/output_20200826_123602/acs_sim_ri_20200826_123602.csv')
+dp = pd.read_csv('./output/output_20200831_134546_main simulation/acs_sim_ri_20200831_134546.csv')
+dr = pd.read_csv('./output/output_20200831_134335/acs_sim_ri_20200831_134335.csv')
 
 ## Find which persons are in R but not Python
 dm = pd.merge(dp[['SERIALNO', 'SPORDER']], dr[['SERIALNO', 'SPORDER']], how='outer', indicator=True)
@@ -64,7 +64,7 @@ for t in types:
     axs[ax].title.set_text('len_%s' % t)
     axs[ax].legend()
 
-# check sq-len NA counts, sq-len>0 counts
+# check sq-len NA counts, sq-len>0 counts for py/R. Verify this against len_type hisotgrams above
 for t in types:
     print('-------Py---------')
     #print(dp['len_%s' % t].isna().value_counts())
@@ -74,6 +74,40 @@ for t in types:
     #print(dr['len_%s' % t].isna().value_counts())
     print(dr['take_%s' % t].value_counts())
     print(dr[dr['len_%s' % t] > 0]['len_%s' % t].describe())
+
+# check MNL, CFL, CPL
+binwidth = 1
+d_axs = dict(zip(types,[(x, y) for x in range(2) for y in range(3)]))
+fig, axs = plt.subplots(2, 3, tight_layout=True)
+lv = 'cpl'
+for t in types:
+    ax = d_axs[t]
+    data = dp[dp['%s_%s' % (lv, t)] > 0]['%s_%s' % (lv, t)]
+    axs[ax].hist(data, bins=np.arange(0, max(data) + binwidth, binwidth), alpha=0.4, label='Py')
+    data = dr[dr['%s_%s' % (lv, t)] > 0]['%s_%s' % (lv, t)]
+    axs[ax].hist(data, bins=np.arange(0, max(data) + binwidth, binwidth), alpha=0.4, label='R')
+    axs[ax].title.set_text('%s_%s' % (lv, t))
+    axs[ax].legend()
+for t in types:
+    print('-------Py---------')
+    print(dp[dp['%s_%s' % (lv, t)]>0]['%s_%s' % (lv, t)].describe())
+    print('-------R---------')
+    print(dr[dr['%s_%s' % (lv, t)] > 0]['%s_%s' % (lv, t)].describe())
+
+# check uptakers
+for t in types:
+    print('-------Py---------')
+    print(dp[dp['cpl_%s' % t]>0]['cpl_%s' % t].describe())
+    print(dp[dp['takeup_%s' % t]==1]['cpl_%s' % t].describe())
+    print(dp[dp['takeup_%s' % t]==1]['PWGTP'].sum())
+    print('-------R---------')
+    print(dr[dr['cpl_%s' % t]>0]['cpl_%s' % t].describe())
+    print(dr[dr['takeup_%s' % t]==1]['cpl_%s' % t].describe())
+    print(dr[dr['takeup_%s' % t] == 1]['PWGTP'].sum())
+
+#######################################################################################################################
+
+
 
 # check clean FMLA
 fmla_p = pd.read_csv('./data/fmla/fmla_2012/fmla_clean_2012_Py.csv')
