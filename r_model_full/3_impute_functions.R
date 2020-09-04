@@ -615,7 +615,7 @@ runOrdinalEstimate <- function(d_train,d_test, formula, test_filt,train_filt, va
 # 1Bc. runRandDraw
 # ============================ #
 # run a random draw for leave length 
-runRandDraw <- function(d, yvar, filt, leave_dist, ext_resp_len, rr_sensitive_leave_len,wage_rr,maxlen) {
+runRandDraw <- function(d, yvar, filt, leave_dist, ext_resp_len, rr_sensitive_leave_len,wage_rr,maxlen, dependent_allow) {
 
   # filter test cases
   d_filt <- d %>% filter_(filt)
@@ -721,14 +721,32 @@ runRandDraw <- function(d, yvar, filt, leave_dist, ext_resp_len, rr_sensitive_le
           est_df['prop_pay_employer'] <- d_filt[merge_ids, 'prop_pay_employer'] 
           est_df['resp_len'] <- d_filt[merge_ids, 'resp_len'] 
           est_df['dual_receiver'] <- d_filt[merge_ids, 'dual_receiver'] 
+          est_df['ndep_kid'] <- d_filt[merge_ids, 'ndep_kid'] 
           # set couterfactual leave taking var equal to Z+ (X-Z)*(rrp-rre)/(1-rre), where:
           # Z is status quo leave length
           # X is maximum length needed
           # rre is the status quo replacement rate (i.e. proportion of pay received)
           # wage_rr <- wage of program
           est_df['wage_rr'] <- wage_rr
+          
+          # add dependent allowance to rrp 
+          est_df$dep_bene_allow <- 0
+          kid_count <- 1
+          for (x in dependent_allow) {
+            est_df <- est_df %>% mutate(dep_bene_allow=ifelse(ndep_kid>=kid_count,dep_bene_allow+x,dep_bene_allow))
+            kid_count <- kid_count + 1
+          }
+          est_df <- est_df %>% mutate(wage_rr=wage_rr + dep_bene_allow)
+          # cap at full salary
+          est_df <- est_df %>% mutate(wage_rr=pmin(1,wage_rr))
+          
+          # record effective_rrp
+          est_df <- est_df %>% mutate(effective_rrp=wage_rr)
+        
           # rrp is max(wage_rr, rre)
           est_df['rrp'] <- apply(est_df[c('wage_rr','prop_pay_employer')], 1, max)
+
+          
           # apply formula to estimate couterfactual leave for single receivers
           est_df[yvar] <- with(est_df, ifelse(dual_receiver==0,
               get(squo_var)+ (get(mnl_var)-get(squo_var))*(rrp-prop_pay_employer)/(1-prop_pay_employer),get(yvar)))
