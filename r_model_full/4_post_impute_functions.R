@@ -193,11 +193,49 @@ impute_leave_length <- function(d_train, d_test, ext_resp_len,rr_sensitive_leave
       }
     }
   }
-  
+
   # calculate total status quo length 
   d_test['squo_total_length'] <- 0 
   for (i in leave_types) {
     d_test['squo_total_length'] <- rowSums(d_test[c('squo_total_length', paste("squo_length_",i,sep=""))], na.rm=TRUE)
+  }
+  
+  # ensure that total length and squo total length vars are not NA
+  d_test$total_length <- rowSums(d_test[,paste0('length_',leave_types)], na.rm=TRUE)
+  d_test$squo_total_length <- rowSums(d_test[,paste0('squo_length_',leave_types)], na.rm=TRUE)
+  
+  # actual counterfactual and status quo leave taking
+  d_test$reduce <- with(d_test, ifelse(total_length>260,total_length/260, 1))
+  d_test$total_length <- 0
+  for (i in leave_types) {
+    len_var= paste('length_',i,sep="")
+    d_test[len_var] <- floor(d_test[,len_var] / d_test$reduce )
+    d_test$total_length <- rowSums(d_test[,c('total_length',len_var)], na.rm=TRUE)
+  }
+  
+  d_test$reduce <- with(d_test, ifelse(squo_total_length>260, 260/squo_total_length, 1))
+  d_test$squo_total_length <- 0
+  for (i in leave_types) {
+    squo_var= paste('squo_length_',i,sep="")
+    d_test[squo_var] <- floor(d_test[,squo_var] * d_test$reduce)
+    d_test$squo_total_length <- rowSums(d_test[,c('squo_total_length',squo_var)], na.rm=TRUE)
+  }
+  
+  # for those that have mnl_all > 260, if mnl_var is less than squo_Var, we will set squo_var equal to mnl_var - 1
+  for (i in leave_types) {
+    squo_var <- paste0('squo_length_',i)
+    mnl_var <- paste0('mnl_',i)
+    take_var <- paste0('take_',i)
+    d_test[squo_var] <- with(d_test, ifelse(get(mnl_var)<get(squo_var),pmax(get(mnl_var)-1,1),get(squo_var)))
+  }
+  
+  d_test$mnl_all <- rowSums(d_test[,paste0('mnl_',leave_types)], na.rm=TRUE)
+  
+  # make sure squo var is 0 if take var is 0
+  for (i in leave_types) {
+    squo_var <- paste0('squo_length_',i)
+    take_var <- paste0('take_',i)
+    d_test[squo_var] <- with(d_test, ifelse(get(take_var)==0,0,get(squo_var)))
   }
   
   return(d_test)
@@ -802,7 +840,6 @@ check_caps <- function(d,maxlen_own, maxlen_matdis, maxlen_bond, maxlen_illparen
     d[len_var] <- floor(d[,len_var] / d$reduce )
     d$total_length <- rowSums(d[,c('total_length',len_var)], na.rm=TRUE)
   }
-
   
   d$reduce <- with(d, ifelse(squo_total_length>260, 260/squo_total_length, 1))
   d$squo_total_length <- 0
@@ -820,51 +857,59 @@ check_caps <- function(d,maxlen_own, maxlen_matdis, maxlen_bond, maxlen_illparen
   }
   
   # apply cap for DI and PFL classes of leaves
-  if (maxlen_DI!=maxlen_bond+maxlen_matdis) {
+  if (maxlen_DI<maxlen_own+maxlen_matdis) {
     d <- d %>% mutate(DI_plen=plen_matdis+plen_own)
     d['DI_plen'] <- with(d, ifelse(DI_plen>maxlen_DI,maxlen_DI,DI_plen))
     # evenly distributed cap among leave types
-    d['reduce'] <- with(d, ifelse(plen_matdis+plen_own!=0, DI_plen/(plen_matdis+plen_own),0))
-    d['plen_matdis']=floor(d[,'plen_matdis']*d[,'reduce'])
-    d['plen_own']=floor(d[,'plen_own']*d[,'reduce'])
+    d['reduce'] <- with(d, ifelse(plen_matdis+plen_own!=0, (plen_matdis+plen_own)/DI_plen,0))
+    d['plen_matdis']=floor(d[,'plen_matdis']/d[,'reduce'])
+    d['plen_own']=floor(d[,'plen_own']/d[,'reduce'])
   }
   
-  if (maxlen_PFL!=maxlen_illparent+maxlen_illspouse+maxlen_illchild+maxlen_bond) {  
+  if (maxlen_PFL<maxlen_illparent+maxlen_illspouse+maxlen_illchild+maxlen_bond) {  
     d <- d %>% mutate(PFL_plen=plen_bond+plen_illparent+plen_illchild+plen_illspouse)
     d['PFL_plen'] <- with(d, ifelse(PFL_plen>maxlen_PFL,maxlen_PFL,PFL_plen))
     # evenly distributed cap among leave types
     d['reduce'] <- with(d, ifelse(plen_bond+plen_illparent+plen_illchild+plen_illspouse!=0, 
-                                  PFL_plen/(plen_bond+plen_illparent+plen_illchild+plen_illspouse),0))
-    d['plen_bond']=floor(d[,'plen_bond']*d[,'reduce'])
-    d['plen_illchild']=floor(d[,'plen_illchild']*d[,'reduce'])
-    d['plen_illspouse']=floor(d[,'plen_illspouse']*d[,'reduce'])
-    d['plen_illparent']=floor(d[,'plen_illparent']*d[,'reduce'])
+                                  (plen_bond+plen_illparent+plen_illchild+plen_illspouse)/PFL_plen,0))
+    d['plen_bond']=floor(d[,'plen_bond']/d[,'reduce'])
+    d['plen_illchild']=floor(d[,'plen_illchild']/d[,'reduce'])
+    d['plen_illspouse']=floor(d[,'plen_illspouse']/d[,'reduce'])
+    d['plen_illparent']=floor(d[,'plen_illparent']/d[,'reduce'])
   }
   
-  # apply cap for all leaves
-  if (maxlen_total!=maxlen_DI+maxlen_PFL | maxlen_total!=maxlen_illparent+maxlen_illspouse+maxlen_illchild+maxlen_bond+maxlen_bond+maxlen_matdis) {
-    d['particip_length']=0
-    for (i in leave_types) {
-      plen_var=paste("plen_",i,sep="")
-      d$particip_length <- rowSums(d[,c('particip_length',plen_var)], na.rm=TRUE)
-    }
-    d['particip_length'] <- with(d, ifelse(particip_length>maxlen_total,maxlen_total,particip_length))
-    d['reduce'] <- with(d, ifelse(plen_matdis+plen_own+plen_bond+plen_illparent+plen_illchild+plen_illspouse!=0, 
-                                  particip_length/(plen_matdis+plen_own+plen_bond+plen_illparent+plen_illchild+plen_illspouse),0))
-    
-    # evenly distributed cap among leave types
-    d['plen_matdis']=floor(d[,'plen_matdis']*d[,'reduce'])
-    d['plen_own']=floor(d[,'plen_own']*d[,'reduce'])
-    d['plen_bond']=floor(d[,'plen_bond']*d[,'reduce'])
-    d['plen_illchild']=floor(d[,'plen_illchild']*d[,'reduce'])
-    d['plen_illspouse']=floor(d[,'plen_illspouse']*d[,'reduce'])
-    d['plen_illparent']=floor(d[,'plen_illparent']*d[,'reduce'])
-    
-    # recalculate DI/PFL/total lengths
-    d <- d %>% mutate(DI_plen=plen_matdis+plen_own)
-    d <- d %>% mutate(PFL_plen=plen_bond+plen_illparent+plen_illchild+plen_illspouse)
-    d <- d %>% mutate(particip_length=DI_plen+ PFL_plen)
+  # reset particip_length
+  d['particip_length']=0
+  for (i in leave_types) {
+    plen_var=paste("plen_",i,sep="")
+    d$particip_length <- rowSums(d[,c('particip_length',plen_var)], na.rm=TRUE)
   }
+  
+  # removed - not in Python and has no real world scenario that it replicates
+  # # apply cap for all leaves
+  # if (maxlen_total!=maxlen_DI+maxlen_PFL | maxlen_total!=maxlen_illparent+maxlen_illspouse+maxlen_illchild+maxlen_bond+maxlen_bond+maxlen_matdis) {
+  #   d['particip_length']=0
+  #   for (i in leave_types) {
+  #     plen_var=paste("plen_",i,sep="")
+  #     d$particip_length <- rowSums(d[,c('particip_length',plen_var)], na.rm=TRUE)
+  #   }
+  #   d['particip_length'] <- with(d, ifelse(particip_length>maxlen_total,maxlen_total,particip_length))
+  #   d['reduce'] <- with(d, ifelse(plen_matdis+plen_own+plen_bond+plen_illparent+plen_illchild+plen_illspouse!=0, 
+  #                                 (plen_matdis+plen_own+plen_bond+plen_illparent+plen_illchild+plen_illspouse)/particip_length,0))
+  #   
+  #   # evenly distributed cap among leave types
+  #   d['plen_matdis']=floor(d[,'plen_matdis']/d[,'reduce'])
+  #   d['plen_own']=floor(d[,'plen_own']/d[,'reduce'])
+  #   d['plen_bond']=floor(d[,'plen_bond']/d[,'reduce'])
+  #   d['plen_illchild']=floor(d[,'plen_illchild']/d[,'reduce'])
+  #   d['plen_illspouse']=floor(d[,'plen_illspouse']/d[,'reduce'])
+  #   d['plen_illparent']=floor(d[,'plen_illparent']/d[,'reduce'])
+  #   
+  #   # recalculate DI/PFL/total lengths
+  #   d <- d %>% mutate(DI_plen=plen_matdis+plen_own)
+  #   d <- d %>% mutate(PFL_plen=plen_bond+plen_illparent+plen_illchild+plen_illspouse)
+  #   d <- d %>% mutate(particip_length=DI_plen+ PFL_plen)
+  # }
   
   # also implement caps for max needed length 
   d['temp_length']=0
@@ -884,7 +929,23 @@ check_caps <- function(d,maxlen_own, maxlen_matdis, maxlen_bond, maxlen_illparen
   d['mnl_illspouse']=floor(d[,'mnl_illspouse']*d[,'reduce'])
   d['mnl_illparent']=floor(d[,'mnl_illparent']*d[,'reduce'])
   
-  d$mnl_all <- rowSums(d[,paste0('mnl_',leave_types)], na.rm=TRUE) 
+  # for those that have mnl_all > 260, if mnl_var is less than squo_Var, we will set squo_var equal to mnl_var - 1
+  for (i in leave_types) {
+    squo_var <- paste0('squo_length_',i)
+    mnl_var <- paste0('mnl_',i)
+    take_var <- paste0('take_',i)
+    d[squo_var] <- with(d, ifelse(get(mnl_var)<get(squo_var),pmax(get(mnl_var)-1,1),get(squo_var)))
+  }
+  
+  d$mnl_all <- rowSums(d[,paste0('mnl_',leave_types)], na.rm=TRUE)
+  
+  # make sure squo var is 0 if take var is 0
+  for (i in leave_types) {
+    squo_var <- paste0('squo_length_',i)
+    take_var <- paste0('take_',i)
+    d[squo_var] <- with(d, ifelse(get(take_var)==0,0,get(squo_var)))
+  }
+  
   # clean up vars
   d <- d[, !(names(d) %in% c('benefit_prop_temp','reduce','temp_length'))] 
   return(d)
