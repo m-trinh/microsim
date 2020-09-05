@@ -388,9 +388,12 @@ policy_simulation <- function(
     d_acs_out <- d_acs
     d_acs_out$id <- NULL
     d_fmla_out <- d_fmla 
-    d_fmla_out$longerLeave <- NULL
-    write.csv(d_acs_out, file=paste0('../data/acs', '/ACS_cleaned_forsimulation_',acs_year,'_',tolower(state),'.csv'),row.names=FALSE)
-    write.csv(d_fmla_out, file=paste0('../data/fmla/fmla_',fmla_year,'/fmla_clean_',fmla_year,'.csv'), row.names = FALSE)
+    d_fmla_out$longerLeave <- NULL    
+    write.csv(d_acs_out, file=paste0(acs_dir, '/ACS_cleaned_forsimulation_',acs_year,'_',tolower(state),'.csv'),row.names=FALSE)
+    # parse fmla dir from file path
+    fmla_dir <- strsplit(fmla_file,'/')
+    fmla_dir <- paste0(fmla_dir[[1]][1:length(fmla_dir[[1]])-1],collapse='/')
+    write.csv(d_fmla_out, file=paste0(fmla_dir,'/fmla_clean_',fmla_year,'.csv'), row.names = FALSE)
   }
   
   

@@ -727,26 +727,113 @@ UPTAKE <- function(d, own_uptake, matdis_uptake, bond_uptake, illparent_uptake,
     uptake_var=paste0('takes_up_',i)
     plen_var= paste("plen_",i, sep="")
     
-      # update/create participation vars
+      # update/create participation length vars
     d <- d %>% mutate(particip_length=ifelse(wait_period<get(paste('length_',i,sep="")) &
-                                              particip==1 & get(paste(take_var)) == 1, 
+                                              get(paste(take_var)) == 1,
                                              particip_length+get(paste('length_',i,sep=""))-wait_period, particip_length))
     d[plen_var] <- with(d, ifelse(wait_period<get(paste('length_',i,sep="")) &
-                                     particip==1 & get(paste(take_var)) == 1, 
+                                    get(paste(take_var)) == 1,
                                   get(paste('length_',i,sep=""))-wait_period, 0))
     d <- d %>% mutate(change_flag=ifelse(wait_period<get(paste('length_',i,sep="")) &
-                                           particip==1 & get(paste(take_var)) == 1,1,0))
+                                            get(paste(take_var)) == 1,1,0))
 
+
+    # subtract days spent on employer benefits from those that exhausting employer benefits (received pay for some days of leave)
+    # Also accounting for wait period here, as that can tick down as a person is still collecting employer benefits
+    # only if not a dual receiver (can't receive both employer and state benefits)
+    d <- d %>% mutate(particip_length= ifelse(change_flag==1 & !is.na(exhausted_by) & dual_receiver==0,
+                                            ifelse(get(paste('length_',i,sep="")) > exhausted_by & exhausted_by>wait_period,
+                                                     particip_length - exhausted_by + wait_period, particip_length), particip_length))
+    d[plen_var] <- with(d, ifelse(change_flag==1 & !is.na(exhausted_by)& dual_receiver==0,
+                                  ifelse(get(paste('length_',i,sep="")) > exhausted_by & exhausted_by>wait_period,
+                                         get(plen_var) - exhausted_by + wait_period, get(plen_var)), get(plen_var)))
+
+    # if waiting period recollect is possible, and leave equals/exceeds min_cfl_recollect length, then we adjust plen length for each leave up
+    # by length of waiting period
+    if (wait_period_recollect & min_cfl_recollect>=wait_period){
+      d['particip_length'] <- with(d, ifelse(get(plen_var)>=min_cfl_recollect, particip_length+wait_period, particip_length))
+      d[plen_var] <- with(d, ifelse(get(plen_var)>=min_cfl_recollect, get(plen_var)+wait_period, get(plen_var)))
+    }
+
+    ptake_var=paste("ptake_",i,sep="")
+    d[ptake_var] <- with(d, ifelse(get(plen_var)>0 & get(take_var)>0,1,0))
+
+    # generate uptake column based on uptake val
+    elig_d <- d %>% filter(eligworker==1)
+    pop_target <- sum(elig_d %>% dplyr::select(PWGTP))*get(uptake_val)
+    # filter to only those eligible for the program and taking or needing leave
+    samp_frame <- d %>% filter(eligworker==1 & (get(take_var)==1|get(need_var)==1) & get(length_var)>wait_period+min_takeup_cpl & particip == 1)
+    
+    # if no one is taking leave, then return columns of zeros for created variables, otherwise continue with this process
+    if (nrow(samp_frame)==0){
+      ptake_var=paste("ptake_",i,sep="")
+      d[ptake_var] <- 0
+      plen_var=paste("plen_",i,sep="")
+      d[plen_var] <- 0
+      
+    }
+    else {
+      # randomize order of sample rows - we'll be drawing in order from the top of the dataframe so we want order to be random.
+      if (alpha==0) {
+        
+        rows <- sample(nrow(samp_frame))
+        samp_frame <- samp_frame[rows,]
+        
+      } else if (alpha>0) {
+        
+        # if alpha is not 0, shuffle the rows randomly, but weighted by leave length ^ alpha
+        samp_frame[plen_var] <- samp_frame[length_var] - wait_period
+        samp_frame[plen_var] <- with(samp_frame, ifelse(get(plen_var)<0,0,get(plen_var)))
+        samp_frame['org_wgt'] <- samp_frame[plen_var] ** alpha
+        rows <- sample(nrow(samp_frame), prob = samp_frame$org_wgt)
+        samp_frame <- samp_frame[rows,]
+        
+      }
+      
+      # create cumulative sum of weights
+      samp_frame <- samp_frame %>% mutate(cumsum = cumsum(PWGTP))
+      
+      # select rows where cumsum is less than pop_target to take up
+      samp_selected <- samp_frame[samp_frame$cumsum < pop_target,]
+      samp_selected[uptake_var] <- 1
+      
+      # set uptake status for leave type by merging in uptake var from samp_selected
+      d[uptake_var] <- samp_selected[match(d$id, samp_selected$id), uptake_var] 
+      d[is.na(d[uptake_var]),uptake_var] <- 0
+      
+      # ensure any leave needers are now indicated as taking leave
+      d[take_var] <- with(d, ifelse(get(uptake_var)==1, 1, get(take_var)))
+    }
+  }
+  
+  # redo participation vars now that eligibility has been selected
+  d$particip_length <- 0
+  for (i in leave_types) {
+    take_var=paste("take_",i,sep="")
+    need_var=paste("need_",i,sep="")
+    length_var = paste('length_',i,sep="")
+    uptake_val=paste(i,"_uptake",sep="")
+    uptake_var=paste0('takes_up_',i)
+    plen_var= paste("plen_",i, sep="")
+    d <- d %>% mutate(particip_length=ifelse(wait_period<get(paste('length_',i,sep="")) &
+                                               get(uptake_var)==1 & get(paste(take_var)) == 1, 
+                                             particip_length+get(paste('length_',i,sep=""))-wait_period, particip_length))
+    d[plen_var] <- with(d, ifelse(wait_period<get(paste('length_',i,sep="")) &
+                                    get(uptake_var)==1 & get(paste(take_var)) == 1, 
+                                  get(paste('length_',i,sep=""))-wait_period, 0))
+    d <- d %>% mutate(change_flag=ifelse(wait_period<get(paste('length_',i,sep="")) &
+                                           get(uptake_var)==1 & get(paste(take_var)) == 1,1,0))
     
     # subtract days spent on employer benefits from those that exhausting employer benefits (received pay for some days of leave)
     # Also accounting for wait period here, as that can tick down as a person is still collecting employer benefits
     # only if not a dual receiver (can't receive both employer and state benefits)
     d <- d %>% mutate(particip_length= ifelse(change_flag==1 & !is.na(exhausted_by) & dual_receiver==0,
-                                            ifelse(get(paste('length_',i,sep="")) > exhausted_by & exhausted_by>wait_period, 
+                                              ifelse(get(paste('length_',i,sep="")) > exhausted_by & exhausted_by>wait_period, 
                                                      particip_length - exhausted_by + wait_period, particip_length), particip_length))
     d[plen_var] <- with(d, ifelse(change_flag==1 & !is.na(exhausted_by)& dual_receiver==0,
                                   ifelse(get(paste('length_',i,sep="")) > exhausted_by & exhausted_by>wait_period, 
                                          get(plen_var) - exhausted_by + wait_period, get(plen_var)), get(plen_var)))
+    
     
     # if waiting period recollect is possible, and leave equals/exceeds min_cfl_recollect length, then we adjust plen length for each leave up 
     # by length of waiting period 
@@ -757,54 +844,10 @@ UPTAKE <- function(d, own_uptake, matdis_uptake, bond_uptake, illparent_uptake,
     
     ptake_var=paste("ptake_",i,sep="")
     d[ptake_var] <- with(d, ifelse(get(plen_var)>0 & get(take_var)>0,1,0))
-  }
-
-  # generate uptake column based on uptake val
-  elig_d <- d %>% filter(eligworker==1)
-  pop_target <- sum(elig_d %>% dplyr::select(PWGTP))*get(uptake_val)
-  # filter to only those eligible for the program and taking or needing leave
-  samp_frame <- d %>% filter(eligworker==1 & (get(take_var)==1|get(need_var)==1) & get(length_var)>wait_period+min_takeup_cpl)
-  
-  # if no one is taking leave, then return columns of zeros for created variables, otherwise continue with this process
-  if (nrow(samp_frame)==0){
-    ptake_var=paste("ptake_",i,sep="")
-    d[ptake_var] <- 0
-    plen_var=paste("plen_",i,sep="")
-    d[plen_var] <- 0
     
-  }
-  else {
-    # randomize order of sample rows - we'll be drawing in order from the top of the dataframe so we want order to be random.
-    if (alpha==0) {
-      
-      rows <- sample(nrow(samp_frame))
-      samp_frame <- samp_frame[rows,]
-      
-    } else if (alpha>0) {
-      
-      # if alpha is not 0, shuffle the rows randomly, but weighted by leave length ^ alpha
-      samp_frame[plen_var] <- samp_frame[length_var] - wait_period
-      samp_frame[plen_var] <- with(samp_frame, ifelse(get(plen_var)<0,0,get(plen_var)))
-      samp_frame['org_wgt'] <- samp_frame[plen_var] ** alpha
-      rows <- sample(nrow(samp_frame), prob = samp_frame$org_wgt)
-      samp_frame <- samp_frame[rows,]
-      
-    }
-    
-    # create cumulative sum of weights
-    samp_frame <- samp_frame %>% mutate(cumsum = cumsum(PWGTP))
-    
-    # select rows where cumsum is less than pop_target to take up
-    samp_selected <- samp_frame[samp_frame$cumsum < pop_target,]
-    samp_selected[uptake_var] <- 1
-    
-    # set uptake status for leave type by merging in uptake var from samp_selected
-    d[uptake_var] <- samp_selected[match(d$id, samp_selected$id), uptake_var] 
-    d[is.na(d[uptake_var]),uptake_var] <- 0
-    
-    # ensure any leave needers are now indicated as taking leave
-    d[take_var] <- with(d, ifelse(get(uptake_var)==1, 1, get(take_var)))
-  }
+    # fill na cpl vals with 0 
+    d[is.na(d[plen_var]),plen_var] <- 0
+  }  
   # make sure those with particip_length 0 are also particip 0
   d <- d %>% mutate(particip= ifelse(particip_length==0,0, particip))
 
@@ -814,6 +857,7 @@ UPTAKE <- function(d, own_uptake, matdis_uptake, bond_uptake, illparent_uptake,
   d <- check_caps(d,maxlen_own, maxlen_matdis, maxlen_bond, maxlen_illparent, maxlen_illspouse, maxlen_illchild,
                   maxlen_total, maxlen_DI, maxlen_PFL)
   # OUTPUT: ACS data set with participating leave length capped at user-specified program maximums
+  
   
   # clean up vars
   d <- d[, !(names(d) %in% c('change_flag','reduce','recollect_len'))]
@@ -942,6 +986,16 @@ check_caps <- function(d,maxlen_own, maxlen_matdis, maxlen_bond, maxlen_illparen
     squo_var <- paste0('squo_length_',i)
     take_var <- paste0('take_',i)
     d[squo_var] <- with(d, ifelse(get(take_var)==0,0,get(squo_var)))
+  }
+  
+  # fill in NAs with zero
+  for (i in leave_types) {
+    squo_var <- paste0('squo_length_',i)
+    mnl_var <- paste0('mnl_',i)
+    plen_var= paste("plen_",i, sep="")
+    d[is.na(d[squo_var]),squo_var] <- 0
+    d[is.na(d[mnl_var]),mnl_var] <- 0
+    d[is.na(d[plen_var]),plen_var] <- 0
   }
   
   # clean up vars
