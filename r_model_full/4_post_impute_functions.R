@@ -816,38 +816,38 @@ UPTAKE <- function(d, own_uptake, matdis_uptake, bond_uptake, illparent_uptake,
     uptake_var=paste0('takes_up_',i)
     plen_var= paste("plen_",i, sep="")
     d <- d %>% mutate(particip_length=ifelse(wait_period<get(paste('length_',i,sep="")) &
-                                               get(uptake_var)==1 & get(paste(take_var)) == 1, 
+                                               get(uptake_var)==1 & get(paste(take_var)) == 1,
                                              particip_length+get(paste('length_',i,sep=""))-wait_period, particip_length))
     d[plen_var] <- with(d, ifelse(wait_period<get(paste('length_',i,sep="")) &
-                                    get(uptake_var)==1 & get(paste(take_var)) == 1, 
+                                    get(uptake_var)==1 & get(paste(take_var)) == 1,
                                   get(paste('length_',i,sep=""))-wait_period, 0))
     d <- d %>% mutate(change_flag=ifelse(wait_period<get(paste('length_',i,sep="")) &
                                            get(uptake_var)==1 & get(paste(take_var)) == 1,1,0))
-    
+
     # subtract days spent on employer benefits from those that exhausting employer benefits (received pay for some days of leave)
     # Also accounting for wait period here, as that can tick down as a person is still collecting employer benefits
     # only if not a dual receiver (can't receive both employer and state benefits)
     d <- d %>% mutate(particip_length= ifelse(change_flag==1 & !is.na(exhausted_by) & dual_receiver==0,
-                                              ifelse(get(paste('length_',i,sep="")) > exhausted_by & exhausted_by>wait_period, 
+                                              ifelse(get(paste('length_',i,sep="")) > exhausted_by & exhausted_by>wait_period,
                                                      particip_length - exhausted_by + wait_period, particip_length), particip_length))
     d[plen_var] <- with(d, ifelse(change_flag==1 & !is.na(exhausted_by)& dual_receiver==0,
-                                  ifelse(get(paste('length_',i,sep="")) > exhausted_by & exhausted_by>wait_period, 
+                                  ifelse(get(paste('length_',i,sep="")) > exhausted_by & exhausted_by>wait_period,
                                          get(plen_var) - exhausted_by + wait_period, get(plen_var)), get(plen_var)))
-    
-    
-    # if waiting period recollect is possible, and leave equals/exceeds min_cfl_recollect length, then we adjust plen length for each leave up 
-    # by length of waiting period 
+
+
+    # if waiting period recollect is possible, and leave equals/exceeds min_cfl_recollect length, then we adjust plen length for each leave up
+    # by length of waiting period
     if (wait_period_recollect & min_cfl_recollect>=wait_period){
       d['particip_length'] <- with(d, ifelse(get(plen_var)>=min_cfl_recollect, particip_length+wait_period, particip_length))
       d[plen_var] <- with(d, ifelse(get(plen_var)>=min_cfl_recollect, get(plen_var)+wait_period, get(plen_var)))
     }
-    
+
     ptake_var=paste("ptake_",i,sep="")
     d[ptake_var] <- with(d, ifelse(get(plen_var)>0 & get(take_var)>0,1,0))
-    
-    # fill na cpl vals with 0 
+
+    # fill na cpl vals with 0
     d[is.na(d[plen_var]),plen_var] <- 0
-  }  
+  }
   # make sure those with particip_length 0 are also particip 0
   d <- d %>% mutate(particip= ifelse(particip_length==0,0, particip))
 

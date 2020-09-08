@@ -11,9 +11,8 @@ pd.set_option('display.width', 200)
 import numpy as np
 from _5a_aux_functions import *
 ## Read in post-sim ACS
-dp = pd.read_csv('./output/output_20200831_134546_main simulation/acs_sim_ri_20200831_134546.csv')
-dr = pd.read_csv('./output/output_20200904_135921/acs_sim_ri_20200904_135921.csv')
-dr2 = pd.read_csv('./output/output_20200904_081412/acs_sim_ri_20200904_081412.csv')
+dp = pd.read_csv('./output/output_20200908_090654_main simulation/acs_sim_ri_20200908_090654.csv')
+dr = pd.read_csv('./output/output_20200908_091148/acs_sim_ri_20200908_091148.csv')
 ## Find which persons are in R but not Python
 dm = pd.merge(dp[['SERIALNO', 'SPORDER']], dr[['SERIALNO', 'SPORDER']], how='outer', indicator=True)
 dm = dm[dm['_merge']!='both']
@@ -27,7 +26,6 @@ types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
 for t in types:
     print(dp['take_%s' % t].value_counts())
     print(dr['take_%s' % t].value_counts())
-    print(dr2['take_%s' % t].value_counts())
     # print(dp['need_%s' % t].value_counts())
     # print(dr['need_%s' % t].value_counts())
     print('-----------------------------')
@@ -47,8 +45,8 @@ for df in [dp, dr]:
     print(df[(df['taker']==1) | (df['needer']==1)].shape)
 
 # check NAs in take/need, resp_len
-for c in ['take_%s' % t for t in types] + ['need_%s' % t for t in types] + ['resp_len']:
-    print(dr)
+# for c in ['take_%s' % t for t in types] + ['need_%s' % t for t in types] + ['resp_len']:
+#     print(dr)
 
 # After take/need_type, resp_len, anypay, prop_pay_employer all checked
 # check sq-len: len_type for taker=1, lentype should =0 for taker=0

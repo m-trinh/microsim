@@ -350,7 +350,7 @@ def get_sim_col(X, y, w, Xa, clf, random_state):
         w = w[X.index]
     # if illspouse, reduce to rows that are nevermarried=0 and divorced=0
     # remove nevermarried and divorced
-    elif y.name in ['take_illspouse', 'need_illspouse', 'widowed']:
+    elif y.name in ['take_illspouse', 'need_illspouse']:
         X = X[(X['nevermarried']==0) & (X['divorced']==0) & (X['widowed']==0)]
         X = X.drop(columns=['nevermarried', 'divorced', 'widowed'])
         Xa = Xa[(Xa['nevermarried']==0) & (Xa['divorced']==0) & (Xa['widowed']==0)]
