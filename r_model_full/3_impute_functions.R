@@ -16,6 +16,7 @@
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # 0. fill_na_cols
+# 0a. gen_taker_needer
 # 1. impute_fmla_to_acs
 # Modular imputation methods - can be swaped out for one another for FMLA to ACS imputation of:
 # take_* vars, resp_len, prop_pay_employer variables
@@ -44,16 +45,17 @@ fill_na_cols <- function(d, cols) {
     for (i in cols) {
       # union and hourly have sample restrictions that we need to preserve NA values for
       if ((i=='union' | i=='hourly') & 'prerelg' %in% names(d)) {
-        d_filt <- d %>% filter(prerelg == 1) %>% select(i)
+        d_filt <- d %>% filter(prerelg == 1) %>% select(all_of(i))
       } else {
-        d_filt <- d %>% select(i)
+        d_filt <- d %>% select(all_of(i))
       }
+      
       # In test and training data if xvar is numeric, fill missing values with mean value
-      if (is.numeric(d_filt[,i]) & any(unique(d_filt[!is.na(d_filt[,i]), i])!=c(0,1))) {
+      if (is.numeric(d_filt[,i]) & any(!unique(d_filt[!is.na(d_filt[,i]), i]) %in% c(0,1))) {
         d_filt[is.na(d_filt[,i]), i] <- mean(d_filt[,i], na.rm = TRUE)  
       }
       # if it is a dummy var, then take a random draw with probability = to the non-missing mean
-      if (is.numeric(d_filt[,i]) & all(unique(d_filt[!is.na(d_filt[,i]), i])==c(0,1))) {
+      if (is.numeric(d_filt[,i]) & all(unique(d_filt[!is.na(d_filt[,i]), i]) %in% c(0,1))) {
         if (any(is.na(d_filt[,i]))){
           d_filt$prob <- mean(d_filt[,i], na.rm = TRUE)
           d_filt['rand']=runif(nrow(d))
@@ -124,13 +126,13 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
   
   # filters: logical conditionals always applied to filter vraiable imputation 
   filts <- c(own = "TRUE",
-                   illspouse = "nevermarried == 0 & divorced == 0",
+                   illspouse = "nevermarried == 0 & divorced == 0 & widowed == 0",
                    illchild = "TRUE",
                    illparent = "TRUE",
                    matdis = "female == 1 & nochildren == 0 & age <= 50",
                    bond = "nochildren == 0 & age <= 50",
                    need_own = "TRUE",
-                   need_illspouse = "nevermarried == 0 & divorced == 0",
+                   need_illspouse = "nevermarried == 0 & divorced == 0 & widowed == 0",
                    need_illchild = "TRUE",
                    need_illparent = "TRUE",
                    need_matdis = "female == 1 & nochildren == 0 & age <= 50",
@@ -164,7 +166,7 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
   # alternative imputation methods will need to expect
   # saveRDS(d_fmla, file="./R_dataframes/d_fmla_impute_input.rds") # TODO: Remove from final version
   # saveRDS(d_acs, file="./R_dataframes/d_acs_impute_input.rds") # TODO: Remove from final version
-
+  
   
   # KNN1 imputation method
   if (impute_method=="KNN1") {
@@ -203,24 +205,24 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
                                 weights=weights, create_dummies=TRUE, regularized= TRUE)
   }
   
-  if (impute_method=="K Nearest Neighbor") {
-    # INPUTS: variable to be imputed, conditionals to filter training and test data on, FMLA data (training), and
-    #         ACS data (test), id variable, and dependent variables to use in imputation, number of nbors
-    impute <- mapply(KNN_multi_class, imp_var=yvars,train_filt=filts, test_filt=filts,
-                     MoreArgs=list(d_train=d_fmla,d_test=d_acs,xvars=xvars, kval=kval), SIMPLIFY = FALSE)
-    
-    # OUTPUTS: list of data sets for each leave taking/other variables requiring imputation. 
-    # merge imputed values with acs data
-    for (i in impute) {
-      # old merge code, caused memory issues. using match instead
-      #d_acs <- merge(i, d_acs, by="id",all.y=TRUE)
-      for (j in names(i)) {
-        if (j %in% names(d_acs)==FALSE){
-          d_acs[j] <- i[match(d_acs$id, i$id), j]    
-        }
-      }
-    }
-  }
+  # if (impute_method=="K Nearest Neighbor") {
+  #   # INPUTS: variable to be imputed, conditionals to filter training and test data on, FMLA data (training), and
+  #   #         ACS data (test), id variable, and dependent variables to use in imputation, number of nbors
+  #   impute <- mapply(KNN_multi_class, imp_var=yvars,train_filt=filts, test_filt=filts,
+  #                    MoreArgs=list(d_train=d_fmla,d_test=d_acs,xvars=xvars, kval=kval), SIMPLIFY = FALSE)
+  #   
+  #   # OUTPUTS: list of data sets for each leave taking/other variables requiring imputation. 
+  #   # merge imputed values with acs data
+  #   for (i in impute) {
+  #     # old merge code, caused memory issues. using match instead
+  #     #d_acs <- merge(i, d_acs, by="id",all.y=TRUE)
+  #     for (j in names(i)) {
+  #       if (j %in% names(d_acs)==FALSE){
+  #         d_acs[j] <- i[match(d_acs$id, i$id), j]    
+  #       }
+  #     }
+  #   }
+  # }
   if (impute_method=="Naive Bayes") {
     # xvars must be all categorical vars for naive bayes
     xvars <-c("widowed", "divorced", "separated", "nevermarried", "female", 
@@ -270,7 +272,22 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
   # finally, account for two-stage estimation of anypay and prop_pay_employer. prop_pay_employer has no 0 values, just .125-1.
   # Two-stage estimation is implemented by giving anypay prescendence - prop_pay_employer set to 0 if anypay==0. 
   # prop_pay_employer unchanged if anypay==1.
-  d_acs <- d_acs %>% mutate(prop_pay_employer=ifelse(anypay==0,0,prop_pay_employer))
+  d_acs <- d_acs %>% mutate(prop_pay_employer=ifelse(anypay==0,NA,prop_pay_employer))
+  
+  # generate taker and needer vars
+  d_acs['taker'] <- 0
+  d_acs['needer'] <- 0
+  for (i in leave_types) {
+    take_var <- paste0('take_',i)
+    need_var <- paste0('need_',i)
+    
+    # create taker and needer vars
+    d_acs <- d_acs %>% mutate(taker=ifelse(get(take_var)==1,1,taker))
+    d_acs <- d_acs %>% mutate(needer=ifelse(get(need_var)==1,1,needer))
+  }
+  d_acs$taker[is.na(d_acs$taker)] <- 0
+  d_acs$needer[is.na(d_acs$needer)] <- 0
+  
   return(d_acs)
 }
 
@@ -283,7 +300,8 @@ KNN1_scratch <- function(d_train, d_test, imp_var, train_filt, test_filt, xvars,
   
   # This returns a dataframe of length equal to acs with the employee id and a column for each leave type
   # that indicates whether or not they took the leave.
-
+  
+  
   # create training data
   
   # filter dataset and keep just the variables of interest
@@ -597,7 +615,7 @@ runOrdinalEstimate <- function(d_train,d_test, formula, test_filt,train_filt, va
 # 1Bc. runRandDraw
 # ============================ #
 # run a random draw for leave length 
-runRandDraw <- function(d, yvar, filt, leave_dist, ext_resp_len, rr_sensitive_leave_len,wage_rr,maxlen) {
+runRandDraw <- function(d, yvar, filt, leave_dist, ext_resp_len, rr_sensitive_leave_len,wage_rr,maxlen, dependent_allow) {
 
   # filter test cases
   d_filt <- d %>% filter_(filt)
@@ -665,8 +683,8 @@ runRandDraw <- function(d, yvar, filt, leave_dist, ext_resp_len, rr_sensitive_le
             result <- d_result[1, 'Leave.Length..Days']
             
           } else if (nrow(d_result) == 0) { 
-            
-            result <- squo_len
+            # if our leave is higher than any other, just multiply by 1.25
+            result <- squo_len *1.25
             
           }
           
@@ -703,14 +721,32 @@ runRandDraw <- function(d, yvar, filt, leave_dist, ext_resp_len, rr_sensitive_le
           est_df['prop_pay_employer'] <- d_filt[merge_ids, 'prop_pay_employer'] 
           est_df['resp_len'] <- d_filt[merge_ids, 'resp_len'] 
           est_df['dual_receiver'] <- d_filt[merge_ids, 'dual_receiver'] 
+          est_df['ndep_kid'] <- d_filt[merge_ids, 'ndep_kid'] 
           # set couterfactual leave taking var equal to Z+ (X-Z)*(rrp-rre)/(1-rre), where:
           # Z is status quo leave length
           # X is maximum length needed
           # rre is the status quo replacement rate (i.e. proportion of pay received)
           # wage_rr <- wage of program
           est_df['wage_rr'] <- wage_rr
+          
+          # add dependent allowance to rrp 
+          est_df$dep_bene_allow <- 0
+          kid_count <- 1
+          for (x in dependent_allow) {
+            est_df <- est_df %>% mutate(dep_bene_allow=ifelse(ndep_kid>=kid_count,dep_bene_allow+x,dep_bene_allow))
+            kid_count <- kid_count + 1
+          }
+          est_df <- est_df %>% mutate(wage_rr=wage_rr + dep_bene_allow)
+          # cap at full salary
+          est_df <- est_df %>% mutate(wage_rr=pmin(1,wage_rr))
+          
+          # record effective_rrp
+          est_df <- est_df %>% mutate(effective_rrp=wage_rr)
+        
           # rrp is max(wage_rr, rre)
           est_df['rrp'] <- apply(est_df[c('wage_rr','prop_pay_employer')], 1, max)
+
+          
           # apply formula to estimate couterfactual leave for single receivers
           est_df[yvar] <- with(est_df, ifelse(dual_receiver==0,
               get(squo_var)+ (get(mnl_var)-get(squo_var))*(rrp-prop_pay_employer)/(1-prop_pay_employer),get(yvar)))

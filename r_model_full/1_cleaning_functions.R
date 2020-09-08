@@ -1071,6 +1071,8 @@ clean_acs <-function(d,d_hh,acs_year,fmla_year,save_csv=FALSE,POW_weight=FALSE) 
   
   # number of dependents
   d_hh$ndep_kid <- d_hh$NOC
+  # fill in na as 0
+  d_hh[is.na(d_hh$ndep_kid), 'ndep_kid'] <- 0
   d_hh$ndep_old <- d_hh$R65
   d_hh$ndep_spouse <- d_hh$FES
   d_hh <- d_hh %>% mutate(ndep_spouse_kid=ndep_kid+ndep_spouse)

@@ -93,7 +93,7 @@ LEAVEPROGRAM <- function(d, sens_var,dual_receiver) {
 # but this is a candidate for modual imputation
 
 impute_leave_length <- function(d_train, d_test, ext_resp_len,rr_sensitive_leave_len,wage_rr,
-                                maxlen_DI,maxlen_PFL) { 
+                                maxlen_DI,maxlen_PFL,dependent_allow) { 
   
   #Days of leave taken - currently takes length from most recent leave only
   yvars <- c(own = "length_own",
@@ -131,7 +131,7 @@ impute_leave_length <- function(d_train, d_test, ext_resp_len,rr_sensitive_leave
   predict <- mapply(runRandDraw, yvar=yvars, filt=filts, maxlen=maxlen,
                     MoreArgs = list(leave_dist=d_lens, d=d_test, ext_resp_len=ext_resp_len, 
                                     rr_sensitive_leave_len=rr_sensitive_leave_len,
-                                    wage_rr=wage_rr)
+                                    wage_rr=wage_rr, dependent_allow=dependent_allow)
                                     , SIMPLIFY = FALSE)
   # Outputs: data sets of imputed leave length values for ACS or FMLA observations requiring them
   # merge imputed values with fmla data
@@ -177,12 +177,65 @@ impute_leave_length <- function(d_train, d_test, ext_resp_len,rr_sensitive_leave
     d_test[take_var] <- with(d_test, ifelse(is.na(get(take_var)),0,get(take_var)))
     d_test[squo_var] <- with(d_test, ifelse(is.na(get(squo_var)),0,get(squo_var)))
     d_test[mnl_var] <- with(d_test, ifelse(is.na(get(mnl_var)),0,get(mnl_var)))
+    # add logic control for leave vars 
+    for (var in c(len_var,mnl_var,squo_var,take_var)){
+      if (i=='matdis'){
+        d_test[var] <- with(d_test, ifelse(male==1,0, get(var)))
+        d_test[var] <- with(d_test, ifelse(nochildren==1,0, get(var)))
+        d_test[var] <- with(d_test, ifelse(age>50,0, get(var)))
+      }
+      if (i=='illspouse'){
+        d_test[var] <- with(d_test, ifelse(nevermarried==1 | divorced==1 | widowed==1,0, get(var)))
+      }
+      if (i=='bond'){
+        d_test[var] <- with(d_test, ifelse(nochildren==1,0, get(var)))
+        d_test[var] <- with(d_test, ifelse(age>50,0, get(var)))
+      }
+    }
   }
-  
+
   # calculate total status quo length 
   d_test['squo_total_length'] <- 0 
   for (i in leave_types) {
-    d_test['squo_total_length'] <- d_test['squo_total_length'] + d_test[paste("squo_length_",i,sep="")]
+    d_test['squo_total_length'] <- rowSums(d_test[c('squo_total_length', paste("squo_length_",i,sep=""))], na.rm=TRUE)
+  }
+  
+  # ensure that total length and squo total length vars are not NA
+  d_test$total_length <- rowSums(d_test[,paste0('length_',leave_types)], na.rm=TRUE)
+  d_test$squo_total_length <- rowSums(d_test[,paste0('squo_length_',leave_types)], na.rm=TRUE)
+  
+  # actual counterfactual and status quo leave taking
+  d_test$reduce <- with(d_test, ifelse(total_length>260,total_length/260, 1))
+  d_test$total_length <- 0
+  for (i in leave_types) {
+    len_var= paste('length_',i,sep="")
+    d_test[len_var] <- floor(d_test[,len_var] / d_test$reduce )
+    d_test$total_length <- rowSums(d_test[,c('total_length',len_var)], na.rm=TRUE)
+  }
+  
+  d_test$reduce <- with(d_test, ifelse(squo_total_length>260, 260/squo_total_length, 1))
+  d_test$squo_total_length <- 0
+  for (i in leave_types) {
+    squo_var= paste('squo_length_',i,sep="")
+    d_test[squo_var] <- floor(d_test[,squo_var] * d_test$reduce)
+    d_test$squo_total_length <- rowSums(d_test[,c('squo_total_length',squo_var)], na.rm=TRUE)
+  }
+  
+  # for those that have mnl_all > 260, if mnl_var is less than squo_Var, we will set squo_var equal to mnl_var - 1
+  for (i in leave_types) {
+    squo_var <- paste0('squo_length_',i)
+    mnl_var <- paste0('mnl_',i)
+    take_var <- paste0('take_',i)
+    d_test[squo_var] <- with(d_test, ifelse(get(mnl_var)<get(squo_var),pmax(get(mnl_var)-1,1),get(squo_var)))
+  }
+  
+  d_test$mnl_all <- rowSums(d_test[,paste0('mnl_',leave_types)], na.rm=TRUE)
+  
+  # make sure squo var is 0 if take var is 0
+  for (i in leave_types) {
+    squo_var <- paste0('squo_length_',i)
+    take_var <- paste0('take_',i)
+    d_test[squo_var] <- with(d_test, ifelse(get(take_var)==0,0,get(squo_var)))
   }
   
   return(d_test)
@@ -674,11 +727,42 @@ UPTAKE <- function(d, own_uptake, matdis_uptake, bond_uptake, illparent_uptake,
     uptake_var=paste0('takes_up_',i)
     plen_var= paste("plen_",i, sep="")
     
+      # update/create participation length vars
+    d <- d %>% mutate(particip_length=ifelse(wait_period<get(paste('length_',i,sep="")) &
+                                              get(paste(take_var)) == 1,
+                                             particip_length+get(paste('length_',i,sep=""))-wait_period, particip_length))
+    d[plen_var] <- with(d, ifelse(wait_period<get(paste('length_',i,sep="")) &
+                                    get(paste(take_var)) == 1,
+                                  get(paste('length_',i,sep=""))-wait_period, 0))
+    d <- d %>% mutate(change_flag=ifelse(wait_period<get(paste('length_',i,sep="")) &
+                                            get(paste(take_var)) == 1,1,0))
+
+
+    # subtract days spent on employer benefits from those that exhausting employer benefits (received pay for some days of leave)
+    # Also accounting for wait period here, as that can tick down as a person is still collecting employer benefits
+    # only if not a dual receiver (can't receive both employer and state benefits)
+    d <- d %>% mutate(particip_length= ifelse(change_flag==1 & !is.na(exhausted_by) & dual_receiver==0,
+                                            ifelse(get(paste('length_',i,sep="")) > exhausted_by & exhausted_by>wait_period,
+                                                     particip_length - exhausted_by + wait_period, particip_length), particip_length))
+    d[plen_var] <- with(d, ifelse(change_flag==1 & !is.na(exhausted_by)& dual_receiver==0,
+                                  ifelse(get(paste('length_',i,sep="")) > exhausted_by & exhausted_by>wait_period,
+                                         get(plen_var) - exhausted_by + wait_period, get(plen_var)), get(plen_var)))
+
+    # if waiting period recollect is possible, and leave equals/exceeds min_cfl_recollect length, then we adjust plen length for each leave up
+    # by length of waiting period
+    if (wait_period_recollect & min_cfl_recollect>=wait_period){
+      d['particip_length'] <- with(d, ifelse(get(plen_var)>=min_cfl_recollect, particip_length+wait_period, particip_length))
+      d[plen_var] <- with(d, ifelse(get(plen_var)>=min_cfl_recollect, get(plen_var)+wait_period, get(plen_var)))
+    }
+
+    ptake_var=paste("ptake_",i,sep="")
+    d[ptake_var] <- with(d, ifelse(get(plen_var)>0 & get(take_var)>0,1,0))
+
     # generate uptake column based on uptake val
     elig_d <- d %>% filter(eligworker==1)
     pop_target <- sum(elig_d %>% dplyr::select(PWGTP))*get(uptake_val)
     # filter to only those eligible for the program and taking or needing leave
-    samp_frame <- d %>% filter(eligworker==1 & (get(take_var)==1|get(need_var)==1) & get(length_var)>wait_period+min_takeup_cpl)
+    samp_frame <- d %>% filter(eligworker==1 & (get(take_var)==1|get(need_var)==1) & get(length_var)>wait_period+min_takeup_cpl & particip == 1)
     
     # if no one is taking leave, then return columns of zeros for created variables, otherwise continue with this process
     if (nrow(samp_frame)==0){
@@ -703,7 +787,7 @@ UPTAKE <- function(d, own_uptake, matdis_uptake, bond_uptake, illparent_uptake,
         samp_frame['org_wgt'] <- samp_frame[plen_var] ** alpha
         rows <- sample(nrow(samp_frame), prob = samp_frame$org_wgt)
         samp_frame <- samp_frame[rows,]
-    
+        
       }
       
       # create cumulative sum of weights
@@ -719,41 +803,51 @@ UPTAKE <- function(d, own_uptake, matdis_uptake, bond_uptake, illparent_uptake,
       
       # ensure any leave needers are now indicated as taking leave
       d[take_var] <- with(d, ifelse(get(uptake_var)==1, 1, get(take_var)))
-    
-        # update/create participation vars
-      d <- d %>% mutate(particip_length=ifelse(wait_period<get(paste('length_',i,sep="")) &
-                                                 get(uptake_var)==1 & particip==1 & get(paste(take_var)) == 1, 
-                                               particip_length+get(paste('length_',i,sep=""))-wait_period, particip_length))
-      d[plen_var] <- with(d, ifelse(wait_period<get(paste('length_',i,sep="")) &
-                                      get(uptake_var)==1 & particip==1 & get(paste(take_var)) == 1, 
-                                    get(paste('length_',i,sep=""))-wait_period, 0))
-      d <- d %>% mutate(change_flag=ifelse(wait_period<get(paste('length_',i,sep="")) &
-                                             get(uptake_var)==1 & particip==1 & get(paste(take_var)) == 1,1,0))
-  
-      
-      # subtract days spent on employer benefits from those that exhausting employer benefits (received pay for some days of leave)
-      # Also accounting for wait period here, as that can tick down as a person is still collecting employer benefits
-      # only if not a dual receiver (can't receive both employer and state benefits)
-      d <- d %>% mutate(particip_length= ifelse(change_flag==1 & !is.na(exhausted_by) & dual_receiver==0,
-                                              ifelse(get(paste('length_',i,sep="")) > exhausted_by & exhausted_by>wait_period, 
-                                                       particip_length - exhausted_by + wait_period, particip_length), particip_length))
-      d[plen_var] <- with(d, ifelse(change_flag==1 & !is.na(exhausted_by)& dual_receiver==0,
-                                    ifelse(get(paste('length_',i,sep="")) > exhausted_by & exhausted_by>wait_period, 
-                                           get(plen_var) - exhausted_by + wait_period, get(plen_var)), get(plen_var)))
-      
-      # if waiting period recollect is possible, and leave equals/exceeds min_cfl_recollect length, then we adjust plen length for each leave up 
-      # by length of waiting period 
-      if (wait_period_recollect & min_cfl_recollect>=wait_period){
-        d['particip_length'] <- with(d, ifelse(get(plen_var)>=min_cfl_recollect, particip_length+wait_period, particip_length))
-        d[plen_var] <- with(d, ifelse(get(plen_var)>=min_cfl_recollect, get(plen_var)+wait_period, get(plen_var)))
-      }
-      
-      ptake_var=paste("ptake_",i,sep="")
-      d[ptake_var] <- with(d, ifelse(get(plen_var)>0 & get(take_var)>0,1,0))
     }
   }
-
   
+  # redo participation vars now that eligibility has been selected
+  d$particip_length <- 0
+  for (i in leave_types) {
+    take_var=paste("take_",i,sep="")
+    need_var=paste("need_",i,sep="")
+    length_var = paste('length_',i,sep="")
+    uptake_val=paste(i,"_uptake",sep="")
+    uptake_var=paste0('takes_up_',i)
+    plen_var= paste("plen_",i, sep="")
+    d <- d %>% mutate(particip_length=ifelse(wait_period<get(paste('length_',i,sep="")) &
+                                               get(uptake_var)==1 & get(paste(take_var)) == 1, 
+                                             particip_length+get(paste('length_',i,sep=""))-wait_period, particip_length))
+    d[plen_var] <- with(d, ifelse(wait_period<get(paste('length_',i,sep="")) &
+                                    get(uptake_var)==1 & get(paste(take_var)) == 1, 
+                                  get(paste('length_',i,sep=""))-wait_period, 0))
+    d <- d %>% mutate(change_flag=ifelse(wait_period<get(paste('length_',i,sep="")) &
+                                           get(uptake_var)==1 & get(paste(take_var)) == 1,1,0))
+    
+    # subtract days spent on employer benefits from those that exhausting employer benefits (received pay for some days of leave)
+    # Also accounting for wait period here, as that can tick down as a person is still collecting employer benefits
+    # only if not a dual receiver (can't receive both employer and state benefits)
+    d <- d %>% mutate(particip_length= ifelse(change_flag==1 & !is.na(exhausted_by) & dual_receiver==0,
+                                              ifelse(get(paste('length_',i,sep="")) > exhausted_by & exhausted_by>wait_period, 
+                                                     particip_length - exhausted_by + wait_period, particip_length), particip_length))
+    d[plen_var] <- with(d, ifelse(change_flag==1 & !is.na(exhausted_by)& dual_receiver==0,
+                                  ifelse(get(paste('length_',i,sep="")) > exhausted_by & exhausted_by>wait_period, 
+                                         get(plen_var) - exhausted_by + wait_period, get(plen_var)), get(plen_var)))
+    
+    
+    # if waiting period recollect is possible, and leave equals/exceeds min_cfl_recollect length, then we adjust plen length for each leave up 
+    # by length of waiting period 
+    if (wait_period_recollect & min_cfl_recollect>=wait_period){
+      d['particip_length'] <- with(d, ifelse(get(plen_var)>=min_cfl_recollect, particip_length+wait_period, particip_length))
+      d[plen_var] <- with(d, ifelse(get(plen_var)>=min_cfl_recollect, get(plen_var)+wait_period, get(plen_var)))
+    }
+    
+    ptake_var=paste("ptake_",i,sep="")
+    d[ptake_var] <- with(d, ifelse(get(plen_var)>0 & get(take_var)>0,1,0))
+    
+    # fill na cpl vals with 0 
+    d[is.na(d[plen_var]),plen_var] <- 0
+  }  
   # make sure those with particip_length 0 are also particip 0
   d <- d %>% mutate(particip= ifelse(particip_length==0,0, particip))
 
@@ -763,6 +857,7 @@ UPTAKE <- function(d, own_uptake, matdis_uptake, bond_uptake, illparent_uptake,
   d <- check_caps(d,maxlen_own, maxlen_matdis, maxlen_bond, maxlen_illparent, maxlen_illspouse, maxlen_illchild,
                   maxlen_total, maxlen_DI, maxlen_PFL)
   # OUTPUT: ACS data set with participating leave length capped at user-specified program maximums
+  
   
   # clean up vars
   d <- d[, !(names(d) %in% c('change_flag','reduce','recollect_len'))]
@@ -775,7 +870,28 @@ UPTAKE <- function(d, own_uptake, matdis_uptake, bond_uptake, illparent_uptake,
 check_caps <- function(d,maxlen_own, maxlen_matdis, maxlen_bond, maxlen_illparent, maxlen_illspouse, maxlen_illchild,
                        maxlen_total, maxlen_DI, maxlen_PFL) {
   
-  # for each individual leave type
+  # ensure that total length and squo total length vars are not NA
+  d$total_length <- rowSums(d[,paste0('length_',leave_types)], na.rm=TRUE)
+  d$squo_total_length <- rowSums(d[,paste0('squo_length_',leave_types)], na.rm=TRUE)
+  
+  # actual counterfactual and status quo leave taking
+  d$reduce <- with(d, ifelse(total_length>260,total_length/260, 1))
+  d$total_length <- 0
+  for (i in leave_types) {
+    len_var= paste('length_',i,sep="")
+    d[len_var] <- floor(d[,len_var] / d$reduce )
+    d$total_length <- rowSums(d[,c('total_length',len_var)], na.rm=TRUE)
+  }
+  
+  d$reduce <- with(d, ifelse(squo_total_length>260, 260/squo_total_length, 1))
+  d$squo_total_length <- 0
+  for (i in leave_types) {
+    squo_var= paste('squo_length_',i,sep="")
+    d[squo_var] <- floor(d[,squo_var] * d$reduce)
+    d$squo_total_length <- rowSums(d[,c('squo_total_length',squo_var)], na.rm=TRUE)
+  }
+
+  # for each individual leave type participation
   for (i in leave_types) {
     plen_var= paste("plen_",i, sep="")
     max_val=paste("maxlen_",i,sep="")
@@ -783,71 +899,105 @@ check_caps <- function(d,maxlen_own, maxlen_matdis, maxlen_bond, maxlen_illparen
   }
   
   # apply cap for DI and PFL classes of leaves
-  if (maxlen_DI!=maxlen_bond+maxlen_matdis) {
+  if (maxlen_DI<maxlen_own+maxlen_matdis) {
     d <- d %>% mutate(DI_plen=plen_matdis+plen_own)
     d['DI_plen'] <- with(d, ifelse(DI_plen>maxlen_DI,maxlen_DI,DI_plen))
     # evenly distributed cap among leave types
-    d['reduce'] <- with(d, ifelse(plen_matdis+plen_own!=0, DI_plen/(plen_matdis+plen_own),0))
-    d['plen_matdis']=round(d[,'plen_matdis']*d[,'reduce'])
-    d['plen_own']=round(d[,'plen_own']*d[,'reduce'])
+    d['reduce'] <- with(d, ifelse(plen_matdis+plen_own!=0, (plen_matdis+plen_own)/DI_plen,0))
+    d['plen_matdis']=floor(d[,'plen_matdis']/d[,'reduce'])
+    d['plen_own']=floor(d[,'plen_own']/d[,'reduce'])
   }
   
-  if (maxlen_PFL!=maxlen_illparent+maxlen_illspouse+maxlen_illchild+maxlen_bond) {  
+  if (maxlen_PFL<maxlen_illparent+maxlen_illspouse+maxlen_illchild+maxlen_bond) {  
     d <- d %>% mutate(PFL_plen=plen_bond+plen_illparent+plen_illchild+plen_illspouse)
     d['PFL_plen'] <- with(d, ifelse(PFL_plen>maxlen_PFL,maxlen_PFL,PFL_plen))
     # evenly distributed cap among leave types
     d['reduce'] <- with(d, ifelse(plen_bond+plen_illparent+plen_illchild+plen_illspouse!=0, 
-                                  PFL_plen/(plen_bond+plen_illparent+plen_illchild+plen_illspouse),0))
-    d['plen_bond']=round(d[,'plen_bond']*d[,'reduce'])
-    d['plen_illchild']=round(d[,'plen_illchild']*d[,'reduce'])
-    d['plen_illspouse']=round(d[,'plen_illspouse']*d[,'reduce'])
-    d['plen_illparent']=round(d[,'plen_illparent']*d[,'reduce'])
+                                  (plen_bond+plen_illparent+plen_illchild+plen_illspouse)/PFL_plen,0))
+    d['plen_bond']=floor(d[,'plen_bond']/d[,'reduce'])
+    d['plen_illchild']=floor(d[,'plen_illchild']/d[,'reduce'])
+    d['plen_illspouse']=floor(d[,'plen_illspouse']/d[,'reduce'])
+    d['plen_illparent']=floor(d[,'plen_illparent']/d[,'reduce'])
   }
   
-  # apply cap for all leaves
-  if (maxlen_total!=maxlen_DI+maxlen_PFL | maxlen_total!=maxlen_illparent+maxlen_illspouse+maxlen_illchild+maxlen_bond+maxlen_bond+maxlen_matdis) {
-    d['particip_length']=0
-    for (i in leave_types) {
-      plen_var=paste("plen_",i,sep="")
-      d <- d %>% mutate(particip_length=particip_length+get(plen_var))
-    }
-    d['particip_length'] <- with(d, ifelse(particip_length>maxlen_total,maxlen_total,particip_length))
-    d['reduce'] <- with(d, ifelse(plen_matdis+plen_own+plen_bond+plen_illparent+plen_illchild+plen_illspouse!=0, 
-                                  particip_length/(plen_matdis+plen_own+plen_bond+plen_illparent+plen_illchild+plen_illspouse),0))
-    
-    # evenly distributed cap among leave types
-    d['plen_matdis']=round(d[,'plen_matdis']*d[,'reduce'])
-    d['plen_own']=round(d[,'plen_own']*d[,'reduce'])
-    d['plen_bond']=round(d[,'plen_bond']*d[,'reduce'])
-    d['plen_illchild']=round(d[,'plen_illchild']*d[,'reduce'])
-    d['plen_illspouse']=round(d[,'plen_illspouse']*d[,'reduce'])
-    d['plen_illparent']=round(d[,'plen_illparent']*d[,'reduce'])
-    
-    # recalculate DI/PFL/total lengths
-    d <- d %>% mutate(DI_plen=plen_matdis+plen_own)
-    d <- d %>% mutate(PFL_plen=plen_bond+plen_illparent+plen_illchild+plen_illspouse)
-    d <- d %>% mutate(particip_length=DI_plen+ PFL_plen)
+  # reset particip_length
+  d['particip_length']=0
+  for (i in leave_types) {
+    plen_var=paste("plen_",i,sep="")
+    d$particip_length <- rowSums(d[,c('particip_length',plen_var)], na.rm=TRUE)
   }
+  
+  # removed - not in Python and has no real world scenario that it replicates
+  # # apply cap for all leaves
+  # if (maxlen_total!=maxlen_DI+maxlen_PFL | maxlen_total!=maxlen_illparent+maxlen_illspouse+maxlen_illchild+maxlen_bond+maxlen_bond+maxlen_matdis) {
+  #   d['particip_length']=0
+  #   for (i in leave_types) {
+  #     plen_var=paste("plen_",i,sep="")
+  #     d$particip_length <- rowSums(d[,c('particip_length',plen_var)], na.rm=TRUE)
+  #   }
+  #   d['particip_length'] <- with(d, ifelse(particip_length>maxlen_total,maxlen_total,particip_length))
+  #   d['reduce'] <- with(d, ifelse(plen_matdis+plen_own+plen_bond+plen_illparent+plen_illchild+plen_illspouse!=0, 
+  #                                 (plen_matdis+plen_own+plen_bond+plen_illparent+plen_illchild+plen_illspouse)/particip_length,0))
+  #   
+  #   # evenly distributed cap among leave types
+  #   d['plen_matdis']=floor(d[,'plen_matdis']/d[,'reduce'])
+  #   d['plen_own']=floor(d[,'plen_own']/d[,'reduce'])
+  #   d['plen_bond']=floor(d[,'plen_bond']/d[,'reduce'])
+  #   d['plen_illchild']=floor(d[,'plen_illchild']/d[,'reduce'])
+  #   d['plen_illspouse']=floor(d[,'plen_illspouse']/d[,'reduce'])
+  #   d['plen_illparent']=floor(d[,'plen_illparent']/d[,'reduce'])
+  #   
+  #   # recalculate DI/PFL/total lengths
+  #   d <- d %>% mutate(DI_plen=plen_matdis+plen_own)
+  #   d <- d %>% mutate(PFL_plen=plen_bond+plen_illparent+plen_illchild+plen_illspouse)
+  #   d <- d %>% mutate(particip_length=DI_plen+ PFL_plen)
+  # }
   
   # also implement caps for max needed length 
   d['temp_length']=0
   for (i in leave_types) {
     len_var=paste("mnl_",i,sep="")
-    d <- d %>% mutate(temp_length=temp_length+get(len_var))
+    d$temp_length <- rowSums(d[,c('temp_length',len_var)], na.rm=TRUE)
   }
   d['temp_length'] <- with(d, ifelse(temp_length>260,260,temp_length))
   d['reduce'] <- with(d, ifelse(mnl_matdis+mnl_own+mnl_bond+mnl_illparent+mnl_illchild+mnl_illspouse!=0, 
                                 temp_length/(mnl_matdis+mnl_own+mnl_bond+mnl_illparent+mnl_illchild+mnl_illspouse),0))
     
   # evenly distributed cap among leave types
-  d['mnl_matdis']=round(d[,'mnl_matdis']*d[,'reduce'])
-  d['mnl_own']=round(d[,'mnl_own']*d[,'reduce'])
-  d['mnl_bond']=round(d[,'mnl_bond']*d[,'reduce'])
-  d['mnl_illchild']=round(d[,'mnl_illchild']*d[,'reduce'])
-  d['mnl_illspouse']=round(d[,'mnl_illspouse']*d[,'reduce'])
-  d['mnl_illparent']=round(d[,'mnl_illparent']*d[,'reduce'])
+  d['mnl_matdis']=floor(d[,'mnl_matdis']*d[,'reduce'])
+  d['mnl_own']=floor(d[,'mnl_own']*d[,'reduce'])
+  d['mnl_bond']=floor(d[,'mnl_bond']*d[,'reduce'])
+  d['mnl_illchild']=floor(d[,'mnl_illchild']*d[,'reduce'])
+  d['mnl_illspouse']=floor(d[,'mnl_illspouse']*d[,'reduce'])
+  d['mnl_illparent']=floor(d[,'mnl_illparent']*d[,'reduce'])
   
-  d <- d %>% mutate(mnl_all=mnl_bond+mnl_illchild+mnl_illparent+mnl_illspouse+mnl_matdis+mnl_own)
+  # for those that have mnl_all > 260, if mnl_var is less than squo_Var, we will set squo_var equal to mnl_var - 1
+  for (i in leave_types) {
+    squo_var <- paste0('squo_length_',i)
+    mnl_var <- paste0('mnl_',i)
+    take_var <- paste0('take_',i)
+    d[squo_var] <- with(d, ifelse(get(mnl_var)<get(squo_var),pmax(get(mnl_var)-1,1),get(squo_var)))
+  }
+  
+  d$mnl_all <- rowSums(d[,paste0('mnl_',leave_types)], na.rm=TRUE)
+  
+  # make sure squo var is 0 if take var is 0
+  for (i in leave_types) {
+    squo_var <- paste0('squo_length_',i)
+    take_var <- paste0('take_',i)
+    d[squo_var] <- with(d, ifelse(get(take_var)==0,0,get(squo_var)))
+  }
+  
+  # fill in NAs with zero
+  for (i in leave_types) {
+    squo_var <- paste0('squo_length_',i)
+    mnl_var <- paste0('mnl_',i)
+    plen_var= paste("plen_",i, sep="")
+    d[is.na(d[squo_var]),squo_var] <- 0
+    d[is.na(d[mnl_var]),mnl_var] <- 0
+    d[is.na(d[plen_var]),plen_var] <- 0
+  }
+  
   # clean up vars
   d <- d[, !(names(d) %in% c('benefit_prop_temp','reduce','temp_length'))] 
   return(d)
@@ -1128,6 +1278,9 @@ CLEANUP <- function(d, week_bene_cap,week_bene_cap_prop,week_bene_min, maxlen_ow
   d['bene_PFL'] <- 0
   
   for (i in leave_types) {
+    take_var <- paste0('take_',i)
+    need_var <- paste0('need_',i)
+    
     plen_var=paste("plen_",i,sep="")
     ben_var=paste("bene_",i,sep="")  
     d[ben_var] <- with(d, actual_benefits*(get(plen_var)/particip_length))
@@ -1156,14 +1309,7 @@ CLEANUP <- function(d, week_bene_cap,week_bene_cap_prop,week_bene_min, maxlen_ow
     if (i=='bond'|i=='illspouse'|i=='illparent'|i=='illchild') {
       d['ptake_PFL'] <- with(d, ifelse(get(plen_var)>0 & get(take_var)>0,1,ptake_PFL))  
     }
-    # create taker and needer vars
-    d['taker'] <- 0
-    d['needer'] <- 0
-    take_var <- paste0('take_',i)
-    need_var <- paste0('need_',i)
-    d <- d %>% mutate(taker=ifelse(get(take_var)==1,1,taker))
-    d <- d %>% mutate(needer=ifelse(get(need_var)==1,1,needer))
-    d$needer[is.na(d$needer)] <- 0
+
     
     # calculate squo and counterfactual employer pay
     len_var=paste("length_",i,sep="")
@@ -1171,6 +1317,47 @@ CLEANUP <- function(d, week_bene_cap,week_bene_cap_prop,week_bene_min, maxlen_ow
     d[paste0('emppay_',i)] <- with(d, actual_leave_pay*(get(len_var)/total_length))
     d[paste0('squo_emppay_',i)] <- with(d, squo_leave_pay*(get(squo_var)/squo_total_length))
   }
+  
+  # post simulation logic control
+  d <- d %>% mutate(take_matdis=ifelse(male==1,0,take_matdis))
+  d <- d %>% mutate(need_matdis=ifelse(male==1,0,need_matdis))
+  d <- d %>% mutate(take_illspouse=ifelse(nevermarried==1 | divorced==1 | widowed==1,0,take_illspouse))
+  d <- d %>% mutate(need_illspouse=ifelse(nevermarried==1 | divorced==1 | widowed==1,0,need_illspouse))
+  d <- d %>% mutate(take_bond=ifelse(nochildren==1,0,take_bond))
+  d <- d %>% mutate(need_bond=ifelse(nochildren==1,0,need_bond))
+  d <- d %>% mutate(take_matdis=ifelse(nochildren==1,0,take_matdis))
+  d <- d %>% mutate(need_matdis=ifelse(nochildren==1,0,need_matdis))
+  d <- d %>% mutate(take_matdis=ifelse(age>50,0,take_matdis))
+  d <- d %>% mutate(need_matdis=ifelse(age>50,0,need_matdis))
+  d <- d %>% mutate(take_bond=ifelse(age>50,0,take_bond))
+  d <- d %>% mutate(need_bond=ifelse(age>50,0,need_bond))
+  for (i in leave_types) {
+    d[paste0('squo_length_',i)] <- with(d , ifelse(get(paste0('take_',i))==0,0, get(paste0('squo_length_',i))))
+  }
+  # recalculate total status quo length 
+  d['squo_total_length'] <- 0 
+  for (i in leave_types) {
+    d['squo_total_length'] <- rowSums(d[c('squo_total_length', paste("squo_length_",i,sep=""))], na.rm=TRUE)
+  }
+
+    # generate taker and needer vars
+  d['taker'] <- 0
+  d['needer'] <- 0
+  for (i in leave_types) {
+    take_var <- paste0('take_',i)
+    need_var <- paste0('need_',i)
+    
+    # create taker and needer vars
+    d <- d %>% mutate(taker=ifelse(get(take_var)==1 & is.na(take_var)==FALSE,1,taker))
+    d <- d %>% mutate(needer=ifelse(get(need_var)==1& is.na(need_var)==FALSE,1,needer))
+  }
+  d$taker[is.na(d$taker)] <- 0
+  d$needer[is.na(d$needer)] <- 0
+  
+  # make anypay and prop_pay_employer = missing if needer==1 | taker ==1 
+  d <- d %>% mutate(anypay=ifelse(needer!=1 & taker!=1, NA, anypay))
+  d <- d %>% mutate(prop_pay_employer=ifelse(needer!=1 & taker!=1, NA, prop_pay_employer))
+
   return(d)
 }
 
