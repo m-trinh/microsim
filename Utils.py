@@ -421,7 +421,6 @@ def create_r_command(general_params, other_params, progress_file, output_dir, mo
         Name of text file that will be checked for simulation progress
     :return: str
     """
-
     # Create a list of parameter values
     params = {
         'acs_dir': general_params.acs_directory,
@@ -438,7 +437,7 @@ def create_r_command(general_params, other_params, progress_file, output_dir, mo
         'LOCALGOV': other_params.local_employees,  # LOCALGOV
         'SELFEMP': other_params.self_employed,  # SELFEMP
         'place_of_work': general_params.state_of_work,  # place_of_work
-        'dependent_allow': 0,  # dependent_allow
+        'dependent_allow': ','.join(map(str, other_params.dependency_allowance_profile)) if len(other_params.dependency_allowance_profile) > 0 else 0,  # dependent_allow
         'needers_fully_participate': other_params.needers_fully_participate,  # fill_particip_needer
         'clone_factor': other_params.clone_factor,  # clone_factor
         'week_bene_cap': other_params.weekly_ben_cap,  # week_bene_cap

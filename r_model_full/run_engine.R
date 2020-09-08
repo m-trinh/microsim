@@ -9,6 +9,12 @@ source("0_master_execution_function.R")
 args = commandArgs(asValue=TRUE)
 keys <- attachLocally(args)
 
+if (dependent_allow != "0") {
+    dependent_allow <- as.numeric(strsplit(dependent_allow, ",")[[1]])
+} else {
+	dependent_allow <- 0
+}
+
 d <- policy_simulation(
 	acs_dir=acs_dir,
 	fmla_file=fmla_file,
@@ -57,5 +63,6 @@ d <- policy_simulation(
 	dual_receiver=as.numeric(dual_receiver),
 	min_takeup_cpl=as.numeric(min_takeup_cpl),
 	model_start_time=model_start_time,
-	ABF_enabled=FALSE
+	ABF_enabled=FALSE,
+	dependent_allow=dependent_allow
 )
