@@ -12,8 +12,8 @@ import numpy as np
 from _5a_aux_functions import *
 ## Read in post-sim ACS
 dp = pd.read_csv('./output/output_20200831_134546_main simulation/acs_sim_ri_20200831_134546.csv')
-dr = pd.read_csv('./output/output_20200831_134335/acs_sim_ri_20200831_134335.csv')
-
+dr = pd.read_csv('./output/output_20200904_135921/acs_sim_ri_20200904_135921.csv')
+dr2 = pd.read_csv('./output/output_20200904_081412/acs_sim_ri_20200904_081412.csv')
 ## Find which persons are in R but not Python
 dm = pd.merge(dp[['SERIALNO', 'SPORDER']], dr[['SERIALNO', 'SPORDER']], how='outer', indicator=True)
 dm = dm[dm['_merge']!='both']
@@ -25,10 +25,11 @@ dm = dm[dm['_merge']!='both']
 types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
 # check row counts and weight sum
 for t in types:
-    # print(dp['take_%s' % t].value_counts())
-    # print(dr['take_%s' % t].value_counts())
-    print(dp['need_%s' % t].value_counts())
-    print(dr['need_%s' % t].value_counts())
+    print(dp['take_%s' % t].value_counts())
+    print(dr['take_%s' % t].value_counts())
+    print(dr2['take_%s' % t].value_counts())
+    # print(dp['need_%s' % t].value_counts())
+    # print(dr['need_%s' % t].value_counts())
     print('-----------------------------')
 print(dp['resp_len'].value_counts())
 print(dr['resp_len'].value_counts())
@@ -105,6 +106,10 @@ for t in types:
     print(dr[dr['takeup_%s' % t]==1]['cpl_%s' % t].describe())
     print(dr[dr['takeup_%s' % t] == 1]['PWGTP'].sum())
 
+t = 'illchild'
+print(dr[dr['cpl_%s' % t] > 0]['cpl_%s' % t].describe())
+print(dr[dr['takeup_%s' % t] == 1]['cpl_%s' % t].describe())
+print(dr[dr['takeup_%s' % t] == 1]['PWGTP'].sum())
 #######################################################################################################################
 
 
