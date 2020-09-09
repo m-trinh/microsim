@@ -737,6 +737,9 @@ UPTAKE <- function(d, own_uptake, matdis_uptake, bond_uptake, illparent_uptake,
     d <- d %>% mutate(change_flag=ifelse(wait_period<get(paste('length_',i,sep="")) &
                                             get(paste(take_var)) == 1,1,0))
 
+    # save vars as "predraw" - we will be modifying particip_length/plen_var after uptake is determined
+    d[paste0(plen_var,'_predraw')] <- d[plen_var]
+    d[paste0('particip_length','_predraw')] <- d['particip_length']
 
     # subtract days spent on employer benefits from those that exhausting employer benefits (received pay for some days of leave)
     # Also accounting for wait period here, as that can tick down as a person is still collecting employer benefits
@@ -1353,6 +1356,9 @@ CLEANUP <- function(d, week_bene_cap,week_bene_cap_prop,week_bene_min, maxlen_ow
   }
   d$taker[is.na(d$taker)] <- 0
   d$needer[is.na(d$needer)] <- 0
+  
+  # set effective_rrp to NA if taker and needer are both 0
+  d <- d %>% mutate(effective_rrp= ifelse(taker==0 & needer==0,NA, effective_rrp))
   
   # make anypay and prop_pay_employer = missing if needer==1 | taker ==1 
   d <- d %>% mutate(anypay=ifelse(needer!=1 & taker!=1, NA, anypay))

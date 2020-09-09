@@ -742,7 +742,8 @@ runRandDraw <- function(d, yvar, filt, leave_dist, ext_resp_len, rr_sensitive_le
           
           # record effective_rrp
           est_df <- est_df %>% mutate(effective_rrp=wage_rr)
-        
+    
+          
           # rrp is max(wage_rr, rre)
           est_df['rrp'] <- apply(est_df[c('wage_rr','prop_pay_employer')], 1, max)
 
