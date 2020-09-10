@@ -3,6 +3,7 @@
 source("0_master_execution_function.R")
 options(error=recover)
 meth <- 'Logistic Regression GLM'
+#meth <- 'K Nearest Neighbor'
 timestart <<- Sys.time()
 d <- policy_simulation(
                   base_bene_level=.6,

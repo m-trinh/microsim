@@ -205,24 +205,24 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
                                 weights=weights, create_dummies=TRUE, regularized= TRUE)
   }
   
-  # if (impute_method=="K Nearest Neighbor") {
-  #   # INPUTS: variable to be imputed, conditionals to filter training and test data on, FMLA data (training), and
-  #   #         ACS data (test), id variable, and dependent variables to use in imputation, number of nbors
-  #   impute <- mapply(KNN_multi_class, imp_var=yvars,train_filt=filts, test_filt=filts,
-  #                    MoreArgs=list(d_train=d_fmla,d_test=d_acs,xvars=xvars, kval=kval), SIMPLIFY = FALSE)
-  #   
-  #   # OUTPUTS: list of data sets for each leave taking/other variables requiring imputation. 
-  #   # merge imputed values with acs data
-  #   for (i in impute) {
-  #     # old merge code, caused memory issues. using match instead
-  #     #d_acs <- merge(i, d_acs, by="id",all.y=TRUE)
-  #     for (j in names(i)) {
-  #       if (j %in% names(d_acs)==FALSE){
-  #         d_acs[j] <- i[match(d_acs$id, i$id), j]    
-  #       }
-  #     }
-  #   }
-  # }
+  if (impute_method=="K Nearest Neighbor") {
+    # INPUTS: variable to be imputed, conditionals to filter training and test data on, FMLA data (training), and
+    #         ACS data (test), id variable, and dependent variables to use in imputation, number of nbors
+    impute <- mapply(KNN_multi_class, imp_var=yvars,train_filt=filts, test_filt=filts,
+                     MoreArgs=list(d_train=d_fmla,d_test=d_acs,xvars=xvars, kval=kval), SIMPLIFY = FALSE)
+
+    # OUTPUTS: list of data sets for each leave taking/other variables requiring imputation.
+    # merge imputed values with acs data
+    for (i in impute) {
+      # old merge code, caused memory issues. using match instead
+      #d_acs <- merge(i, d_acs, by="id",all.y=TRUE)
+      for (j in names(i)) {
+        if (j %in% names(d_acs)==FALSE){
+          d_acs[j] <- i[match(d_acs$id, i$id), j]
+        }
+      }
+    }
+  }
   if (impute_method=="Naive Bayes") {
     # xvars must be all categorical vars for naive bayes
     xvars <-c("widowed", "divorced", "separated", "nevermarried", "female", 
