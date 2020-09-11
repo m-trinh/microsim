@@ -358,6 +358,11 @@ policy_simulation <- function(
     
     # Load and clean ACS
     st_code <- d_states[d_states$state_abbr==toupper(state),'ST']
+    st_code <- toString(st_code)
+    if (nchar(st_code)==1) {
+      st_code <- paste0('0',st_code)
+    }
+    
     if (place_of_work==TRUE) {
       d_acs_hh <- read.csv(paste0(acs_dir,'/',acs_year,'/pow_household_files/h',st_code,'_',tolower(state),'_pow.csv'))
       d_acs_p <- read.csv(paste0(acs_dir,'/',acs_year,'/pow_person_files/p',st_code,'_',tolower(state),'_pow.csv')) 
