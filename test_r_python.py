@@ -11,8 +11,8 @@ pd.set_option('display.width', 200)
 import numpy as np
 from _5a_aux_functions import *
 ## Read in post-sim ACS
-dp = pd.read_csv('./output/output_20200908_090654_main simulation/acs_sim_ri_20200908_090654.csv')
-dr = pd.read_csv('./output/output_20200908_122843/acs_sim_ri_20200908_122843.csv')
+dp = pd.read_csv('./output/output_20200909_210351_main simulation/acs_sim_nj_20200909_210351.csv')
+dr = pd.read_csv('./output/output_20200909_192739/acs_sim_nj_20200909_192739.csv')
 ## Find which persons are in R but not Python
 dm = pd.merge(dp[['SERIALNO', 'SPORDER']], dr[['SERIALNO', 'SPORDER']], how='outer', indicator=True)
 dm = dm[dm['_merge']!='both']
@@ -75,7 +75,7 @@ for t in types:
     print(dr[dr['len_%s' % t] > 0]['len_%s' % t].describe())
 
 # check MNL, CFL, CPL
-binwidth = 1
+binwidth = 5
 d_axs = dict(zip(types,[(x, y) for x in range(2) for y in range(3)]))
 fig, axs = plt.subplots(2, 3, tight_layout=True)
 lv = 'cpl'
@@ -91,7 +91,7 @@ for t in types:
     print('-------Py---------')
     print(dp[dp['%s_%s' % (lv, t)]>0]['%s_%s' % (lv, t)].describe())
     print('-------R---------')
-    print(dr[dr['%s_%s' % (lv, t)] > 0]['%s_%s' % (lv, t)].describe())
+    print(dr[dr['%s_%s' % (lv, t)]>0]['%s_%s' % (lv, t)].describe())
 
 # check uptakers
 for t in types:
