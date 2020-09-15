@@ -631,7 +631,6 @@ policy_simulation <- function(
       take_compar(d_acs_imp, output, out_dir,place_of_work)
     }  
   }
-  
   # Options to output final data
   if (!is.null(output) & saveCSV==TRUE & fulloutput==TRUE) {
     write.csv(d_acs_imp, file=file.path(out_dir, paste0('/',output,'_full_output.csv'), fsep = .Platform$file.sep))

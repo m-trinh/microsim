@@ -517,7 +517,6 @@ FORMULA <- function(d, formula_prop_cuts=NULL, formula_value_cuts=NULL, formula_
     prev_val=formula_prop_cuts[1]
     lvl=1
     for (i in formula_prop_cuts[2:len_cuts]) {
-      print(i)
       lvl=lvl+1
       d <- d %>% mutate(benefit_prop = ifelse(i>mean_wage_prop & prev_val<=mean_wage_prop,
                                              formula_bene_levels[lvl], benefit_prop))
@@ -766,9 +765,6 @@ UPTAKE <- function(d, own_uptake, matdis_uptake, bond_uptake, illparent_uptake,
     pop_target <- sum(elig_d %>% dplyr::select(PWGTP))*get(uptake_val)
     # filter to only those eligible for the program and taking or needing leave
     samp_frame <- d %>% filter(eligworker==1 & (get(take_var)==1|get(need_var)==1) & get(length_var)>wait_period+min_takeup_cpl & particip == 1)
-    if (i=='bond') {
-      print(sum(samp_frame$PWGTP))
-    }
     # if n1o one is taking leave, then return columns of zeros for created variables, otherwise continue with this process
     if (nrow(samp_frame)==0){
       ptake_var=paste("ptake_",i,sep="")
@@ -1030,6 +1026,10 @@ check_caps <- function(d,maxlen_own, maxlen_matdis, maxlen_bond, maxlen_illparen
   
   # clean up vars
   d <- d[, !(names(d) %in% c('benefit_prop_temp','reduce','temp_length'))] 
+  
+  # recalculate benefits 
+  d <- BENEFITS(d)
+  
   return(d)
 }
 # ============================ #
@@ -1308,9 +1308,9 @@ CLEANUP <- function(d, week_bene_cap,week_bene_cap_prop,week_bene_min, maxlen_ow
   for (i in leave_types) {
     take_var <- paste0('take_',i)
     need_var <- paste0('need_',i)
-    
     plen_var=paste("plen_",i,sep="")
     ben_var=paste("bene_",i,sep="")  
+    
     d[ben_var] <- with(d, actual_benefits*(get(plen_var)/particip_length))
     d[ben_var] <- with(d, ifelse(is.na(get(ben_var)),0,get(ben_var)))
     
@@ -1345,6 +1345,16 @@ CLEANUP <- function(d, week_bene_cap,week_bene_cap_prop,week_bene_min, maxlen_ow
     d[paste0('emppay_',i)] <- with(d, actual_leave_pay*(get(len_var)/total_length))
     d[paste0('squo_emppay_',i)] <- with(d, squo_leave_pay*(get(squo_var)/squo_total_length))
   }
+  
+  # fix actual benefits calculation
+  d$actual_benefits <- 0 
+  for (i in leave_types) {
+    plen_var=paste("plen_",i,sep="")
+    ptake_var=paste("ptake_",i,sep="")
+    bene_var=paste("bene_",i,sep="")
+    d$actual_benefits = d$actual_benefits + d[,ptake_var]*d[,bene_var]
+  }
+  
   
   # post simulation logic control
   d <- d %>% mutate(take_matdis=ifelse(male==1,0,take_matdis))

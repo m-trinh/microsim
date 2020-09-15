@@ -266,14 +266,6 @@ take_compar <- function(d, output, out_dir,place_of_work) {
 # 4. create_meta_file
 #=====================================================
 create_meta_file <-function(d, out_dir,place_of_work, model_start_time) {
-  # if place of work, multiply weight by 2% to adjust for missing values
-  if (place_of_work){
-    d$PWGTP <- d$PWGTP*1.02
-    replicate_weights <- paste0('PWGTP',seq(1,80))
-    for (i in replicate_weights) {
-      d[,i] <- d[,i] * 1.02 
-    }  
-  }
   # meta output file for leave costs 
   meta_cost <- data.frame(row.names = leave_types)
   for (i in leave_types)  {
