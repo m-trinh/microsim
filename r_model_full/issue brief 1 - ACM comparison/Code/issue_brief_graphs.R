@@ -8,7 +8,7 @@ library(reshape2)
 library(varhandle)
 
 # read in IMPAQ results
-impaq <- read.csv('output/issue_brief_1 nums 5_21.csv')
+impaq <- read.csv('output/issue_brief_1 nums 9_11.csv')
 names(impaq)[names(impaq) == "X"] <- "var"
 names(impaq)[names(impaq) == "source"] <- "model"
 
@@ -24,8 +24,8 @@ ACM[ACM=='']<- 0
 ACM[is.na(ACM)]<- 0
 drop_vars <- c('ptake_DI','ptake_PFL','plen_own','plen_matdis','PFL_plen','bene_DI','bene_PFL')
 ACM <- ACM[!ACM$var %in% drop_vars,]
-ACM[ACM['var']=='actual_benefits',c('CA','NJ','RI','CA_SE','NJ_SE','RI_SE')]<-
-    ACM[ACM['var']=='actual_benefits',c('CA','NJ','RI','CA_SE','NJ_SE','RI_SE')]*1000000
+ACM[ACM['var']=='annual_benefit_all',c('CA','NJ','RI','CA_SE','NJ_SE','RI_SE')]<-
+    ACM[ACM['var']=='annual_benefit_all',c('CA','NJ','RI','CA_SE','NJ_SE','RI_SE')]*1000000
 
 # read in actual results 
 actual <- read.csv('issue brief 1 - ACM comparison/actual leave data.csv')
@@ -71,12 +71,12 @@ Leave_Type<- c('Own Illness','Maternal Disability','Own/Maternal ','Child Bondin
                 'Ill Parent','Ill Spouse ','Eligible Workers','Benefits')
 
 d$Leave_Type <- factor(d$Leave_Type, levels = Leave_Type)
-d$model[d$model=='IMPAQ'] <- 'IMPAQ-DOL'
-d$model <- factor(d$model, levels = c('IMPAQ-DOL','ACM','Actual'))
+d$model[d$model=='IMPAQ'] <- 'Worker PLUS'
+d$model <- factor(d$model, levels = c('Worker PLUS','ACM','Actual'))
 
 # make graphs 
 # Exhibit 1 ---- Comparing Total Benefits 
-ggplot(data=d[d['var']=='actual_benefits',], aes(x=state, y=value,fill=model)) +
+ggplot(data=d[d['var']=='annual_benefit_all',], aes(x=state, y=value,fill=model)) +
   # bar chart
   geom_bar(stat="identity", position='dodge') +
   # theme
@@ -97,7 +97,7 @@ ggplot(data=d[d['var']=='actual_benefits',], aes(x=state, y=value,fill=model)) +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
   panel.background = element_blank(), axis.line = element_line(colour = "black"))+ 
   scale_fill_manual(values=c("#820023","#B2A97E",'grey')) + 
-  xlab("State")+ theme(legend.title = element_blank())
+  xlab("State")+ theme(legend.title = element_blank(), legend.position = c(.75, 1), legend.justification = c(0, 1))
 
 ggsave(file="./exhibits/IB1_benefit_outlay.png", width=8, dpi=300)
 
@@ -123,12 +123,12 @@ ggplot(data=d[d['var']=='eligworker',], aes(x=state, y=value,fill=model)) +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black"))+ 
   scale_fill_manual(values=c("#820023","#B2A97E",'grey')) + 
-  xlab("State")+ theme(legend.title = element_blank())
+  xlab("State")+ theme(legend.title = element_blank(), legend.position = c(.75, 1), legend.justification = c(0, 1))
         
 ggsave(file="./exhibits/IB2_eligible_workers.png", width=8, dpi=300)
 
 # Exhibit 3 ---- California, Number of leave takers
-ggplot(data=d[d['state']=='CA' & grepl('ptake',d$var),], aes(x=Leave_Type, y=value,fill=model)) +
+ggplot(data=d[d['state']=='CA' & grepl('takeup',d$var),], aes(x=Leave_Type, y=value,fill=model)) +
   # bar chart
   geom_bar(stat="identity", position='dodge') +
   # theme
@@ -149,13 +149,13 @@ ggplot(data=d[d['state']=='CA' & grepl('ptake',d$var),], aes(x=Leave_Type, y=val
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black"))+ 
   scale_fill_manual(values=c("#820023","#B2A97E",'grey')) + 
-  xlab("State")+ theme(legend.title = element_blank())
+  xlab("Leave Type")+ theme(legend.title = element_blank(), legend.position = c(.75, 1), legend.justification = c(0, 1))
         
 
 ggsave(file="./exhibits/IB3_CA_Leave_Takers.png", width=8, dpi=300)
 
 # Exhibit 5 ---- New Jersey, Number of leave takers
-ggplot(data=d[d['state']=='NJ' & grepl('ptake',d$var),], aes(x=Leave_Type, y=value,fill=model)) +
+ggplot(data=d[d['state']=='NJ' & grepl('takeup',d$var),], aes(x=Leave_Type, y=value,fill=model)) +
   # bar chart
   geom_bar(stat="identity", position='dodge') +
   # theme
@@ -176,13 +176,13 @@ ggplot(data=d[d['state']=='NJ' & grepl('ptake',d$var),], aes(x=Leave_Type, y=val
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black"))+ 
   scale_fill_manual(values=c("#820023","#B2A97E",'grey')) + 
-  xlab("State")+ theme(legend.title = element_blank())
+  xlab("Leave Type")+ theme(legend.title = element_blank(), legend.position = c(.75, 1), legend.justification = c(0, 1))
         
 
 ggsave(file="./exhibits/IB5_NJ_Leave_Takers.png", width=8, dpi=300)
 
 # Exhibit 6 ---- New Jersey, leave length
-ggplot(data=d[d['state']=='NJ' & grepl('plen',d$var),], aes(x=Leave_Type, y=value,fill=model)) +
+ggplot(data=d[d['state']=='NJ' & grepl('cpl',d$var),], aes(x=Leave_Type, y=value,fill=model)) +
   # bar chart
   geom_bar(stat="identity", position='dodge') +
   # theme
@@ -196,19 +196,19 @@ ggplot(data=d[d['state']=='NJ' & grepl('plen',d$var),], aes(x=Leave_Type, y=valu
   theme(plot.title = element_text(size=11, hjust = 0.5,face='bold'),
         text=element_text(size = 11)) +
   # Data labels
-  geom_text(size=4,position = position_dodge(width= 1),aes(y=value+1,
+  geom_text(size=4,position = position_dodge(width= 1),aes(y=value+.75,
                                                     label=paste0(format(value, big.mark=",", nsmall=1, digits=2, scientific=FALSE)))) +
   geom_errorbar(position = position_dodge(width= 1),aes(ymin=value-se_value*1.96, ymax=value+se_value*1.96), width=.2)+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black"))+ 
   scale_fill_manual(values=c("#820023","#B2A97E",'grey')) + 
-  xlab("State") + theme(legend.title = element_blank())
+  xlab("Leave Type") + theme(legend.title = element_blank(), legend.position = c(.75, 1), legend.justification = c(0, 1))
         
 
 ggsave(file="./exhibits/IB6_NJ_Leave_Length.png", width=8, dpi=300)
 
 # Exhibit 7 ---- Rhode Island, Number of leave takers
-ggplot(data=d[d['state']=='RI' & grepl('ptake',d$var),], aes(x=Leave_Type, y=value,fill=model)) +
+ggplot(data=d[d['state']=='RI' & grepl('takeup',d$var),], aes(x=Leave_Type, y=value,fill=model)) +
   # bar chart
   geom_bar(stat="identity", position='dodge') +
   # theme
@@ -229,7 +229,7 @@ ggplot(data=d[d['state']=='RI' & grepl('ptake',d$var),], aes(x=Leave_Type, y=val
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
   scale_fill_manual(values=c("#820023","#B2A97E",'grey')) + 
-  xlab("State") + theme(legend.title = element_blank())
+  xlab("Leave Type") + theme(legend.title = element_blank(), legend.position = c(.75, 1), legend.justification = c(0, 1))
         
 
 ggsave(file="./exhibits/IB7_RI_Leave_Takers.png", width=8, dpi=300)

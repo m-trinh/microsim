@@ -766,8 +766,10 @@ UPTAKE <- function(d, own_uptake, matdis_uptake, bond_uptake, illparent_uptake,
     pop_target <- sum(elig_d %>% dplyr::select(PWGTP))*get(uptake_val)
     # filter to only those eligible for the program and taking or needing leave
     samp_frame <- d %>% filter(eligworker==1 & (get(take_var)==1|get(need_var)==1) & get(length_var)>wait_period+min_takeup_cpl & particip == 1)
-    
-    # if no one is taking leave, then return columns of zeros for created variables, otherwise continue with this process
+    if (i=='bond') {
+      print(sum(samp_frame$PWGTP))
+    }
+    # if n1o one is taking leave, then return columns of zeros for created variables, otherwise continue with this process
     if (nrow(samp_frame)==0){
       ptake_var=paste("ptake_",i,sep="")
       d[ptake_var] <- 0
@@ -808,7 +810,6 @@ UPTAKE <- function(d, own_uptake, matdis_uptake, bond_uptake, illparent_uptake,
       d[take_var] <- with(d, ifelse(get(uptake_var)==1, 1, get(take_var)))
     }
   }
-  
   # redo participation vars now that eligibility has been selected
   d$particip_length <- 0
   for (i in leave_types) {
@@ -861,7 +862,6 @@ UPTAKE <- function(d, own_uptake, matdis_uptake, bond_uptake, illparent_uptake,
                   maxlen_total, maxlen_DI, maxlen_PFL)
   # OUTPUT: ACS data set with participating leave length capped at user-specified program maximums
   
-  
   # clean up vars
   d <- d[, !(names(d) %in% c('change_flag','reduce','recollect_len'))]
   return(d)
@@ -912,7 +912,7 @@ check_caps <- function(d,maxlen_own, maxlen_matdis, maxlen_bond, maxlen_illparen
     d <- d %>% mutate(DI_plen=plen_matdis_predraw+plen_own_predraw)
     d['DI_plen'] <- with(d, ifelse(DI_plen>maxlen_DI,maxlen_DI,DI_plen))
     # evenly distributed cap among leave types
-    d['reduce'] <- with(d, ifelse(plen_matdis_predraw+plen_own_predraw!=0, (plen_matdis_predraw+plen_own_predraw)/DI_plen,0))
+    d['reduce'] <- with(d, ifelse(plen_matdis_predraw+plen_own_predraw!=0, (plen_matdis_predraw+plen_own_predraw)/DI_plen,1))
     d['plen_matdis_predraw']=floor(d[,'plen_matdis_predraw']/d[,'reduce'])
     d['plen_own_predraw']=floor(d[,'plen_own_predraw']/d[,'reduce'])
   }
@@ -921,7 +921,7 @@ check_caps <- function(d,maxlen_own, maxlen_matdis, maxlen_bond, maxlen_illparen
     d <- d %>% mutate(DI_plen=plen_matdis+plen_own)
     d['DI_plen'] <- with(d, ifelse(DI_plen>maxlen_DI,maxlen_DI,DI_plen))
     # evenly distributed cap among leave types
-    d['reduce'] <- with(d, ifelse(plen_matdis+plen_own!=0, (plen_matdis+plen_own)/DI_plen,0))
+    d['reduce'] <- with(d, ifelse(plen_matdis+plen_own!=0, (plen_matdis+plen_own)/DI_plen,1))
     d['plen_matdis']=floor(d[,'plen_matdis']/d[,'reduce'])
     d['plen_own']=floor(d[,'plen_own']/d[,'reduce'])
   }
@@ -931,7 +931,7 @@ check_caps <- function(d,maxlen_own, maxlen_matdis, maxlen_bond, maxlen_illparen
     d['PFL_plen'] <- with(d, ifelse(PFL_plen>maxlen_PFL,maxlen_PFL,PFL_plen))
     # evenly distributed cap among leave types
     d['reduce'] <- with(d, ifelse(plen_bond_predraw+plen_illparent_predraw+plen_illchild_predraw+plen_illspouse_predraw!=0, 
-                                  (plen_bond_predraw+plen_illparent_predraw+plen_illchild_predraw+plen_illspouse_predraw)/PFL_plen,0))
+                                  (plen_bond_predraw+plen_illparent_predraw+plen_illchild_predraw+plen_illspouse_predraw)/PFL_plen,1))
     d['plen_bond_predraw']=floor(d[,'plen_bond_predraw']/d[,'reduce'])
     d['plen_illchild_predraw']=floor(d[,'plen_illchild_predraw']/d[,'reduce'])
     d['plen_illspouse_predraw']=floor(d[,'plen_illspouse_predraw']/d[,'reduce'])
@@ -943,7 +943,7 @@ check_caps <- function(d,maxlen_own, maxlen_matdis, maxlen_bond, maxlen_illparen
     d['PFL_plen'] <- with(d, ifelse(PFL_plen>maxlen_PFL,maxlen_PFL,PFL_plen))
     # evenly distributed cap among leave types
     d['reduce'] <- with(d, ifelse(plen_bond+plen_illparent+plen_illchild+plen_illspouse!=0, 
-                                  (plen_bond+plen_illparent+plen_illchild+plen_illspouse)/PFL_plen,0))
+                                  (plen_bond+plen_illparent+plen_illchild+plen_illspouse)/PFL_plen,1))
     d['plen_bond']=floor(d[,'plen_bond']/d[,'reduce'])
     d['plen_illchild']=floor(d[,'plen_illchild']/d[,'reduce'])
     d['plen_illspouse']=floor(d[,'plen_illspouse']/d[,'reduce'])
@@ -1158,7 +1158,6 @@ BENEFITEFFECT <- function(d, bene_effect) {
 
 TOPOFF <- function(d, topoff_rate, topoff_minlength) {
   # if topoff rate is 0, just generate a topoff flag =0 and stop there
-  
   if (topoff_rate==0){
     d['topoff_flg'] <- 0
     return(d)
@@ -1202,7 +1201,6 @@ TOPOFF <- function(d, topoff_rate, topoff_minlength) {
   
   # clean up vars
   d <- d[, !(names(d) %in% c('rand','topoff_rate','topoff_temp','topoff_min','topoff', 'topoff_count'))]
-  
   return(d)
 }
 
