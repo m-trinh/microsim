@@ -12,7 +12,7 @@ import numpy as np
 from _5a_aux_functions import *
 ## Read in post-sim ACS
 dp = pd.read_csv('./output/output_20200909_210351_main simulation/acs_sim_nj_20200909_210351.csv')
-dr = pd.read_csv('./output/output_20200909_192739/acs_sim_nj_20200909_192739.csv')
+dr = pd.read_csv('./output/output_20200914_120326/acs_sim_ca_20200914_120326.csv')
 ## Find which persons are in R but not Python
 dm = pd.merge(dp[['SERIALNO', 'SPORDER']], dr[['SERIALNO', 'SPORDER']], how='outer', indicator=True)
 dm = dm[dm['_merge']!='both']
@@ -95,11 +95,11 @@ for t in types:
 
 # check uptakers
 for t in types:
-    print('-------Py---------')
-    print(dp[dp['cpl_%s' % t]>0]['cpl_%s' % t].describe())
-    print(dp[dp['takeup_%s' % t]==1]['cpl_%s' % t].describe())
-    print(dp[dp['takeup_%s' % t]==1]['PWGTP'].sum())
-    print('-------R---------')
+    # print('-------Py type = %s ---------' % t)
+    # print(dp[dp['cpl_%s' % t]>0]['cpl_%s' % t].describe())
+    # print(dp[dp['takeup_%s' % t]==1]['cpl_%s' % t].describe())
+    # print(dp[dp['takeup_%s' % t]==1]['PWGTP'].sum())
+    print('-------R type = %s ---------' % t)
     print(dr[dr['cpl_%s' % t]>0]['cpl_%s' % t].describe())
     print(dr[dr['takeup_%s' % t]==1]['cpl_%s' % t].describe())
     print(dr[dr['takeup_%s' % t] == 1]['PWGTP'].sum())

@@ -389,8 +389,8 @@ class SimulationEngine:
                 y = [D_prop[x] for x in d.loc[X.index]['prop_pay_employer']]
                 y = pd.Series(y, index=X.index, name='prop_pay_employer_code')
                 print(y.value_counts().sort_index())
-                clf = mord.LogisticAT().fit(fillna_df(X, self.random_state), y)
-                phats = clf.predict_proba(fillna_df(Xa, self.random_state))
+                clf_mord = mord.LogisticAT().fit(fillna_df(X, self.random_state), y)
+                phats = clf_mord.predict_proba(fillna_df(Xa, self.random_state))
                 cum_phats = np.cumsum(phats, axis=1)
                 us = self.random_state.rand(len(phats))  # random number
                 yhat = [bisect_right(row, us[i]) + 1 for i, row in enumerate(cum_phats)]

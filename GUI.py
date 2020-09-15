@@ -543,7 +543,9 @@ class MicrosimGUI(Tk):
         fp_acsh_in = self.general_params.acs_directory + '/%s/household_files' % yr
         fp_acsp_in = self.general_params.acs_directory + '/%s/person_files' % yr
         state_of_work = self.general_params.state_of_work
+        pow_pop_multiplier = 1
         if state_of_work:
+            pow_pop_multiplier = 1.02 # no need to adjust for missing POW if state_of_work
             fp_acsh_in = self.general_params.acs_directory + '/%s/pow_household_files' % yr
             fp_acsp_in = self.general_params.acs_directory + '/%s/pow_person_files' % yr
         fp_fmla_out = './data/fmla/fmla_%s/fmla_clean_%s.csv' % (fmla_wave, fmla_wave)
@@ -558,7 +560,8 @@ class MicrosimGUI(Tk):
         random_seed = self.general_params.random_seed
 
         return SimulationEngine(st, yr, fmla_wave, fps_in, fps_out, clf_name=clf_name, random_state=random_seed,
-                                state_of_work=state_of_work, q=q)
+                                state_of_work=state_of_work, pow_pop_multiplier=pow_pop_multiplier,
+                                q=q)
 
     def add_engine_params(self, parameters):
         """Add additional engine parameters from an OtherParameters object
