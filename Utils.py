@@ -59,7 +59,7 @@ DEFAULT_STATE_PARAMS = {
         'local_employees': False,
         'self_employed': False,
         'take_up_rates': {'Own Health': 0.0222, 'Maternity': 0.0082, 'New Child': 0.0090,
-                          'Ill Child': 0.0004, 'Ill Spouse': 0.0005, 'Ill Parent': 0.007},
+                          'Ill Child': 0.0004, 'Ill Spouse': 0.0005, 'Ill Parent': 0.0007},
         'dependency_allowance': True,
         'dependency_allowance_profile': [0.07, 0.04, 0.04],
         'wait_period': 5,

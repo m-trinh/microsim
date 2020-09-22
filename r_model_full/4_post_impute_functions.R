@@ -912,7 +912,7 @@ check_caps <- function(d,maxlen_own, maxlen_matdis, maxlen_bond, maxlen_illparen
     d <- d %>% mutate(DI_plen=plen_matdis_predraw+plen_own_predraw)
     d['DI_plen'] <- with(d, ifelse(DI_plen>maxlen_DI,maxlen_DI,DI_plen))
     # evenly distributed cap among leave types
-    d['reduce'] <- with(d, ifelse(plen_matdis_predraw+plen_own_predraw!=0, (plen_matdis_predraw+plen_own_predraw)/DI_plen,0))
+    d['reduce'] <- with(d, ifelse(plen_matdis_predraw+plen_own_predraw!=0, (plen_matdis_predraw+plen_own_predraw)/DI_plen,1))
     d['plen_matdis_predraw']=floor(d[,'plen_matdis_predraw']/d[,'reduce'])
     d['plen_own_predraw']=floor(d[,'plen_own_predraw']/d[,'reduce'])
   }
@@ -921,7 +921,7 @@ check_caps <- function(d,maxlen_own, maxlen_matdis, maxlen_bond, maxlen_illparen
     d <- d %>% mutate(DI_plen=plen_matdis+plen_own)
     d['DI_plen'] <- with(d, ifelse(DI_plen>maxlen_DI,maxlen_DI,DI_plen))
     # evenly distributed cap among leave types
-    d['reduce'] <- with(d, ifelse(plen_matdis+plen_own!=0, (plen_matdis+plen_own)/DI_plen,0))
+    d['reduce'] <- with(d, ifelse(plen_matdis+plen_own!=0, (plen_matdis+plen_own)/DI_plen,1))
     d['plen_matdis']=floor(d[,'plen_matdis']/d[,'reduce'])
     d['plen_own']=floor(d[,'plen_own']/d[,'reduce'])
   }
@@ -931,7 +931,7 @@ check_caps <- function(d,maxlen_own, maxlen_matdis, maxlen_bond, maxlen_illparen
     d['PFL_plen'] <- with(d, ifelse(PFL_plen>maxlen_PFL,maxlen_PFL,PFL_plen))
     # evenly distributed cap among leave types
     d['reduce'] <- with(d, ifelse(plen_bond_predraw+plen_illparent_predraw+plen_illchild_predraw+plen_illspouse_predraw!=0, 
-                                  (plen_bond_predraw+plen_illparent_predraw+plen_illchild_predraw+plen_illspouse_predraw)/PFL_plen,0))
+                                  (plen_bond_predraw+plen_illparent_predraw+plen_illchild_predraw+plen_illspouse_predraw)/PFL_plen,1))
     d['plen_bond_predraw']=floor(d[,'plen_bond_predraw']/d[,'reduce'])
     d['plen_illchild_predraw']=floor(d[,'plen_illchild_predraw']/d[,'reduce'])
     d['plen_illspouse_predraw']=floor(d[,'plen_illspouse_predraw']/d[,'reduce'])
@@ -943,7 +943,7 @@ check_caps <- function(d,maxlen_own, maxlen_matdis, maxlen_bond, maxlen_illparen
     d['PFL_plen'] <- with(d, ifelse(PFL_plen>maxlen_PFL,maxlen_PFL,PFL_plen))
     # evenly distributed cap among leave types
     d['reduce'] <- with(d, ifelse(plen_bond+plen_illparent+plen_illchild+plen_illspouse!=0, 
-                                  (plen_bond+plen_illparent+plen_illchild+plen_illspouse)/PFL_plen,0))
+                                  (plen_bond+plen_illparent+plen_illchild+plen_illspouse)/PFL_plen,1))
     d['plen_bond']=floor(d[,'plen_bond']/d[,'reduce'])
     d['plen_illchild']=floor(d[,'plen_illchild']/d[,'reduce'])
     d['plen_illspouse']=floor(d[,'plen_illspouse']/d[,'reduce'])

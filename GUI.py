@@ -386,9 +386,14 @@ class MicrosimGUI(Tk):
 
         # Create instance of ABF module with simulation results and user parameters
         main_params = self.all_params[0]
+        state_of_work = self.general_params.state_of_work
+        pow_pop_multiplier = 1
+        if state_of_work:
+            pow_pop_multiplier = 1.02
         abf_module = ABF(results_files[0], total_benefits, main_params.eligible_size,
                          main_params.max_taxable_earnings_per_person, main_params.benefits_tax,
-                         main_params.average_state_tax, main_params.payroll_tax, output_dir=main_output_dir)
+                         main_params.average_state_tax, main_params.payroll_tax, pow_pop_multiplier=pow_pop_multiplier,
+                         output_dir=main_output_dir)
 
         # Keep track of all results windows that are created
         self.results_windows.append(ResultsWindow(self, costs, takers, self.current_state, results_files, abf_module))

@@ -5,7 +5,7 @@ import os
 
 class ABF:
     def __init__(self, acs_file, benefits, eligible_size, max_taxable_earnings_per_person, benefits_tax,
-                 average_state_tax, payroll_tax, output_dir=None):
+                 average_state_tax, payroll_tax, pow_pop_multiplier=1, output_dir=None):
         self.reps = ['PWGTP' + str(i) for i in range(1, 81)]
         self.keepcols = ['COW', 'POWSP', 'ST', 'PWGTP', 'age', 'female', 'wage12'] + self.reps
         self.acs_file = acs_file
@@ -15,6 +15,7 @@ class ABF:
         self.average_state_tax = average_state_tax / 100
         self.payroll_tax = payroll_tax / 100
         self.benefits = benefits
+        self.pow_pop_multiplier = pow_pop_multiplier    # default=1, set to 1.02 when state of work is checked in GUI
 
         self.output_dir = output_dir
         self.abf_output = None
@@ -52,7 +53,7 @@ class ABF:
             total_income = df['taxable_income_capped'].sum()
 
             # Total Weighted Income Base (full geographic area)
-            df['income_w'] = df['taxable_income_capped'] * df['PWGTP']
+            df['income_w'] = df['taxable_income_capped'] * df['PWGTP'] * self.pow_pop_multiplier
             wage_bins = list(range(0, 210000, 25000))
             wage_ranges = ['[{}k - {}k)'.format(wage_bins[i] // 1000, wage_bins[i] // 1000 + 25)
                            for i in range(len(wage_bins) - 1)]
@@ -92,7 +93,7 @@ class ABF:
             # Income
             income_r = []
             for wt in self.reps:
-                income_r.append(((df['taxable_income_capped'] * df[wt]).sum()))
+                income_r.append(((df['taxable_income_capped'] * df[wt] * self.pow_pop_multiplier).sum()))
 
             # print('80 Replicate Income:')
             # print(income_r)
@@ -106,7 +107,7 @@ class ABF:
             # Tax Revenue
             tax_r = []
             for wt in self.reps:
-                tax_r.append(((df['ptax_rev_final'] * df[wt]).sum()))
+                tax_r.append(((df['ptax_rev_final'] * df[wt] * self.pow_pop_multiplier).sum()))
 
             # print('80 Replicate Tax Revenue:')
             # print(tax_r)

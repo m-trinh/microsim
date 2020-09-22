@@ -100,14 +100,30 @@ for t in types:
     # print(dp[dp['takeup_%s' % t]==1]['cpl_%s' % t].describe())
     # print(dp[dp['takeup_%s' % t]==1]['PWGTP'].sum())
     print('-------R type = %s ---------' % t)
+    print('       --- Summary of cpl_%s >0 --- ' % t)
     print(dr[dr['cpl_%s' % t]>0]['cpl_%s' % t].describe())
+    print('       --- Summary of cpl_%s among takeup_%s ==1 --- ' % (t, t))
     print(dr[dr['takeup_%s' % t]==1]['cpl_%s' % t].describe())
+    print('       --- PWGTP sum of takeup_%s ==1 --- ' % t)
     print(dr[dr['takeup_%s' % t] == 1]['PWGTP'].sum())
 
 t = 'illchild'
 print(dr[dr['cpl_%s' % t] > 0]['cpl_%s' % t].describe())
 print(dr[dr['takeup_%s' % t] == 1]['cpl_%s' % t].describe())
 print(dr[dr['takeup_%s' % t] == 1]['PWGTP'].sum())
+
+# check total outlay
+bene_all = 0
+for t in types:
+    bene_all += (dr['bene_%s' % t]*dr['takeup_%s' % t]*dr['PWGTP']*1.02).sum() # 1.02 account for missing POW
+print(bene_all)
+
+(dr['annual_benefit_all']*dr['PWGTP']).sum()*1.02
+
+# use clean ACS (incl. ineligible workers, same size as input ACS) to get eligible pop estimate
+nj = pd.read_csv('./data/acs/ACS_cleaned_forsimulation_2016_nj.csv')
+nj = nj[(~nj['COW'].isin([6,7])) & (nj['emp_gov']==0) & (nj['wage12']>=8400)]
+
 #######################################################################################################################
 
 
@@ -253,6 +269,10 @@ for t in types:
     print('post-sim ACS, R')
     print(dr[c].value_counts())
     print('-----------------------------')
+
+
+
+######################################## END OF 2020 check #############################################################
 
 # get diff in eligible workers' IDs between dr and dp
 # NOTE: SERIALNO is id for household not person.
@@ -579,3 +599,4 @@ D_prop = dict(zip(v, k))
 d = d[d['prop_pay']>0]
 d = d[d['prop_pay'].notna()]
 mlogit = sm.MNLogit(d[y], d['female']).fit()
+
