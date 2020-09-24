@@ -416,6 +416,7 @@ def get_sim_col(X, y, w, Xa, clf, random_state):
         clf = xgboost.XGBClassifier(objective='multi:softmax')
     # glm logit
     if isinstance(clf, list): # logit GLM = ['logit glm', sklearn logit classifier]
+        print(' ------ Outvar now is %s -----' % y.name)
         if len(y.value_counts())==2: # for (almost all) binary yvars, use statsmodel if user chose logit GLM
             clf = sm.GLM(y, sm.add_constant(Z), family=sm.families.Binomial(), freq_weights=w).fit()
             # TODO: to remove after testing done
