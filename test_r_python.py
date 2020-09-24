@@ -124,6 +124,53 @@ print(bene_all)
 nj = pd.read_csv('./data/acs/ACS_cleaned_forsimulation_2016_nj.csv')
 nj = nj[(~nj['COW'].isin([6,7])) & (nj['emp_gov']==0) & (nj['wage12']>=8400)]
 
+## Check why some clfs (e.g. SVM, Ridge) lead to large outlays, while progtaker counts look good
+def check_outlay_components(dp, leave_types):
+    for t in leave_types:
+        print('\n-------type = %s --------- ' % t)
+        # check pop est of uptakers
+        print('-------uptakers, PWGTP sum for %s --------- ' % t)
+        print(dp[(dp['cpl_%s' % t]>0) & (dp['takeup_%s' % t]==1)]['PWGTP'].sum())
+        # check CPL for uptakers
+        print('-------uptakers, cpl_%s --------- ' % t)
+        print(dp[(dp['cpl_%s' % t]>0) & (dp['takeup_%s' % t]==1)]['cpl_%s' % t].describe())
+        # check annual benefit for uptakers
+        print('-------uptakers, annual_benefit_%s --------- ' % t)
+        print(dp[dp['annual_benefit_%s' % t] > 0]['annual_benefit_%s' % t].describe())
+        # check weekly benefit for uptakers
+        print('-------uptakers, annual_benefit_%s per week in program --------- ' % t)
+        print((5 * dp[(dp['takeup_%s' % t]==1)]['annual_benefit_%s' % t] /
+               dp[(dp['takeup_%s' % t]==1)]['cpl_%s' % t]).describe())
+    return None
+
+# outlay for 4 PFL types
+bene_PFL = 0
+for t in ['bond', 'illchild', 'illspouse', 'illparent']:
+    bene_PFL += (dp['annual_benefit_%s' % t]*dp['takeup_%s' % t]*dp['PWGTP']*1.02).sum() # 1.02 account for missing POW
+print(bene_PFL)
+# outlay for 2 DI types
+bene_DI = 0
+for t in ['own', 'matdis']:
+    bene_DI += (dp['annual_benefit_%s' % t]*dp['takeup_%s' % t]*dp['PWGTP']*1.02).sum() # 1.02 account for missing POW
+print(bene_DI)
+# outlay components
+check_outlay_components(dp, ['own', 'matdis'])
+# check total DI length, total PFL length
+dp['cpl_DI'] = dp['cpl_own'] + dp['cpl_matdis']
+dp[(dp['takeup_own']==1) | (dp['takeup_matdis']==1)]['cpl_DI'].describe()
+# check DI length distribution to see how much overflow beyond the joint DI cap
+data = dp[(dp['takeup_own']==1) | (dp['takeup_matdis']==1)]['cpl_DI']
+binwidth=5
+data.hist(bins=np.arange(0, max(data) + binwidth, binwidth), alpha=0.4)
+# check DI outlay if REMOVING ENTIRELY all overflowed DI (so lower bound of DI outlay)
+DI_cap = 9999999
+bene_DI = 0
+for t in ['own', 'matdis']:
+    bene_DI += (dp[(dp['cpl_DI']<=DI_cap)]['annual_benefit_%s' % t]*
+                dp[(dp['cpl_DI']<=DI_cap)]['takeup_%s' % t]*
+                dp[(dp['cpl_DI']<=DI_cap)]['PWGTP']*1.02).sum() # 1.02 account for missing POW
+print(bene_DI)
+
 #######################################################################################################################
 
 

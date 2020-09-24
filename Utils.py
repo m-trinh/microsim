@@ -36,7 +36,7 @@ DEFAULT_STATE_PARAMS = {
         'recollect': False,
         'min_cfl_recollect': 0,
         'min_takeup_cpl': 5,
-        'alpha': 1
+        'alpha': 0.5
     },
     'NJ': {
         'replacement_ratio': 0.66,
