@@ -141,6 +141,10 @@ def check_outlay_components(dp, leave_types):
         print('-------uptakers, annual_benefit_%s per week in program --------- ' % t)
         print((5 * dp[(dp['takeup_%s' % t]==1)]['annual_benefit_%s' % t] /
                dp[(dp['takeup_%s' % t]==1)]['cpl_%s' % t]).describe())
+        # check wage12 for uptakerse
+        print('-------uptakers, wage12 --------- ')
+        print(dp[(dp['takeup_%s' % t]==1)]['wage12'].describe())
+
     return None
 
 # outlay for 4 PFL types
