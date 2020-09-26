@@ -48,8 +48,7 @@ plot_pop_level_worker_counts(avg_out_p, clf_class_names_plot, clf_profile, add_t
 # Pop level results - leave counts
 plot_pop_level_leave_counts(avg_out_p, clf_class_names_plot, clf_profile, add_title=False, savefig=savefig, figsize=(9, 7.5))
 # Ind level results
-dir_out = 'E:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_2/ib2_v3_working/'
-for yvar in ['taker', 'needer', 'resp_len'] + ['take_own', 'need_own', 'take_matdis', 'need_matdis']:
+for yvar in ['take_own', 'need_own', 'take_matdis', 'need_matdis']: # can also check ['taker', 'needer', 'resp_len']
     suffix = '_%s_k%s_%s' % (fmla_wave, fold, yvar)
     savefig = (dir_out, suffix)
     plot_ind_level(avg_out_i, clf_class_names_plot, clf_profile, yvar, savefig=savefig, figsize=(9, 7.5))
