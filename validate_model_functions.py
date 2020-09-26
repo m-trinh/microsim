@@ -496,19 +496,33 @@ def plot_sim_costs(sts, costs, add_title=False, savefig=None, figsize=(18.5, 10)
     ys = costs['ri']
     zs = costs['nj']
     ws = costs['ca']
-    dct_color = dict(zip(sts, ['indianred', 'slategray', 'tan']))
+    mask_no_avg = [c for c in costs.index if c!='average']
+    mask_avg = 'average'
+    dct_color = dict(zip(sts, ['indianred',
+                               'slategray',
+                               'tan']))
 
     ind = np.arange(len(ys))
     width = 0.2
-    bar1 = ax.bar(ind-width, ys, width, align='center', capsize=5, color=dct_color['ri'], ecolor='grey')
-    bar2 = ax.bar(ind, zs, width, align='center', capsize=5, color=dct_color['nj'], ecolor='grey')
-    bar3 = ax.bar(ind+width, ws, width, align='center', capsize=5, color=dct_color['ca'], ecolor='grey')
-    ax.set_ylabel('Program Outlay')
+    bar1 = ax.bar(ind[:-1]-width, ys.loc[mask_no_avg, ], width, align='center', capsize=5, color=dct_color['ri'], ecolor='grey')
+    bar2 = ax.bar(ind[:-1], zs.loc[mask_no_avg, ], width, align='center', capsize=5, color=dct_color['nj'], ecolor='grey')
+    bar3 = ax.bar(ind[:-1]+width, ws.loc[mask_no_avg, ], width, align='center', capsize=5, color=dct_color['ca'], ecolor='grey')
+    matplotlib.rcParams['hatch.color'] = 'white'
+    bar4 = ax.bar(ind[-1:]-width, ys[mask_avg], width, align='center', capsize=5,
+                  color=dct_color['ri'], hatch='//', ecolor='grey')
+    bar5 = ax.bar(ind[-1:], zs[mask_avg], width, align='center', capsize=5,
+                  color=dct_color['nj'], hatch='//', ecolor='grey')
+    bar6 = ax.bar(ind[-1:]+width, ws[mask_avg], width, align='center', capsize=5,
+                  color=dct_color['ca'], hatch='//', ecolor='grey')
+
+    ax.set_ylabel('Program Benefit Outlay, Million Dollars')
+    ax.get_yaxis().set_major_formatter(plt.FuncFormatter(lambda x, loc: "{:,}".format(int(x))))
     ax.set_xticks(ind)
-    ax.set_xticklabels(('Logit GLM', 'Logit Regularized', 'KNN', 'Naive Bayes', 'Random Forest', 'XGB', 'Ridge', 'SVC', 'AVERAGE'))
+    ax.set_xticklabels(('Logit GLM', 'Logit Regularized', 'KNN', 'Naive Bayes', 'Random Forest', 'XGB', 'Ridge', 'SVC',
+                        'AVERAGE'))
     ax.yaxis.grid(False)
     ax.legend((bar1, bar2, bar3), ('Rhode Island','New Jersey', 'California' ))
-    ax.ticklabel_format(style='plain', axis='y')
+    # ax.ticklabel_format(style='plain', axis='y')
 
     # add horizontal bar for true numbers
     dct_cost = dict(zip(sts, [178.2, 521.2, 5885.8]))
@@ -517,7 +531,7 @@ def plot_sim_costs(sts, costs, add_title=False, savefig=None, figsize=(18.5, 10)
         y = dct_cost[st]
         plt.axhline(y=y, color=dct_color[st], linestyle='--')
         hline_offset = dct_offset[st]
-        hline_text = 'Actual Program Outlay, %s: %s million' % (st.upper(), y)
+        hline_text = 'Actual Program Outlay, %s: $%s million' % (st.upper(), y)
         plt.text(2, y * hline_offset, hline_text, horizontalalignment='center', color='k')
     format_chart(fig, ax, title, bg_color='white', fg_color='k')
     if savefig is not None:
@@ -526,34 +540,61 @@ def plot_sim_costs(sts, costs, add_title=False, savefig=None, figsize=(18.5, 10)
         plt.savefig(dir_out + 'program_outlay.png', facecolor='white', edgecolor='grey') #
     return None
 
-# plot wage percentils for given state and leave type, for all sim methods
-def plot_wage_pcts(dir_sim_out, st, leave_type, methods, add_title=False, savefig=dir_out, figsize=(12, 10)):
-    title = ''
-    if add_title:
-        title = 'Wage Percentiles (5%, 25%, 50%, 75%, 90%) ' \
-                'for Uptakers in %s, %s' % (st.upper(), leave_type.capitalize())
+# get wage percentils data for given state and leave type, for all sim methods
+def get_wage_pcts(dir_sim_out, st, leave_type, methods):
     wages = {}
     for method in methods:
         fp = dir_sim_out + '%s_%s/' % (st, method)
         fs = [f for f in listdir(fp) if isfile(join(fp, f))]
         f_acs = [f for f in fs if f[:7]=='acs_sim'][0]
         acs = pd.read_csv(fp + f_acs)
-        wage_col = acs[(acs['takeup_%s' % t] == 1)]['wage12']
+        wage_col = acs[(acs['takeup_%s' % leave_type] == 1)]['wage12']
         stats = wage_col.describe()
         stats['5%'] = np.percentile(wage_col, 5)
         stats['90%'] = np.percentile(wage_col, 90)
         wages[method] = stats
     wages = pd.DataFrame.from_dict(wages)
     wages = wages[methods] # order df to match order in list methods for proper labeling in plot
-    wages_pcts = wages.loc[['5%','25%','50%','75%','90%'],]
+    wage_pcts = wages.loc[['5%','25%','50%','75%','90%'],]
+
+    return wage_pcts
+
+# plot wage percentils for given state and leave type, for all sim methods
+def plot_wage_pcts(wage_pcts, st, leave_type, methods, add_title=False, savefig=None, figsize=(12, 10)):
+    title = ''
+    if add_title:
+        title = 'Wage Percentiles (5%, 25%, 50%, 75%, 90%) ' \
+                'for Uptakers in %s, %s' % (st.upper(), leave_type.capitalize())
+
     fig, ax = plt.subplots(figsize=figsize, dpi=100)
-    b = ax.boxplot(wages_pcts.T, whis='range', patch_artist=True,
-                   boxprops=dict(facecolor="palegoldenrod",
-                                 color="palegoldenrod"),
+    b = ax.boxplot(wage_pcts.T, whis='range', patch_artist=True,
+                   boxprops=dict(facecolor="wheat",
+                                 color="wheat"),
                    medianprops=dict(color="maroon"),
                    )
+    # make a dict from lines (positions) on a boxplot to percentile values (5%, 25%, etc).
+    lines = []
+    for element in ['whiskers', 'medians', 'caps']:
+        lines += b[element][:int(len(b[element]) / len(methods))]
+    dct_pcts = dict(zip(lines, [' ' * 4 + x for x in ['25%', '75%', '50%', '5%', '90%']]))
+    for line in lines:
+        # Get the position of the element. y is the label you want
+        (x_l, y), (x_r, _) = line.get_xydata()
+        # Make sure datapoints exist
+        # (I've been working with intervals, should not be problem for this case)
+        if not np.isnan(y):
+            x_line_center = x_l + (x_r - x_l) / 2
+            y_line_center = y  # Since it's a line and it's horizontal
+            # overlay the value:  on the line, from center to right
+            ax.text(x_line_center, y_line_center,  # Position
+                    dct_pcts[line],  # Value (3f = 3 decimal float)
+                    verticalalignment='bottom',  # vertical position of data label
+                    horizontalalignment='left',
+                    fontsize=9)
     ax.set_xticklabels(
         ('Logit GLM', 'Logit Regularized', 'KNN', 'Naive Bayes', 'Random Forest', 'XGB', 'Ridge', 'SVC'))
+    ax.set_ylabel('Annual Wage Earnings, Dollars')
+    ax.get_yaxis().set_major_formatter(plt.FuncFormatter(lambda x, loc: "{:,}".format(int(x))))
     format_chart(fig, ax, title, bg_color='white', fg_color='k')
 
     if savefig is not None:

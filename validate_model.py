@@ -66,16 +66,16 @@ for yvar in ['taker', 'needer', 'resp_len'] + ['take_own', 'need_own', 'take_mat
 sts = ['ri', 'nj', 'ca']
 methods = ['logit_glm', 'logit_reg', 'knn', 'nb', 'rf', 'xgb', 'ridge', 'svc']
 costs = get_sim_costs(dir_sim_out, sts, methods)
-
 # plot simulated costs by state and methods
 plot_sim_costs(sts, costs, add_title=False, savefig=dir_out, figsize=(9, 7.5))
 
-# get wage12 of uptakers for all sim methods, given state and leave type\
-
-st = 'ca'
-t = 'own'
+# get wage12 of uptakers for all sim methods, given state and leave type (CA, own)
+st = 'ca' # can also set to 'nj', 'ri'
+t = 'own' # can also set to 'matdis', 'bond', 'illchild', 'illspouse', 'illparent'
 methods = ['logit_glm', 'logit_reg', 'knn', 'nb', 'rf', 'xgb', 'ridge', 'svc']
-dir_sim_out = './output/_ib2_v3/_ca_alpha50/'
-plot_wage_pcts(dir_sim_out, st, t, methods, add_title=False, savefig=dir_out, figsize=(9, 7.5))
+wage_pcts = get_wage_pcts(dir_sim_out, st, t, methods)
+# plot wage percentiles, given state and leave type
+plot_wage_pcts(wage_pcts, st, t, methods, add_title=False, savefig=dir_out, figsize=(9, 7.5))
+
 ######################################## END #############################################
 
