@@ -615,7 +615,8 @@ runOrdinalEstimate <- function(d_train,d_test, formula, test_filt,train_filt, va
 # 1Bc. runRandDraw
 # ============================ #
 # run a random draw for leave length 
-runRandDraw <- function(d, yvar, filt, leave_dist, ext_resp_len, rr_sensitive_leave_len,wage_rr,maxlen, dependent_allow) {
+runRandDraw <- function(d, yvar, filt, leave_dist, ext_resp_len, rr_sensitive_leave_len,wage_rr,maxlen, dependent_allow,
+                        formula_prop_cuts, formula_value_cuts, formula_bene_levels) {
 
   # filter test cases
   d_filt <- d %>% filter_(filt)
@@ -722,12 +723,25 @@ runRandDraw <- function(d, yvar, filt, leave_dist, ext_resp_len, rr_sensitive_le
           est_df['resp_len'] <- d_filt[merge_ids, 'resp_len'] 
           est_df['dual_receiver'] <- d_filt[merge_ids, 'dual_receiver'] 
           est_df['ndep_kid'] <- d_filt[merge_ids, 'ndep_kid'] 
+          est_df['wage12'] <- d_filt[merge_ids, 'wage12'] 
           # set couterfactual leave taking var equal to Z+ (X-Z)*(rrp-rre)/(1-rre), where:
           # Z is status quo leave length
           # X is maximum length needed
           # rre is the status quo replacement rate (i.e. proportion of pay received)
           # wage_rr <- wage of program
-          est_df['wage_rr'] <- wage_rr
+          est_df['benefit_prop'] <- wage_rr
+          
+          # calculate based on formula cuts 
+          
+          if (!is.null(formula_prop_cuts) | !is.null(formula_value_cuts)) {
+            if (is.null(formula_bene_levels)) {
+              stop('if formula_prop_cuts or formula_value_cuts are specified,
+                   formula_bene_levels must also be specified')
+            }
+            est_df <- FORMULA(est_df, formula_prop_cuts, formula_value_cuts, formula_bene_levels)
+          }
+          
+          est_df['wage_rr'] <- est_df['benefit_prop']
           
           # add dependent allowance to rrp 
           est_df$dep_bene_allow <- 0

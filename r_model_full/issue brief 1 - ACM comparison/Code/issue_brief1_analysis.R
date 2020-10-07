@@ -10,10 +10,10 @@ library('stringr')
 library('ggplot2')
 source("6_output_analysis_functions.R")
 
-# load simulated csvs for each state
-ri <- read.csv('C:/Users/lsp52/AnacondaProjects/microsim/output/output_20200915_105635/RI_Logistic Regression GLMissue_brief_1_091120.csv')
-ca <- read.csv('C:/Users/lsp52/AnacondaProjects/microsim/output/output_20200915_110015/CA_Logistic Regression GLMissue_brief_1_091120.csv')
-nj <- read.csv('C:/Users/lsp52/AnacondaProjects/microsim/output/output_20200915_105720/NJ_Logistic Regression GLMissue_brief_1_091120.csv')
+# load simulated csvs for each state - FOR REPLICATION, THESE WILL NEED TO BE POINTED TO THE OUTPUT FILES CREATED BY SIMULATIONS RAN IN issue_brief1_sim.R
+ri <- read.csv('C:/Users/lsp52/AnacondaProjects/microsim/output/output_20200915_170429/RI_Logistic Regression GLMissue_brief_1_091120.csv')
+ca <- read.csv('C:/Users/lsp52/AnacondaProjects/microsim/output/output_20200915_162527/CA_Logistic Regression GLMissue_brief_1_091120.csv')
+nj <- read.csv('C:/Users/lsp52/AnacondaProjects/microsim/output/output_20200915_162229/NJ_Logistic Regression GLMissue_brief_1_091120.csv')
 
 # start a data frame to store all the summary statistics we need
 states <- c('CA','NJ','RI')
@@ -45,7 +45,7 @@ results['RI_SE'] <- NA
 d <- ca
 for (v in vars) {
   stats <- replicate_weights_SE(d, var=v, place_of_work = TRUE)
-  if (str_detect(v,'cpl')==FALSE) {
+  if (str_detect(v,'cpl')==FALSE & str_detect(v,'DI_plen')==FALSE) {
     stats <- replicate_weights_SE(d, var=v, filt=d[v]>0, place_of_work = TRUE)
     results[v,'CA'] <- stats['total']
     results[v,'CA_SE'] <- stats['total_SE']  
@@ -60,7 +60,7 @@ for (v in vars) {
 d <- nj
 for (v in vars) {
   stats <- replicate_weights_SE(d, var=v, place_of_work = TRUE)
-  if (str_detect(v,'cpl')==FALSE) {
+  if (str_detect(v,'cpl')==FALSE & str_detect(v,'DI_plen')==FALSE) {
     stats <- replicate_weights_SE(d, var=v, filt=d[v]>0, place_of_work = TRUE)
     results[v,'NJ'] <- stats['total']
     results[v,'NJ_SE'] <- stats['total_SE']  
@@ -74,7 +74,7 @@ for (v in vars) {
 # RI 
 d <- ri
 for (v in vars) {
-  if (str_detect(v,'cpl')==FALSE) {
+  if (str_detect(v,'cpl')==FALSE & str_detect(v,'DI_plen')==FALSE) {
     stats <- replicate_weights_SE(d, var=v, filt=d[v]>0, place_of_work = TRUE)
     results[v,'RI'] <- stats['total']
     results[v,'RI_SE'] <- stats['total_SE']  

@@ -93,7 +93,7 @@ LEAVEPROGRAM <- function(d, sens_var,dual_receiver) {
 # but this is a candidate for modual imputation
 
 impute_leave_length <- function(d_train, d_test, ext_resp_len,rr_sensitive_leave_len,wage_rr,
-                                maxlen_DI,maxlen_PFL,dependent_allow) { 
+                                maxlen_DI,maxlen_PFL,dependent_allow,formula_prop_cuts, formula_value_cuts, formula_bene_levels) { 
   
   #Days of leave taken - currently takes length from most recent leave only
   yvars <- c(own = "length_own",
@@ -131,7 +131,8 @@ impute_leave_length <- function(d_train, d_test, ext_resp_len,rr_sensitive_leave
   predict <- mapply(runRandDraw, yvar=yvars, filt=filts, maxlen=maxlen,
                     MoreArgs = list(leave_dist=d_lens, d=d_test, ext_resp_len=ext_resp_len, 
                                     rr_sensitive_leave_len=rr_sensitive_leave_len,
-                                    wage_rr=wage_rr, dependent_allow=dependent_allow)
+                                    wage_rr=wage_rr, dependent_allow=dependent_allow,formula_prop_cuts=formula_prop_cuts, 
+                                    formula_value_cuts=formula_value_cuts, formula_bene_levels=formula_bene_levels)
                                     , SIMPLIFY = FALSE)
   # Outputs: data sets of imputed leave length values for ACS or FMLA observations requiring them
   # merge imputed values with fmla data
@@ -407,9 +408,10 @@ ELIGIBILITYRULES <- function(d, earnings=NULL, weeks=NULL, ann_hours=NULL, minsi
   # adjust proportion of pay received if formulary benefits are specified; 
   # different benefit levels for different incomes with cuts defined by either 
   # proportion of mean state wage, or absolute wage values
+
   if (!is.null(formula_prop_cuts) | !is.null(formula_value_cuts)) {
     if (is.null(formula_bene_levels)) {
-      stop('if formula_prop_cuts or formula_value_cuts are specified, 
+      stop('if formula_prop_cuts or formula_value_cuts are specified,
            formula_bene_levels must also be specified')
     }
     d <- FORMULA(d, formula_prop_cuts, formula_value_cuts, formula_bene_levels)
@@ -527,24 +529,56 @@ FORMULA <- function(d, formula_prop_cuts=NULL, formula_value_cuts=NULL, formula_
   #------------------Adjust benefit levels: absolute value cuts----------------------
   if (!is.null(formula_value_cuts)) {
     # adjust benefit_prop accordingly
-    # first interval of formula_bene_levels
     len_cuts=length(formula_value_cuts)
     len_lvls=length(formula_bene_levels)
-    d <- d %>% mutate(benefit_prop = ifelse(formula_value_cuts[1]>wage12, 
-                                            formula_bene_levels[1], benefit_prop))
-    # last interval 
-    d <- d %>% mutate(benefit_prop = ifelse(formula_value_cuts[len_cuts]<=wage12, 
-                                            formula_bene_levels[len_lvls], benefit_prop))
+
+    d <- d %>% mutate(bene_received = 0)
     
-    # rest of the intervals in between
-    prev_val=formula_value_cuts[1]
+    # first interval of formula_bene_levels
+    d <- d %>% mutate(bene_received = ifelse(formula_value_cuts[1]>wage12, wage12 * formula_bene_levels[1],formula_value_cuts[1]* formula_bene_levels[1]))
+    d <- d %>% mutate(wage_allocate = ifelse(formula_value_cuts[1]>wage12, 0, wage12 - formula_value_cuts[1]))
+    
+    # in between intervals
     lvl=1
     for (i in formula_value_cuts[2:len_cuts]) {
-      lvl=lvl+1
-      d <- d %>% mutate(benefit_prop = ifelse(i>wage12 & prev_val<=wage12,
-                                              formula_bene_levels[lvl], benefit_prop))
-      prev_val=i
+      lvl = lvl +1 
+      # if within current interval, just add remaining wage_allocated prorated at current bene level, then set wage allocate to 0 
+      d <- d %>% mutate(bene_received = ifelse(i>wage12 & wage_allocate!=0, 
+                                              wage_allocate * formula_bene_levels[lvl] + bene_received,bene_received))
+      d <- d %>% mutate(wage_allocate = ifelse(i>wage12 & wage_allocate!=0, 0, wage_allocate))
+      
+      # if greater than current interval, add entire interval amount 
+      d <- d %>% mutate(bene_received = ifelse(i<wage12, (formula_value_cuts[lvl] - formula_value_cuts[lvl-1]) * (formula_bene_levels[lvl]) + bene_received,bene_received))
+      d <- d %>% mutate(wage_allocate = ifelse(i<wage12, wage_allocate - (formula_value_cuts[lvl] - formula_value_cuts[lvl-1]), wage_allocate))
     }
+    
+    # last cut 
+    d <- d %>% mutate(bene_received = ifelse(formula_value_cuts[len_cuts]<=wage12  & wage_allocate!=0, 
+                                             wage_allocate * formula_bene_levels[len_lvls] + bene_received,bene_received))    
+    
+    # calculate effective bene prop 
+    d <- d %>% mutate(benefit_prop= bene_received/wage12)
+    
+    # remove temp vars 
+    d <- d %>% select(-c(bene_received, wage_allocate))
+    
+    # old method which doesn't apply the benefit prop progressively
+    # first interval of formula_bene_levels
+    # d <- d %>% mutate(benefit_prop = ifelse(formula_value_cuts[1]>wage12, 
+    #                                         formula_bene_levels[1], benefit_prop))
+    # # last interval 
+    # d <- d %>% mutate(benefit_prop = ifelse(formula_value_cuts[len_cuts]<=wage12, 
+    #                                         formula_bene_levels[len_lvls], benefit_prop))
+    # 
+    # # rest of the intervals in between
+    # prev_val=formula_value_cuts[1]
+    # lvl=1
+    # for (i in formula_value_cuts[2:len_cuts]) {
+    #   lvl=lvl+1
+    #   d <- d %>% mutate(benefit_prop = ifelse(i>wage12 & prev_val<=wage12,
+    #                                           formula_bene_levels[lvl], benefit_prop))
+    #   prev_val=i
+    # }
   }
   return(d)
 }

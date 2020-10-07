@@ -493,7 +493,8 @@ policy_simulation <- function(
   #         would produced a biased 
   #         estimate of leave length
   d_acs_imp <- impute_leave_length(d_fmla_orig, d_acs_imp, ext_resp_len,
-                                   rr_sensitive_leave_len,base_bene_level,maxlen_DI,maxlen_PFL,dependent_allow)
+                                   rr_sensitive_leave_len,base_bene_level,maxlen_DI,maxlen_PFL,dependent_allow,
+                                   formula_prop_cuts, formula_value_cuts, formula_bene_levels)
   # OUTPUT: ACS data with lengths for leaves imputed
   if (runtime_measure==1){
     time_elapsed('finished imputing leave length')

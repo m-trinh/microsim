@@ -68,11 +68,12 @@ d <- d[order(d$var,d$state,d$model),]
 # Own/Matdis/Bond/Ill Child/Ill Spouse/Ill Parent
 
 Leave_Type<- c('Own Illness','Maternal Disability','Own/Maternal ','Child Bonding','Ill Child',
-                'Ill Parent','Ill Spouse ','Eligible Workers','Benefits')
+               'Ill Spouse ','Ill Parent','Eligible Workers','Benefits')
 
 d$Leave_Type <- factor(d$Leave_Type, levels = Leave_Type)
 d$model[d$model=='IMPAQ'] <- 'Worker PLUS'
-d$model <- factor(d$model, levels = c('Worker PLUS','ACM','Actual'))
+d$model[d$model=='Actual' & d$var=='eligworker'] <- 'DC Council, 2016'
+d$model <- factor(d$model, levels = c('Worker PLUS','ACM','Actual','DC Council, 2016'))
 
 # make graphs 
 # Exhibit 1 ---- Comparing Total Benefits 
@@ -182,7 +183,7 @@ ggplot(data=d[d['state']=='NJ' & grepl('takeup',d$var),], aes(x=Leave_Type, y=va
 ggsave(file="./exhibits/IB5_NJ_Leave_Takers.png", width=8, dpi=300)
 
 # Exhibit 6 ---- New Jersey, leave length
-ggplot(data=d[d['state']=='NJ' & grepl('cpl',d$var),], aes(x=Leave_Type, y=value,fill=model)) +
+ggplot(data=d[d['state']=='NJ' & (grepl('cpl',d$var) | grepl('DI_plen',d$var)),], aes(x=Leave_Type, y=value,fill=model)) +
   # bar chart
   geom_bar(stat="identity", position='dodge') +
   # theme
