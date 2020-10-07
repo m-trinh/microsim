@@ -39,6 +39,7 @@ policy_simulation <- function(
                               out_dir="../output",
                               output=NULL,
                               output_stats=NULL,
+                              se_report=TRUE,
                               
                               # simulation runtime modification params
                               sample_prop=NULL, 
@@ -616,7 +617,7 @@ policy_simulation <- function(
   
    # -----------obsolete code, now that we impute state of work ------
   # create meta file
-  create_meta_file(d_acs_imp,out_dir,place_of_work, model_start_time)
+  create_meta_file(d_acs_imp,out_dir,place_of_work, model_start_time, se_report)
   
   # final output options
   for (i in output_stats) {
