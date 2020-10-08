@@ -11,17 +11,19 @@ import matplotlib.pyplot as plt
 import matplotlib
 from Utils import format_chart
 
-## Set up local directories
+## Set up local directory
 fp_out = 'E:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_3/ib3_v3/'
 
 ## Read in post-sim ACS (MD using CA para, Logit Regularized, seed=12345)
-tag = '20201006_093049'
+tag = '20201007_170151' # tag = '20201006_093049' for xgb
 st = 'md'
+method = 'glm' # Simulation method label (in output PNG file name)
+pow_multiplier = 1.02 # set to 1 if State of Work is unchecked in GUI
 acs = pd.read_csv('./output/output_%s_main simulation/acs_sim_%s_%s.csv' % (tag,st, tag))
+acs['PWGTP_POW'] = [int(x) for x in (acs['PWGTP']*pow_multiplier)]
 types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
 
-# scale up PWGTP by 1.02
-acs['PWGTP_POW'] = [int(x) for x in (acs['PWGTP']*1.02)]
+
 
 # dict from family size to poverty line
 # 2020 poverty guidelines https://aspe.hhs.gov/poverty-guidelines
@@ -67,17 +69,17 @@ wts = {
 binwidth = 5000
 fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
 bar1 = plt.hist(xs['prog'], width=binwidth/2, align='mid',
-                weights=wts['prog'], bins=range(0, int(thre) + binwidth, binwidth), color='orange',
+                weights=wts['prog'], bins=range(0, int(thre) + binwidth, binwidth), color='indianred',
                 alpha=0.8, edgecolor='black', label='With Hypothetical CA Program') #
 bar2 = plt.hist(xs['no_prog'],
-                weights=wts['no_prog'], bins=range(0, int(thre) + binwidth, binwidth), color='darksalmon',
+                weights=wts['no_prog'], bins=range(0, int(thre) + binwidth, binwidth), color='lightgrey',
                 alpha=0.8, edgecolor='black', label='Without Paid Leave Program') #
 plt.legend()
 ax.set_ylabel('Number of workers')
 ax.set_xlabel('$ Annual Wage Income')
 ax.yaxis.grid(False)
 format_chart(fig, ax, title,  bg_color='white', fg_color='k')
-plt.savefig(fp_out + 'MD_CA_xgb_takers.png', facecolor='white', edgecolor='white') #
+plt.savefig(fp_out + 'MD_CA_%s_takers.png' % method, facecolor='white', edgecolor='white') #
 # get exact increase of total leave takers
 x0, x1 = acs[acs['taker']==1]['PWGTP_POW'].sum(), acs[acs['taker_cf']==1]['PWGTP_POW'].sum()
 print('Increase in total number of leave takers: %s percent, from %s to %s' % (round((x1-x0)/x0*100, 1), x0, x1))
@@ -116,7 +118,131 @@ for rect, label in zip(rects, labels):
             ha='center', va='bottom')
 
 format_chart(fig, ax, title,  bg_color='white', fg_color='k')
-plt.savefig(fp_out + 'MD_CA_xgb_takers_increase.png', facecolor='white', edgecolor='white') #
+plt.savefig(fp_out + 'MD_CA_%s_takers_increase.png' % method, facecolor='white', edgecolor='white') #
+
+## How much more leave taking would occur among low-wage workers?
+# key vars are len_type and cfl_type, fillna as 0
+for t in types:
+     acs.loc[acs['len_%s' % t].isna(), 'len_%s' % t] = 0
+     acs.loc[acs['cfl_%s' % t].isna(), 'cfl_%s' % t] = 0
+# get increase in leave takers across leave types (len_type>0 pop est VS cfl_type>0 pop est)
+# dict from leave type to leave taker counts
+dct_taker = OrderedDict()
+dct_taker['len'] = OrderedDict()
+dct_taker['cfl'] = OrderedDict()
+dct_taker['dcfl'] = OrderedDict()
+for t in types:
+    dct_taker['len'][t] = acs[(acs['low_wage']==1) & (acs['len_%s' % t]>0)]['PWGTP_POW'].sum()
+    dct_taker['cfl'][t] = acs[(acs['low_wage']==1) & (acs['cfl_%s' % t]>0)]['PWGTP_POW'].sum()
+    dct_taker['dcfl'][t] = 100* (dct_taker['cfl'][t] - dct_taker['len'][t]) / dct_taker['len'][t]
+## Plot
+# Number of leave takers (without program VS with program), by leave type
+# title = 'Number of low-wage workers taking leaves, by leave reason'
+title = ''
+fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
+ind = np.arange(len(types))
+ys = {}
+ys['len'] = dct_taker['len'].values()
+ys['cfl'] = dct_taker['cfl'].values()
+width = 0.4
+bar_l = ax.bar(ind - width / 2, ys['len'] , width, align='center', capsize=5,
+               color='lightgrey', alpha=0.8, edgecolor='black', label='Without Program')
+bar_h = ax.bar(ind + width / 2, ys['cfl'] , width, align='center', capsize=5,
+               color='indianred', alpha=0.8, edgecolor='black', label='With Program')
+plt.legend()
+ax.set_ylabel('Number of workers')
+ax.set_xticks(ind)
+ax.set_xticklabels(('Own Health', 'Maternity', 'New Child', 'Ill Child', 'Ill Spouse', 'Ill Parent'))
+ax.set_xlabel('Leave Reason')
+ax.yaxis.grid(False)
+
+rects = ax.patches
+labels = [format(y, ',d') for y in ys['len']]
+labels += [format(y, ',d') for y in ys['cfl']]
+for i, kv in enumerate(zip(rects, labels)):
+    rect, label = kv
+    height = rect.get_height()
+    if i<len(rects)/2:
+        ax.text(rect.get_x() + rect.get_width() / 2, height, label, fontsize=9,
+            ha='center', va='bottom')
+    else:
+        ax.text(rect.get_x() + rect.get_width() / 2, height, label, fontsize=9,
+                ha='center', va='bottom')
+
+format_chart(fig, ax, title, bg_color='white', fg_color='k')
+plt.savefig(fp_out + 'MD_CA_%s_low_wage_taker_counts.png' % method, facecolor='white', edgecolor='white') #
+
+# get increase in leave takers and leave length among low-wage leave takers for each leave type
+# then get a dict from leave type to growth in leave taker counts and growth in lengths
+for t in types:
+     acs['dlen_%s' % t] = (acs['cfl_%s' % t] - acs['len_%s' % t])
+ks = types
+vs = [(acs[acs['low_wage']==1]['dlen_%s' % t]*acs[acs['low_wage']==1]['PWGTP_POW']).sum() /
+      (acs[acs['low_wage']==1]['len_%s' % t]*acs[acs['low_wage']==1]['PWGTP_POW']).sum() for t in types]
+
+vs = [100*v for v in vs]
+dct_dlen = OrderedDict(zip(ks, vs))
+
+# Length growth, by leave type
+# title = 'Increase in leave lengths taken by low-wage workers, by leave reason
+
+title = ''
+fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
+ind = np.arange(len(types))
+ys = {}
+ys['num'] = dct_taker['dcfl'].values()
+ys['lth'] = dct_dlen.values()
+width = 0.4
+bar_num = ax.bar(ind - width / 2, ys['num'] , width, align='center', capsize=5,
+               color='wheat', alpha=1, edgecolor='black', label='Increase in Number of Leave Takers')
+bar_lth = ax.bar(ind + width / 2, ys['lth'] , width, align='center', capsize=5,
+               color='darkgoldenrod', alpha=1, edgecolor='black', label='Increase in Aggregate Leave Length')
+plt.legend()
+ax.set_ylabel('Percent Increase')
+ax.set_xticks(ind)
+ax.set_xticklabels(('Own Health', 'Maternity', 'New Child', 'Ill Child', 'Ill Spouse', 'Ill Parent'))
+ax.set_xlabel('Leave Reason')
+ax.yaxis.grid(False)
+
+rects = ax.patches
+labels = [str(round(y, 1)) + '%' for y in ys['num']]
+labels += [str(round(y, 1)) + '%' for y in ys['lth']]
+for i, kv in enumerate(zip(rects, labels)):
+    rect, label = kv
+    height = rect.get_height()
+    if i<len(rects)/2:
+        ax.text(rect.get_x() + rect.get_width() / 2, height, label, fontsize=8,
+            ha='center', va='bottom')
+    else:
+        ax.text(rect.get_x() + rect.get_width() / 2, height, label, fontsize=8,
+                ha='center', va='bottom')
+format_chart(fig, ax, title, bg_color='white', fg_color='k')
+plt.savefig(fp_out + 'MD_CA_%s_low_wage_takers_len_increase.png' % method, facecolor='white', edgecolor='white') #
+
+###########################
+title = ''
+fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
+ind = np.arange(len(types))
+ys = dct_dlen.values()
+width = 0.5
+ax.bar(ind, ys, width, align='center', capsize=5, color='beige', edgecolor='black')
+ax.set_ylabel('Percent increase')
+ax.set_xticks(ind)
+ax.set_xticklabels(('Own Health', 'Maternity', 'New Child', 'Ill Child', 'Ill Spouse', 'Ill Parent'))
+ax.set_xlabel('Leave Reason')
+ax.yaxis.grid(False)
+
+rects = ax.patches
+labels = [str(round(y, 1)) + '%' for y in ys]
+
+for rect, label in zip(rects, labels):
+    height = rect.get_height()
+    ax.text(rect.get_x() + rect.get_width() / 2, height, label, fontsize=9,
+        ha='center', va='bottom')
+
+format_chart(fig, ax, title, bg_color='white', fg_color='k')
+plt.savefig(fp_out + 'MD_CA_%s_low_wage_len_increase.png' % method, facecolor='white', edgecolor='white') #
+
 
 
 ## How many low-wage workers would get benefits?
@@ -148,6 +274,7 @@ plt.legend()
 ax.set_ylabel('Number of workers')
 ax.set_xticks(ind)
 ax.set_xticklabels(('Own Health', 'Maternity', 'New Child', 'Ill Child', 'Ill Spouse', 'Ill Parent'))
+ax.set_xlabel('Leave Reason')
 ax.yaxis.grid(False)
 
 rects = ax.patches
@@ -164,7 +291,7 @@ for i, kv in enumerate(zip(rects, labels)):
                 ha='center', va='bottom')
 
 format_chart(fig, ax, title, bg_color='white', fg_color='k')
-plt.savefig(fp_out + 'MD_CA_xgb_low_wage_bene_counts.png', facecolor='white', edgecolor='white') #
+plt.savefig(fp_out + 'MD_CA_%s_low_wage_bene_counts.png' % method, facecolor='white', edgecolor='white') #
 
 # get total across leave reasons
 print('total lower-wage worker count across reasons (incl. double count for multiple leavers) = %s' % sum(list(dct_bene['low_wage'].values())))
@@ -187,36 +314,6 @@ print('total higher-wage worker count across reasons (incl. double count for mul
 acs['takeup_any'] = [int(x>0) for x in np.nanmax(acs[['takeup_%s' % t for t in types]].values, axis=1)]
 x = acs[(acs['low_wage']==0) & (acs['takeup_any']==1)]['PWGTP_POW'].sum()
 print('total higher-wage worker count with program take up for any reason (no double count) = %s' % x)
-
-
-## How much more leave taking would occur among low-wage workers?
-# get increase in total leave length for each leave type
-# fill missing value=0 for sq-len and cf-len
-# then get a dict from leave type to agg-level growth in lengths
-for t in types:
-     acs.loc[acs['len_%s' % t].isna(), 'len_%s' % t] = 0
-     acs.loc[acs['cfl_%s' % t].isna(), 'cfl_%s' % t] = 0
-     acs['dlen_%s' % t] = (acs['cfl_%s' % t] - acs['len_%s' % t])
-ks = types
-vs = [(acs[acs['low_wage']==1]['dlen_%s' % t]*acs[acs['low_wage']==1]['PWGTP_POW']).sum() /
-      (acs[acs['low_wage']==1]['len_%s' % t]*acs[acs['low_wage']==1]['PWGTP_POW']).sum() for t in types]
-vs = [100*v for v in vs]
-dct_dlen = OrderedDict(zip(ks, vs))
-
-# Length growth, by leave type
-title = 'Increase in leave lengths taken by low-wage workers, by leave reason'
-fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
-ind = np.arange(len(types))
-ys = dct_dlen.values()
-width = 0.5
-ax.bar(ind, ys, width, align='center', capsize=5, color='maroon', edgecolor='black')
-ax.set_ylabel('Percent increase')
-ax.set_xticks(ind)
-ax.set_xticklabels(('Own Health', 'Maternity', 'New Child', 'Ill Child', 'Ill Spouse', 'Ill Parent'))
-ax.yaxis.grid(False)
-format_chart(fig, ax, title, bg_color='white', fg_color='k')
-plt.savefig('C:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_3/results/'
-            'MD_CA_logitPen_low_wage_len_increase.png', facecolor='white', edgecolor='white') #
 
 
 ## How much benefit would go to low-income worker families?
