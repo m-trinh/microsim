@@ -205,24 +205,24 @@ impute_fmla_to_acs <- function(d_fmla, d_acs, impute_method,xvars,kval,xvar_wgts
                                 weights=weights, create_dummies=TRUE, regularized= TRUE)
   }
   
-  # if (impute_method=="K Nearest Neighbor") {
-  #   # INPUTS: variable to be imputed, conditionals to filter training and test data on, FMLA data (training), and
-  #   #         ACS data (test), id variable, and dependent variables to use in imputation, number of nbors
-  #   impute <- mapply(KNN_multi_class, imp_var=yvars,train_filt=filts, test_filt=filts,
-  #                    MoreArgs=list(d_train=d_fmla,d_test=d_acs,xvars=xvars, kval=kval), SIMPLIFY = FALSE)
-  #   
-  #   # OUTPUTS: list of data sets for each leave taking/other variables requiring imputation. 
-  #   # merge imputed values with acs data
-  #   for (i in impute) {
-  #     # old merge code, caused memory issues. using match instead
-  #     #d_acs <- merge(i, d_acs, by="id",all.y=TRUE)
-  #     for (j in names(i)) {
-  #       if (j %in% names(d_acs)==FALSE){
-  #         d_acs[j] <- i[match(d_acs$id, i$id), j]    
-  #       }
-  #     }
-  #   }
-  # }
+  if (impute_method=="K Nearest Neighbor") {
+    # INPUTS: variable to be imputed, conditionals to filter training and test data on, FMLA data (training), and
+    #         ACS data (test), id variable, and dependent variables to use in imputation, number of nbors
+    impute <- mapply(KNN_multi_class, imp_var=yvars,train_filt=filts, test_filt=filts,
+                     MoreArgs=list(d_train=d_fmla,d_test=d_acs,xvars=xvars, kval=kval), SIMPLIFY = FALSE)
+
+    # OUTPUTS: list of data sets for each leave taking/other variables requiring imputation.
+    # merge imputed values with acs data
+    for (i in impute) {
+      # old merge code, caused memory issues. using match instead
+      #d_acs <- merge(i, d_acs, by="id",all.y=TRUE)
+      for (j in names(i)) {
+        if (j %in% names(d_acs)==FALSE){
+          d_acs[j] <- i[match(d_acs$id, i$id), j]
+        }
+      }
+    }
+  }
   if (impute_method=="Naive Bayes") {
     # xvars must be all categorical vars for naive bayes
     xvars <-c("widowed", "divorced", "separated", "nevermarried", "female", 
@@ -615,7 +615,8 @@ runOrdinalEstimate <- function(d_train,d_test, formula, test_filt,train_filt, va
 # 1Bc. runRandDraw
 # ============================ #
 # run a random draw for leave length 
-runRandDraw <- function(d, yvar, filt, leave_dist, ext_resp_len, rr_sensitive_leave_len,wage_rr,maxlen, dependent_allow) {
+runRandDraw <- function(d, yvar, filt, leave_dist, ext_resp_len, rr_sensitive_leave_len,wage_rr,maxlen, dependent_allow,
+                        formula_prop_cuts, formula_value_cuts, formula_bene_levels) {
 
   # filter test cases
   d_filt <- d %>% filter_(filt)
@@ -722,12 +723,25 @@ runRandDraw <- function(d, yvar, filt, leave_dist, ext_resp_len, rr_sensitive_le
           est_df['resp_len'] <- d_filt[merge_ids, 'resp_len'] 
           est_df['dual_receiver'] <- d_filt[merge_ids, 'dual_receiver'] 
           est_df['ndep_kid'] <- d_filt[merge_ids, 'ndep_kid'] 
+          est_df['wage12'] <- d_filt[merge_ids, 'wage12'] 
           # set couterfactual leave taking var equal to Z+ (X-Z)*(rrp-rre)/(1-rre), where:
           # Z is status quo leave length
           # X is maximum length needed
           # rre is the status quo replacement rate (i.e. proportion of pay received)
           # wage_rr <- wage of program
-          est_df['wage_rr'] <- wage_rr
+          est_df['benefit_prop'] <- wage_rr
+          
+          # calculate based on formula cuts 
+          
+          if (!is.null(formula_prop_cuts) | !is.null(formula_value_cuts)) {
+            if (is.null(formula_bene_levels)) {
+              stop('if formula_prop_cuts or formula_value_cuts are specified,
+                   formula_bene_levels must also be specified')
+            }
+            est_df <- FORMULA(est_df, formula_prop_cuts, formula_value_cuts, formula_bene_levels)
+          }
+          
+          est_df['wage_rr'] <- est_df['benefit_prop']
           
           # add dependent allowance to rrp 
           est_df$dep_bene_allow <- 0
@@ -742,7 +756,8 @@ runRandDraw <- function(d, yvar, filt, leave_dist, ext_resp_len, rr_sensitive_le
           
           # record effective_rrp
           est_df <- est_df %>% mutate(effective_rrp=wage_rr)
-        
+    
+          
           # rrp is max(wage_rr, rre)
           est_df['rrp'] <- apply(est_df[c('wage_rr','prop_pay_employer')], 1, max)
 

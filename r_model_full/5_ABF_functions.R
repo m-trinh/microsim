@@ -17,7 +17,7 @@
 # function to generate SE for an ACS variable using replicate weights
 # following method specified by this document from Census:
 # https://www2.census.gov/programs-surveys/acs/tech_docs/pums/accuracy/2012_2016AccuracyPUMS.pdf
-replicate_weights_SE <- function(d, var, place_of_work, filt=TRUE) {
+replicate_weights_SE <- function(d, var, place_of_work, filt=TRUE,se_report=TRUE) {
   # filter d by specified filter
   d <- d[filt,]
   # if place of work, multiply weight by 2% to adjust for missing values
@@ -32,31 +32,36 @@ replicate_weights_SE <- function(d, var, place_of_work, filt=TRUE) {
   x= weighted.mean(d[,var], d[,'PWGTP'], na.rm=TRUE)
   tot=sum(d[,var]* d[,'PWGTP'], na.rm=TRUE)
   
-  # Estimates from replicate weights
-  replicate_weights <- paste0('PWGTP',seq(1,80))
-  count=0
-  for (i in replicate_weights) {
-    count=count+1
-    assign(paste("x", count, sep = ""), weighted.mean(d[,var], d[,i], na.rm=TRUE))   
-    assign(paste("tot", count, sep = ""), sum(d[,var]* d[,i], na.rm=TRUE))
+  if (se_report==TRUE) {
+    # Estimates from replicate weights
+    replicate_weights <- paste0('PWGTP',seq(1,80))
+    count=0
+    for (i in replicate_weights) {
+      count=count+1
+      assign(paste("x", count, sep = ""), weighted.mean(d[,var], d[,i], na.rm=TRUE))   
+      assign(paste("tot", count, sep = ""), sum(d[,var]* d[,i], na.rm=TRUE))
+    }
+    replicate_means <- paste0('x',seq(1,80))
+    
+    # calculate standard error, confidence interval
+    SE= sqrt(4/80*sum(sapply(mget(paste0('x',seq(1,80))), function(y) {(y-x)^2})))
+    CI_low=x-1.96*SE
+    CI_high=x+1.96*SE
+    CI= paste("[",format(x-1.96*SE, digits=2, scientific=FALSE, big.mark=","),",", format(x+1.96*SE, digits=2, scientific=FALSE, big.mark=","),"]")
+    total=sum(d[,var]*d[,'PWGTP'], na.rm=TRUE)
+    total_SE= sqrt(4/80*sum(sapply(mget(paste0('tot',seq(1,80))), function(y) {(y-tot)^2})))
+    total_CI_low= total-total_SE*1.96
+    total_CI_high= total+total_SE*1.96
+    total_CI=paste("[",format(total_CI_low, digits=2, scientific=FALSE, big.mark=","),",", format(total_CI_high, digits=2, scientific=FALSE, big.mark=","),"]")
+    # return statistics
+    stats= list(var, estimate=x, std_error=SE,confidence_int=CI,CI_low=CI_low,CI_high=CI_high, 
+                total=total, total_SE=total_SE,total_CI_low=total_CI_low,total_CI_high=total_CI_high, total_CI=total_CI)
+    for (i in stats[c(2:3,7:8,11)]) {
+      i <- format(i, nsmall=3)
+    }
   }
-  replicate_means <- paste0('x',seq(1,80))
-  
-  # calculate standard error, confidence interval
-  SE= sqrt(4/80*sum(sapply(mget(paste0('x',seq(1,80))), function(y) {(y-x)^2})))
-  CI_low=x-1.96*SE
-  CI_high=x+1.96*SE
-  CI= paste("[",format(x-1.96*SE, digits=2, scientific=FALSE, big.mark=","),",", format(x+1.96*SE, digits=2, scientific=FALSE, big.mark=","),"]")
-  total=sum(d[,var]*d[,'PWGTP'], na.rm=TRUE)
-  total_SE= sqrt(4/80*sum(sapply(mget(paste0('tot',seq(1,80))), function(y) {(y-tot)^2})))
-  total_CI_low= total-total_SE*1.96
-  total_CI_high= total+total_SE*1.96
-  total_CI=paste("[",format(total_CI_low, digits=2, scientific=FALSE, big.mark=","),",", format(total_CI_high, digits=2, scientific=FALSE, big.mark=","),"]")
-  # return statistics
-  stats= list(var, estimate=x, std_error=SE,confidence_int=CI,CI_low=CI_low,CI_high=CI_high, 
-              total=total, total_SE=total_SE,total_CI_low=total_CI_low,total_CI_high=total_CI_high, total_CI=total_CI)
-  for (i in stats[c(2:3,7:8,11)]) {
-    i <- format(i, nsmall=3)
+  if (se_report==FALSE) {
+    stats= list(var, estimate=x, total=tot)
   }
   return(stats)
 }

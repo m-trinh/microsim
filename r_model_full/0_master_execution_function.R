@@ -39,6 +39,7 @@ policy_simulation <- function(
                               out_dir="../output",
                               output=NULL,
                               output_stats=NULL,
+                              se_report=TRUE,
                               
                               # simulation runtime modification params
                               sample_prop=NULL, 
@@ -132,7 +133,9 @@ policy_simulation <- function(
                               ABF_detail_out=FALSE,
                               
                               # misc execution params
-                              model_start_time=NULL
+                              model_start_time=NULL,
+                              # addl cols to keep in final output data set
+                              addl_vars = c()
                             ) {
 
   # note start time
@@ -358,6 +361,11 @@ policy_simulation <- function(
     
     # Load and clean ACS
     st_code <- d_states[d_states$state_abbr==toupper(state),'ST']
+    st_code <- toString(st_code)
+    if (nchar(st_code)==1) {
+      st_code <- paste0('0',st_code)
+    }
+    
     if (place_of_work==TRUE) {
       d_acs_hh <- read.csv(paste0(acs_dir,'/',acs_year,'/pow_household_files/h',st_code,'_',tolower(state),'_pow.csv'))
       d_acs_p <- read.csv(paste0(acs_dir,'/',acs_year,'/pow_person_files/p',st_code,'_',tolower(state),'_pow.csv')) 
@@ -486,7 +494,8 @@ policy_simulation <- function(
   #         would produced a biased 
   #         estimate of leave length
   d_acs_imp <- impute_leave_length(d_fmla_orig, d_acs_imp, ext_resp_len,
-                                   rr_sensitive_leave_len,base_bene_level,maxlen_DI,maxlen_PFL,dependent_allow)
+                                   rr_sensitive_leave_len,base_bene_level,maxlen_DI,maxlen_PFL,dependent_allow,
+                                   formula_prop_cuts, formula_value_cuts, formula_bene_levels)
   # OUTPUT: ACS data with lengths for leaves imputed
   if (runtime_measure==1){
     time_elapsed('finished imputing leave length')
@@ -588,13 +597,13 @@ policy_simulation <- function(
   d_acs_imp <- DIFF_ELIG(d_acs_imp, own_elig_adj, illspouse_elig_adj, illchild_elig_adj,
                          illparent_elig_adj, matdis_elig_adj, bond_elig_adj)
 
-  
+
   # final clean up 
   # INPUT: ACS file
   d_acs_imp <- CLEANUP(d_acs_imp, week_bene_cap,week_bene_cap_prop,week_bene_min, maxlen_own, maxlen_matdis, maxlen_bond, 
                        maxlen_illparent, maxlen_illspouse, maxlen_illchild, maxlen_total,maxlen_DI,maxlen_PFL)
   # OUTPUT: ACS file with finalized leave taking, program uptake, and benefits received variables
- 
+  
   # Running ABF module
   if (ABF_enabled==TRUE) {
     d_acs_imp <- run_ABF(d_acs_imp, ABF_elig_size, ABF_max_tax_earn, ABF_bene_tax, ABF_avg_state_tax, 
@@ -607,17 +616,8 @@ policy_simulation <- function(
   
   
    # -----------obsolete code, now that we impute state of work ------
-  # if using POW, adjust weights up by .02 because there are some missing POW
-  # if (place_of_work==TRUE){
-  #   replicate_weights <- paste0('PWGTP',seq(1,80))
-  #   d_acs_imp['PWGTP'] <- d_acs_imp['PWGTP']*1.02
-  #   for (i in replicate_weights) {
-  #     d_acs_imp[i] <- d_acs_imp[i]*1.02
-  #   }  
-  # }
-  
   # create meta file
-  create_meta_file(d_acs_imp,out_dir,place_of_work, model_start_time)
+  create_meta_file(d_acs_imp,out_dir,place_of_work, model_start_time, se_report)
   
   # final output options
   for (i in output_stats) {
@@ -633,7 +633,6 @@ policy_simulation <- function(
       take_compar(d_acs_imp, output, out_dir,place_of_work)
     }  
   }
-  
   # Options to output final data
   if (!is.null(output) & saveCSV==TRUE & fulloutput==TRUE) {
     write.csv(d_acs_imp, file=file.path(out_dir, paste0('/',output,'_full_output.csv'), fsep = .Platform$file.sep))
@@ -651,7 +650,7 @@ policy_simulation <- function(
               'squo_leave_pay', 'squo_take_bond', 'squo_take_illchild', 'squo_take_illparent', 'squo_take_illspouse', 'squo_take_matdis', 
               'squo_take_own', 'squo_taker', 'squo_total_length', 'state_abbr', 'state_name', 'topoff_flg', 'total_leaves', 'weeks_worked_cat',
               'takes_up_bond', 'takes_up_illchild', 'takes_up_illparent', 'takes_up_illspouse', 'takes_up_matdis', 'takes_up_own')) {
-    if (i %in% names(d_acs_imp)){
+    if (i %in% names(d_acs_imp) & !(i %in% addl_vars)){
       d_acs_imp[i] <- NULL
     }
   }
@@ -668,13 +667,13 @@ policy_simulation <- function(
     'cfl_own'='length_own' ,
     'ln_faminc'='lnfaminc' ,
     'takeup_any'='particip' ,
-    'cpl_all'='particip_length' ,
-    'cpl_bond'='plen_bond' ,
-    'cpl_illchild'='plen_illchild' ,
-    'cpl_illparent'='plen_illparent' ,
-    'cpl_illspouse'='plen_illspouse' ,
-    'cpl_matdis'='plen_matdis' ,
-    'cpl_own'='plen_own' ,
+    'cpl_all'='particip_length_predraw' ,
+    'cpl_bond'='plen_bond_predraw' ,
+    'cpl_illchild'='plen_illchild_predraw' ,
+    'cpl_illparent'='plen_illparent_predraw' ,
+    'cpl_illspouse'='plen_illspouse_predraw' ,
+    'cpl_matdis'='plen_matdis_predraw' ,
+    'cpl_own'='plen_own_predraw' ,
     'takeup_bond'='ptake_bond' ,
     'takeup_illchild'='ptake_illchild' ,
     'takeup_illparent'='ptake_illparent' ,
