@@ -47,6 +47,7 @@ class MicrosimGUI(Tk):
         self.currently_running = False  # Whether or not a simulation is currently running
 
         self.error_tooltips = []  # Tooltips that are used to tell users when they enter an invalid value
+        self.skip_data_check = False
 
         self.current_tab = 0  # Set the current visible tab to 0, which is the Program tab
         self.variables = self.create_variables()  # Create the variables that will be tied to each input
@@ -286,6 +287,17 @@ class MicrosimGUI(Tk):
 
         return True
 
+    def check_non_standard_data(self):
+        if self.skip_data_check:
+            return True
+        if self.general_params.year != 2018 or not self.general_params.state_of_work:
+            warning = 'Running the model for 2016/2017 or with the State of Work box unchecked requires the ' \
+                      'corresponding ACS data files to be available in the ACS directory. Would you like to proceed?'
+            response = messagebox.askokcancel('Warning', warning)
+            self.skip_data_check = response
+            return response
+        return True
+
     def run_simulation(self):
         """Run the simulation from the parameters that user provides"""
         # Before running simulation, check for input errors
@@ -302,7 +314,7 @@ class MicrosimGUI(Tk):
         self.save_params()
         self.current_state = self.general_params.state
 
-        if not self.check_all_states():
+        if not self.check_all_states() or not self.check_non_standard_data():
             return
 
         self.currently_running = True
@@ -695,8 +707,7 @@ class MicrosimGUI(Tk):
                          self.parameter_notebook.program_frame.benefit_financing_frame.average_state_tax_input]
 
         # These are the inputs expecting decimal values between 0 and 1
-        rate_entries = [self.parameter_notebook.program_frame.replacement_ratio_input,
-                        self.parameter_notebook.population_frame.dual_receivers_share_input]
+        rate_entries = [self.parameter_notebook.population_frame.dual_receivers_share_input]
         rate_entries += [entry for entry in self.parameter_notebook.population_frame.take_up_rates_inputs]
         rate_entries += [p.input for p in self.parameter_notebook.program_frame.dep_allowance_frame.profiles]
         # rate_entries += [entry for entry in self.parameter_notebook.population_frame.leave_probability_factors_inputs]
