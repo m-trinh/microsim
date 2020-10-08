@@ -55,7 +55,7 @@ class MicrosimGUI(Tk):
         self.set_up_style()  # Set up styles for ttk widgets
 
         self.title('Paid Leave Micro-Simulator')  # Add title to window
-        self.option_add('*Font', '-size 12')  # Set default font
+        self.option_add('*Font', 'helvetica 12')  # Set default font
         # self.resizable(False, False)  # Prevent window from being resized
         self.bind("<MouseWheel>", self.scroll)  # Bind mouse wheel action to scroll function
 
