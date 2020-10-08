@@ -393,8 +393,12 @@ class MicrosimGUI(Tk):
                                              (self.general_params.state.lower(), self.model_start_time)))
             takers = pd.read_csv(os.path.join(main_output_dir, 'program_progtaker_%s_%s.csv' %
                                              (self.general_params.state.lower(), self.model_start_time)))
-            costs.columns = ['type', 'cost', 'ci_lower', 'ci_upper']
-            takers.columns = ['type', 'progtaker', 'ci_lower', 'ci_upper']
+            if len(costs.columns) > 2:
+                costs.columns = ['type', 'cost', 'ci_lower', 'ci_upper']
+                takers.columns = ['type', 'progtaker', 'ci_lower', 'ci_upper']
+            else:
+                costs.columns = ['type', 'cost']
+                takers.columns = ['type', 'progtaker']
 
         # Calculate total benefits paid
         total_benefits = list(costs.loc[costs['type'] == 'total', 'cost'])[0]
@@ -711,6 +715,13 @@ class MicrosimGUI(Tk):
         rate_entries += [entry for entry in self.parameter_notebook.population_frame.take_up_rates_inputs]
         rate_entries += [p.input for p in self.parameter_notebook.program_frame.dep_allowance_frame.profiles]
         # rate_entries += [entry for entry in self.parameter_notebook.population_frame.leave_probability_factors_inputs]
+
+        if self.variables['replacement_type'] == 'Static':
+            rate_entries.append(self.parameter_notebook.program_frame.replacement_frame.replacement_ratio_input)
+        else:
+            errors += self.parameter_notebook.program_frame.replacement_frame.progressive_frame.validate()
+            rate_entries += [b.replacement_input for b in
+                             self.parameter_notebook.program_frame.replacement_frame.progressive_frame.wage_brackets]
 
         # Validate all of the inputs
         for entry in integer_entries:
@@ -2282,14 +2293,22 @@ class ProgressiveFrame(Frame):
         while len(self.wage_brackets) > 2:
             self.remove_bracket(self.wage_brackets[1])
 
+    def validate(self):
+        errors = []
+        for i in range(len(self.wage_brackets) - 1):
+            if self.wage_brackets[i].ceiling.get() < self.wage_brackets[i].floor_value:
+                errors.append((self.wage_brackets[i].ceiling_input, 'The upper bound is lower than the lower bound'))
+        return errors
+
 
 class WageBracket:
-    def __init__(self, frame, index, floor_value=None, last=False, first=False):
+    def __init__(self, frame, index, floor_value=0, last=False, first=False):
         self.frame = frame
         self.index = index
         self.first = first
         self.last = last
         self.floor_label = Label(self.frame, bg=VERY_LIGHT_COLOR, font='-size 11')
+        self.floor_value = floor_value
         self.update_floor(floor_value)
         self.to_label = Label(self.frame, text='-', width=3, bg=VERY_LIGHT_COLOR, font='-size 11')
         self.ceiling = IntVar()
@@ -2312,7 +2331,8 @@ class WageBracket:
 
     def update_floor(self, floor_value):
         if floor_value is None:
-            floor_value = '???'
+            floor_value = 0
+        self.floor_value = floor_value
         text = '${}'.format(floor_value)
         if self.last:
             text += '+'

@@ -319,6 +319,7 @@ def create_cost_chart(data, state):
     fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
     ind = np.arange(len(leave_types))
     ys = data[:-1]['cost'] / 10 ** 6
+    print(ys)
     if 'ci_upper' in data.columns:
         es = 0.5 * (data[:-1]['ci_upper'] - data[:-1]['ci_lower']) / 10 ** 6  # Used for confidence intervals
     else:
@@ -355,14 +356,19 @@ def create_taker_chart(data, state):
 
     # Get total cost of program, in millions and rounded to 1 decimal point
     total_takers = list(data.loc[data['type'] == 'any', 'progtaker'])[0]
-    spread = list(data.loc[data['type'] == 'any', 'ci_upper'])[0] - list(data.loc[data['type'] == 'any', 'ci_lower'])[0]
-    title = 'State: {}. Total Leave Takers = {:,} (\u00B1{:,}).'.format(state.upper(), total_takers, spread)
+    title = 'State: {}. Total Leave Takers = {:,} '.format(state.upper(), total_takers)
+    if 'ci_upper' in data.columns:
+        spread = list(data.loc[data['type'] == 'any', 'ci_upper'])[0] - list(data.loc[data['type'] == 'any', 'ci_lower'])[0]
+        title += ' (\u00B1{:,}).'.format(spread)
 
     # Create chart to display benefit cost for each leave type
     fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
     ind = np.arange(len(leave_types))
     ys = data[:-1]['progtaker']
-    es = 0.5 * (data[:-1]['ci_upper'] - data[:-1]['ci_lower'])  # Used for confidence intervals
+    if 'ci_upper' in data.columns:
+        es = 0.5 * (data[:-1]['ci_upper'] - data[:-1]['ci_lower'])  # Used for confidence intervals
+    else:
+        es = None
     width = 0.5
     ax.bar(ind, ys, width, yerr=es, align='center', capsize=5, color='#1aff8c', ecolor='white')
     ax.set_ylabel('Leave Takers')
@@ -435,6 +441,15 @@ def create_r_command(general_params, other_params, progress_file, output_dir, mo
         Name of text file that will be checked for simulation progress
     :return: str
     """
+    if other_params.replacement_type == 'Static':
+        base_bene_level = other_params.replacement_ratio
+        formula_value_cuts = 'NULL'
+        formula_bene_levels = 'NULL'
+    else:
+        base_bene_level = 'NULL'
+        formula_value_cuts = ','.join(map(str, other_params.progressive_replacement_ratio['cutoffs']))
+        formula_bene_levels = ','.join(map(str, other_params.progressive_replacement_ratio['replacements']))
+
     # Create a list of parameter values
     params = {
         'acs_dir': general_params.acs_directory,
@@ -442,7 +457,7 @@ def create_r_command(general_params, other_params, progress_file, output_dir, mo
         'fmla_file': general_params.fmla_file,
         'fmla_year': general_params.fmla_wave,
         'acs_year': general_params.year,
-        'base_bene_level': other_params.replacement_ratio,  # base_bene_level
+        'base_bene_level': base_bene_level,  # base_bene_level
         'impute_method': general_params.simulation_method.replace(' ', '_'),  # impute_method
         'makelog': True,  # makelog
         'state': general_params.state,  # state
@@ -484,7 +499,10 @@ def create_r_command(general_params, other_params, progress_file, output_dir, mo
         'min_cfl_recollect': other_params.min_cfl_recollect,
         'dual_receiver': other_params.dual_receivers_share,
         'min_takeup_cpl': other_params.min_takeup_cpl,
-        'model_start_time': model_start_time
+        'model_start_time': model_start_time,
+        'formula_value_cuts': formula_value_cuts,
+        'formula_bene_levels': formula_bene_levels,
+        'se_report': other_params.calculate_se,
     }
 
     # Convert the list into a string
