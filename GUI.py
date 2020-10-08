@@ -189,7 +189,8 @@ class MicrosimGUI(Tk):
             'min_takeup_cpl': IntVar(value=d.min_takeup_cpl),
             'alpha': DoubleVar(value=d.alpha),
             'replacement_type': StringVar(value=d.replacement_type),
-            'progressive_replacement_ratio': {}
+            'progressive_replacement_ratio': {},
+            'calculate_se': BooleanVar(value=d.calculate_se)
         }
 
         return variables
@@ -1250,8 +1251,8 @@ class ComparisonFrame(Frame):
         self.start_button.pack(side=RIGHT)
 
         # Button to add one comparison
-        self.add_simulation_button = BorderButton(self.buttons, text=u'\uFF0B', font='-size 10 -weight bold',
-                                                  background=THEME_COLOR, width=0, padx=2, pady=0,
+        self.add_simulation_button = BorderButton(self.buttons, text='+', font='-size 10 -weight bold',
+                                                  background=THEME_COLOR, width=0, padx=4, pady=0,
                                                   highlightthickness=0, command=self.add_simulation)
 
         #  Frame to hold comparison proram buttons
@@ -1826,6 +1827,11 @@ class SimulationFrame(NotebookFrame):
         Documentation (McGarry et al, Abt Associates, 2013).'''
         self.calibrate_input = TipCheckButton(self.content, tip, text="Calibrate", variable=v['calibrate'])
 
+        # ---------------------------------------------- Calculate SE -----------------------------------------------
+        tip = 'Whether or not weight standard error should be calculated. Uncheck this box to decrease model run time.'
+        self.calculate_se_input = TipCheckButton(self.content, tip, text="Calculate Standard Error",
+                                                 variable=v['calculate_se'])
+
         # # ---------------------------------------- Compare Against Existing -----------------------------------------
         # tip = 'Simulate a counterfactual scenario to compare user parameters  against a real paid leave program.'
         # self.counterfactual_label = TipLabel(self.content, tip, text='Compare Against Existing:', bg=VERY_LIGHT_COLOR)
@@ -1854,6 +1860,7 @@ class SimulationFrame(NotebookFrame):
         # self.weight_factor_input.grid_forget()
         self.clone_factor_label.grid_forget()
         self.clone_factor_input.grid_forget()
+        self.calculate_se_input.grid_forget()
         # self.fmla_protection_constraint_input.grid_forget()
 
     def show_advanced_parameters(self):
@@ -1861,6 +1868,7 @@ class SimulationFrame(NotebookFrame):
         # self.weight_factor_input.grid(column=1, row=2, sticky=W, pady=self.row_padding)
         self.clone_factor_label.grid(column=0, row=2, sticky=W, pady=self.row_padding)
         self.clone_factor_input.grid(column=1, row=2, sticky=W, pady=self.row_padding)
+        self.calculate_se_input.grid(column=0, row=3, columnspan=2, sticky=W, pady=self.row_padding)
         # self.fmla_protection_constraint_input.grid(column=0, row=3, columnspan=2, sticky=W, pady=self.row_padding)
 
 

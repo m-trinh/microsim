@@ -160,7 +160,7 @@ class OtherParameters(Parameters):
                  dependency_allowance=False, dependency_allowance_profile=None, wait_period=5, recollect=False,
                  min_cfl_recollect=None, min_takeup_cpl=5, alpha=0, private=True, own_health=True, maternity=True,
                  new_child=True, ill_child=True, ill_spouse=True, ill_parent=True, replacement_type='Static',
-                 progressive_replacement_ratio=None):
+                 progressive_replacement_ratio=None, calculate_se=True):
         """Other program parameters. A distinction needs to be made for program comparison, as each program will not
         share these parameters."""
         self.benefit_effect = benefit_effect
@@ -209,6 +209,7 @@ class OtherParameters(Parameters):
         self.min_takeup_cpl = min_takeup_cpl
         self.alpha = alpha
         self.replacement_type = replacement_type
+        self.calculate_se = calculate_se
         if max_weeks is None:
             self.max_weeks = {'Own Health': 30, 'Maternity': 30, 'New Child': 4, 'Ill Child': 4, 'Ill Spouse': 4,
                               'Ill Parent': 4}
@@ -307,15 +308,21 @@ def create_cost_chart(data, state):
 
     # Get total cost of program, in millions and rounded to 1 decimal point
     total_cost = round(list(data.loc[data['type'] == 'total', 'cost'])[0] / 10 ** 6, 1)
-    spread = round((list(data.loc[data['type'] == 'total', 'ci_upper'])[0] -
-                    list(data.loc[data['type'] == 'total', 'ci_lower'])[0]) / 10 ** 6, 1)
-    title = 'State: %s. Total Benefits Cost = $%s million (\u00B1%s).' % (state.upper(), total_cost, spread)
+    title = 'State: %s. Total Benefits Cost = $%s million' % (state.upper(), total_cost)
+
+    if 'ci_upper' in data.columns:
+        spread = round((list(data.loc[data['type'] == 'total', 'ci_upper'])[0] -
+                        list(data.loc[data['type'] == 'total', 'ci_lower'])[0]) / 10 ** 6, 1)
+        title += ' (\u00B1%s).' % spread
 
     # Create chart to display benefit cost for each leave type
     fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
     ind = np.arange(len(leave_types))
     ys = data[:-1]['cost'] / 10 ** 6
-    es = 0.5 * (data[:-1]['ci_upper'] - data[:-1]['ci_lower']) / 10 ** 6  # Used for confidence intervals
+    if 'ci_upper' in data.columns:
+        es = 0.5 * (data[:-1]['ci_upper'] - data[:-1]['ci_lower']) / 10 ** 6  # Used for confidence intervals
+    else:
+        es = None
     width = 0.5
     ax.bar(ind, ys, width, yerr=es, align='center', capsize=5, color='#1aff8c', ecolor='white')
     ax.set_ylabel('$ millions')
