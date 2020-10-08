@@ -188,6 +188,8 @@ class MicrosimGUI(Tk):
             'min_cfl_recollect': StringVar(value=d.min_cfl_recollect),
             'min_takeup_cpl': IntVar(value=d.min_takeup_cpl),
             'alpha': DoubleVar(value=d.alpha),
+            'replacement_type': StringVar(value=d.replacement_type),
+            'progressive_replacement_ratio': {}
         }
 
         return variables
@@ -404,10 +406,7 @@ class MicrosimGUI(Tk):
             if var_name not in valid_var_names:
                 continue
 
-            if type(var_obj) == dict:
-                # Some parameters should return a dictionary
-                variable_values[var_name] = {k: v.get() for k, v in var_obj.items()}
-            elif var_name == 'min_cfl_recollect':
+            if var_name == 'min_cfl_recollect':
                 # Set this parameter to None if the field is empty
                 try:
                     variable_values[var_name] = int(var_obj.get())
@@ -415,6 +414,12 @@ class MicrosimGUI(Tk):
                     variable_values[var_name] = None
             elif var_name == 'dependency_allowance_profile':
                 variable_values[var_name] = self.parameter_notebook.program_frame.dep_allowance_frame.get_profile()
+            elif var_name == 'progressive_replacement_ratio':
+                variable_values[var_name] = \
+                    self.parameter_notebook.program_frame.replacement_frame.progressive_frame.get_replacement_ratios()
+            elif type(var_obj) == dict:
+                # Some parameters should return a dictionary
+                variable_values[var_name] = {k: v.get() for k, v in var_obj.items()}
             else:
                 variable_values[var_name] = var_obj.get()
 
@@ -470,12 +475,15 @@ class MicrosimGUI(Tk):
         params = self.all_params[sim_num]  # Get the input values from parameter list and sim_num
         for param_key, param_val in vars(params).items():
             # If value for the parameter is a dictionary, then traverse that dictionary
-            if type(param_val) == dict:
-                for k, v in param_val.items():
-                    self.variables[param_key][k].set(v)
-            elif param_key == 'dependency_allowance_profile':
+            if param_key == 'dependency_allowance_profile':
                 self.variables[param_key] = param_val
                 self.update_dependency_allowance_profile(param_val)
+            elif param_key == 'progressive_replacement_ratio':
+                self.variables[param_key] = param_val
+                self.update_replacement_ratios(param_val)
+            elif type(param_val) == dict:
+                for k, v in param_val.items():
+                    self.variables[param_key][k].set(v)
             else:
                 self.variables[param_key].set(param_val)
 
@@ -510,6 +518,9 @@ class MicrosimGUI(Tk):
 
         self.parameter_notebook.program_frame.dep_allowance_frame.remove_all_dependents()
         self.parameter_notebook.program_frame.dep_allowance_frame.add_dependents(profile)
+
+    def update_replacement_ratios(self, replacement_ratios):
+        self.parameter_notebook.program_frame.replacement_frame.progressive_frame.set_brackets(replacement_ratios)
 
     @staticmethod
     def check_random_seed(random_seed):
@@ -1578,9 +1589,14 @@ class ProgramFrame(NotebookFrame):
         ToolTipCreator(self.leave_types_label, 'The leave types that the program will provide benefits for.')
 
         # ----------------------------------------- Wage Replacement Ratio ------------------------------------------
-        tip = 'The percentage of wage that the program will pay.'
-        self.replacement_ratio_label = TipLabel(self.content, tip, text="Replacement Ratio:", bg=VERY_LIGHT_COLOR)
-        self.replacement_ratio_input = NotebookEntry(self.content, textvariable=v['replacement_ratio'])
+        self.replacement_label = ttk.Label(self.content, text='Wage Replacement:', cursor='question_arrow',
+                                           style='MSLabelframe.TLabelframe.Label', font='-size 10')
+        self.replacement_frame = WageReplacementFrame(self.content, v, self.update_scroll_region,
+                                                      labelwidget=self.replacement_label,
+                                                      style='MSLabelframe.TLabelframe')
+        # tip = 'The percentage of wage that the program will pay.'
+        # self.replacement_ratio_label = TipLabel(self.content, tip, text="Replacement Ratio:", bg=VERY_LIGHT_COLOR)
+        # self.replacement_ratio_input = NotebookEntry(self.content, textvariable=v['replacement_ratio'])
 
         # ------------------------------------------- Weekly Benefit Cap --------------------------------------------
         tip = 'The maximum amount of benefits paid out per week.'
@@ -1630,8 +1646,9 @@ class ProgramFrame(NotebookFrame):
         display_leave_objects(self.max_weeks_labels, self.max_weeks_inputs)
         self.employee_types_frame.grid(column=0, row=3, columnspan=10, sticky=(N, E, W), pady=self.row_padding)
         self.benefit_financing_frame.grid(column=0, row=4, columnspan=10, sticky=(N, E, W), pady=self.row_padding)
-        self.replacement_ratio_label.grid(column=0, row=5, sticky=W, pady=self.row_padding)
-        self.replacement_ratio_input.grid(column=1, row=5, sticky=W, pady=self.row_padding)
+        self.replacement_frame.grid(column=0, row=5, columnspan=10, sticky=(N, E, W), pady=self.row_padding)
+        # self.replacement_ratio_label.grid(column=0, row=5, sticky=W, pady=self.row_padding)
+        # self.replacement_ratio_input.grid(column=1, row=5, sticky=W, pady=self.row_padding)
         self.weekly_ben_cap_label.grid(column=0, row=6, sticky=W, pady=self.row_padding)
         self.weekly_ben_cap_input.grid(column=1, row=6, sticky=W, pady=self.row_padding)
 
@@ -2020,11 +2037,11 @@ class DependencyAllowanceFrame(Frame):
 
         # Frame to hold buttons to add or remove profile inputs
         self.buttons_frame = Frame(self.profile_frame, bg=VERY_LIGHT_COLOR)
-        self.add_button = Button(self.buttons_frame, text=u'\uFF0B', font='-size 9 -weight bold', relief='flat',
+        self.add_button = Button(self.buttons_frame, text='+', font='-size 9 -weight bold', relief='flat',
                                  background='#00e600', width=3, padx=0, pady=0, highlightthickness=0,
                                  foreground='#FFFFFF', command=self.add_dependent)
         self.add_button.pack(side=TOP, pady=2)
-        self.remove_button = Button(self.buttons_frame, text=u'\uFF0D', font='-size 9 -weight bold', relief='flat',
+        self.remove_button = Button(self.buttons_frame, text='-', font='-size 9 -weight bold', relief='flat',
                                     background='#ff0000', width=3, padx=0, pady=0, highlightthickness=0,
                                     foreground='#FFFFFF', command=self.remove_dependent)
         self.remove_button.pack(side=TOP, pady=2)
@@ -2121,6 +2138,186 @@ class DependencyAllowanceProfileFrame(Frame):
     def remove_plus(self):
         """Remove the plus sign from the dependency level label"""
         self.label.config(text=str(self.num))
+
+
+class WageReplacementFrame(ttk.LabelFrame):
+    def __init__(self, parent, variables, scroll_update_func, **kwargs):
+        super().__init__(parent, **kwargs)
+        self.variables = variables
+        self.scroll_update_func = scroll_update_func
+        # ------------------------------------------ Wage Replacement Type ------------------------------------------
+        self.replacement_type_frame = Frame(self, bg=VERY_LIGHT_COLOR)
+        tip = 'Static wage replacement pays the same replacement percentage for all wage brackets. ' \
+              'Progressive wage replacement is different across wage brackets.'
+        self.replacement_type_label = TipLabel(self.replacement_type_frame, tip, text='Wage Replacement Type:',
+                                               bg=VERY_LIGHT_COLOR)
+        self.replacement_type_input = ttk.Combobox(self.replacement_type_frame,
+                                                   textvariable=variables['replacement_type'], state="readonly",
+                                                   width=15, values=('Static', 'Progressive'))
+        self.replacement_type_input.current(0)
+        self.replacement_type_frame.pack(anchor=W, padx=(12, 0))
+        self.replacement_type_label.pack(side=LEFT)
+        self.replacement_type_input.pack(side=LEFT, padx=(4, 0))
+
+        # If the dependency allowance box is checked, then the profile input will be shown
+        variables['replacement_type'].trace('w', self.toggle_replacement_type)
+
+        self.static_frame = Frame(self, bg=VERY_LIGHT_COLOR)
+        tip = 'The percentage of wage that the program will pay.'
+        self.replacement_ratio_label = TipLabel(self.static_frame, tip, text="Replacement Ratio:", bg=VERY_LIGHT_COLOR,
+                                                font='-size 11 -weight bold')
+        self.replacement_ratio_input = NotebookEntry(self.static_frame, textvariable=variables['replacement_ratio'],
+                                                     font='-size 11')
+        self.pack_static_prog_frame(self.static_frame)
+        self.replacement_ratio_label.pack(side=LEFT)
+        self.replacement_ratio_input.pack(side=LEFT)
+
+        self.progressive_frame = ProgressiveFrame(self)
+
+    def toggle_replacement_type(self, *_):
+        if self.variables['replacement_type'].get() == 'Static':
+            self.pack_static_prog_frame(self.static_frame)
+            self.progressive_frame.pack_forget()
+        else:
+            self.pack_static_prog_frame(self.progressive_frame)
+            self.static_frame.pack_forget()
+        self.scroll_update_func()
+
+    def pack_static_prog_frame(self, frame):
+        frame.pack(anchor=W, padx=(36, 0), pady=4)
+
+
+class ProgressiveFrame(Frame):
+    def __init__(self, parent):
+        super().__init__(parent, bg=VERY_LIGHT_COLOR)
+        self.parent = parent
+        Label(self, text='Lower Bound', font='-size 11 -weight bold', bg=VERY_LIGHT_COLOR).grid(row=0, column=0)
+        Label(self, text='Upper Bound', font='-size 11 -weight bold', bg=VERY_LIGHT_COLOR).grid(row=0, column=2)
+        Label(self, text='Wage Replacement', font='-size 11 -weight bold', bg=VERY_LIGHT_COLOR).grid(row=0, column=3)
+        self.wage_brackets = [
+            WageBracket(self, 0, floor_value=0, first=True),
+            WageBracket(self, 1, last=True)
+        ]
+        self.grid_brackets()
+        self.update_floors()
+
+    def add_bracket(self, floor_value):
+        index = len(self.wage_brackets)
+        self.wage_brackets.insert(-1, WageBracket(self, index - 1, floor_value=floor_value))
+        self.grid_brackets()
+        self.update_floors()
+        self.parent.scroll_update_func()
+
+    def remove_bracket(self, bracket):
+        self.wage_brackets.pop(bracket.index)
+        bracket.grid_forget()
+        self.grid_brackets()
+        self.update_floors()
+        self.parent.scroll_update_func()
+        del bracket
+
+    def update_floors(self, *_):
+        for bracket in self.wage_brackets[:-1]:
+            try:
+                new_floor = bracket.ceiling.get()
+            except TclError:
+                new_floor = None
+            index = bracket.index
+            self.wage_brackets[index + 1].update_floor(new_floor)
+
+    def get_bracket_index(self, bracket):
+        for i in range(len(self.wage_brackets)):
+            if bracket == self.wage_brackets[i]:
+                return i
+        return None
+
+    def grid_brackets(self):
+        for i, bracket in enumerate(self.wage_brackets):
+            bracket.index = i
+            bracket.grid()
+
+    def get_replacement_ratios(self):
+        progressive_replacement_ratio = {
+            'cutoffs': [bracket.ceiling.get() for bracket in self.wage_brackets[:-1]],
+            'replacements': [bracket.replacement.get() for bracket in self.wage_brackets]
+        }
+        return progressive_replacement_ratio
+
+    def set_brackets(self, progressive_replacement_ratio):
+        self.clear_brackets()
+        if not progressive_replacement_ratio['cutoffs']:
+            self.wage_brackets[0].ceiling.set(0.0)
+            self.wage_brackets[0].replacement.set(0.0)
+            self.wage_brackets[1].replacement.set(0.0)
+            self.wage_brackets[1].update_floor(0)
+            return
+        cutoffs, replacements = progressive_replacement_ratio['cutoffs'], progressive_replacement_ratio['replacements']
+        for i in range(len(cutoffs) - 1):
+            self.add_bracket(cutoffs[i])
+        for i in range(len(cutoffs)):
+            self.wage_brackets[i].ceiling.set(cutoffs[i])
+        for i in range(len(replacements)):
+            self.wage_brackets[i].replacement.set(replacements[i])
+
+    def clear_brackets(self):
+        while len(self.wage_brackets) > 2:
+            self.remove_bracket(self.wage_brackets[1])
+
+
+class WageBracket:
+    def __init__(self, frame, index, floor_value=None, last=False, first=False):
+        self.frame = frame
+        self.index = index
+        self.first = first
+        self.last = last
+        self.floor_label = Label(self.frame, bg=VERY_LIGHT_COLOR, font='-size 11')
+        self.update_floor(floor_value)
+        self.to_label = Label(self.frame, text='-', width=3, bg=VERY_LIGHT_COLOR, font='-size 11')
+        self.ceiling = IntVar()
+        self.ceiling_input = NotebookEntry(self.frame, width=15, textvariable=self.ceiling, font='-size 11')
+        self.ceiling.trace('w', self.frame.update_floors)
+        self.replacement = DoubleVar()
+        self.replacement_input = NotebookEntry(self.frame, textvariable=self.replacement, width=10, font='-size 11')
+        self.remove_button = Button(self.frame, text='x', font='-size 10 -weight bold', relief='flat',
+                                    background='#ff0000', width=3, padx=0, pady=0, highlightthickness=0,
+                                    foreground='#FFFFFF', command=self.remove_bracket)
+        self.add_button = Button(self.frame, text='+', font='-size 10 -weight bold', relief='flat',
+                                 background='#00e600', width=3, padx=0, pady=0, highlightthickness=0,
+                                 foreground='#FFFFFF', command=self.add_bracket)
+
+    def add_bracket(self):
+        self.frame.add_bracket(self.ceiling.get())
+
+    def remove_bracket(self):
+        self.frame.remove_bracket(self)
+
+    def update_floor(self, floor_value):
+        if floor_value is None:
+            floor_value = '???'
+        text = '${}'.format(floor_value)
+        if self.last:
+            text += '+'
+        self.floor_label.config(text=text)
+
+    def grid(self):
+        row = self.index + 1
+        self.floor_label.grid(row=row, column=0)
+        if not self.last:
+            self.to_label.grid(row=row, column=1)
+            self.ceiling_input.grid(row=row, column=2)
+        self.replacement_input.grid(row=row, column=3)
+        if self.last:
+            self.add_button.grid(row=row, column=4)
+        elif not self.first:
+            self.remove_button.grid(row=row, column=4)
+
+    def grid_forget(self):
+        self.floor_label.grid_forget()
+        self.to_label.grid_forget()
+        self.ceiling_input.grid_forget()
+        self.replacement_input.grid_forget()
+        self.add_button.grid_forget()
+        self.remove_button.grid_forget()
 
 
 class ResultsWindow(Toplevel):

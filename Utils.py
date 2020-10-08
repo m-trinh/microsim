@@ -159,7 +159,8 @@ class OtherParameters(Parameters):
                  counterfactual='', policy_sim=False, existing_program='', dual_receivers_share=1,
                  dependency_allowance=False, dependency_allowance_profile=None, wait_period=5, recollect=False,
                  min_cfl_recollect=None, min_takeup_cpl=5, alpha=0, private=True, own_health=True, maternity=True,
-                 new_child=True, ill_child=True, ill_spouse=True, ill_parent=True):
+                 new_child=True, ill_child=True, ill_spouse=True, ill_parent=True, replacement_type='Static',
+                 progressive_replacement_ratio=None):
         """Other program parameters. A distinction needs to be made for program comparison, as each program will not
         share these parameters."""
         self.benefit_effect = benefit_effect
@@ -207,6 +208,7 @@ class OtherParameters(Parameters):
         self.min_cfl_recollect = min_cfl_recollect
         self.min_takeup_cpl = min_takeup_cpl
         self.alpha = alpha
+        self.replacement_type = replacement_type
         if max_weeks is None:
             self.max_weeks = {'Own Health': 30, 'Maternity': 30, 'New Child': 4, 'Ill Child': 4, 'Ill Spouse': 4,
                               'Ill Parent': 4}
@@ -224,6 +226,11 @@ class OtherParameters(Parameters):
                                               'Ill Child': 0.667, 'Ill Spouse': 0.667, 'Ill Parent': 0.667}
         else:
             self.leave_probability_factors = leave_probability_factors
+
+        if progressive_replacement_ratio is None:
+            self.progressive_replacement_ratio = {'cutoffs': [], 'replacements': []}
+        else:
+            self.progressive_replacement_ratio = progressive_replacement_ratio
 
 
 def center_window(window):
