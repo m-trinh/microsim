@@ -159,7 +159,8 @@ class OtherParameters(Parameters):
                  counterfactual='', policy_sim=False, existing_program='', dual_receivers_share=1,
                  dependency_allowance=False, dependency_allowance_profile=None, wait_period=5, recollect=False,
                  min_cfl_recollect=None, min_takeup_cpl=5, alpha=0, private=True, own_health=True, maternity=True,
-                 new_child=True, ill_child=True, ill_spouse=True, ill_parent=True):
+                 new_child=True, ill_child=True, ill_spouse=True, ill_parent=True, replacement_type='Static',
+                 progressive_replacement_ratio=None, calculate_se=True):
         """Other program parameters. A distinction needs to be made for program comparison, as each program will not
         share these parameters."""
         self.benefit_effect = benefit_effect
@@ -207,6 +208,8 @@ class OtherParameters(Parameters):
         self.min_cfl_recollect = min_cfl_recollect
         self.min_takeup_cpl = min_takeup_cpl
         self.alpha = alpha
+        self.replacement_type = replacement_type
+        self.calculate_se = calculate_se
         if max_weeks is None:
             self.max_weeks = {'Own Health': 30, 'Maternity': 30, 'New Child': 4, 'Ill Child': 4, 'Ill Spouse': 4,
                               'Ill Parent': 4}
@@ -224,6 +227,11 @@ class OtherParameters(Parameters):
                                               'Ill Child': 0.667, 'Ill Spouse': 0.667, 'Ill Parent': 0.667}
         else:
             self.leave_probability_factors = leave_probability_factors
+
+        if progressive_replacement_ratio is None:
+            self.progressive_replacement_ratio = {'cutoffs': [], 'replacements': []}
+        else:
+            self.progressive_replacement_ratio = progressive_replacement_ratio
 
 
 def center_window(window):
@@ -300,15 +308,22 @@ def create_cost_chart(data, state):
 
     # Get total cost of program, in millions and rounded to 1 decimal point
     total_cost = round(list(data.loc[data['type'] == 'total', 'cost'])[0] / 10 ** 6, 1)
-    spread = round((list(data.loc[data['type'] == 'total', 'ci_upper'])[0] -
-                    list(data.loc[data['type'] == 'total', 'ci_lower'])[0]) / 10 ** 6, 1)
-    title = 'State: %s. Total Benefits Cost = $%s million (\u00B1%s).' % (state.upper(), total_cost, spread)
+    title = 'State: %s. Total Benefits Cost = $%s million' % (state.upper(), total_cost)
+
+    if 'ci_upper' in data.columns:
+        spread = round((list(data.loc[data['type'] == 'total', 'ci_upper'])[0] -
+                        list(data.loc[data['type'] == 'total', 'ci_lower'])[0]) / 10 ** 6, 1)
+        title += ' (\u00B1%s).' % spread
 
     # Create chart to display benefit cost for each leave type
     fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
     ind = np.arange(len(leave_types))
     ys = data[:-1]['cost'] / 10 ** 6
-    es = 0.5 * (data[:-1]['ci_upper'] - data[:-1]['ci_lower']) / 10 ** 6  # Used for confidence intervals
+    print(ys)
+    if 'ci_upper' in data.columns:
+        es = 0.5 * (data[:-1]['ci_upper'] - data[:-1]['ci_lower']) / 10 ** 6  # Used for confidence intervals
+    else:
+        es = None
     width = 0.5
     ax.bar(ind, ys, width, yerr=es, align='center', capsize=5, color='#1aff8c', ecolor='white')
     ax.set_ylabel('$ millions')
@@ -341,14 +356,19 @@ def create_taker_chart(data, state):
 
     # Get total cost of program, in millions and rounded to 1 decimal point
     total_takers = list(data.loc[data['type'] == 'any', 'progtaker'])[0]
-    spread = list(data.loc[data['type'] == 'any', 'ci_upper'])[0] - list(data.loc[data['type'] == 'any', 'ci_lower'])[0]
-    title = 'State: {}. Total Leave Takers = {:,} (\u00B1{:,}).'.format(state.upper(), total_takers, spread)
+    title = 'State: {}. Total Leave Takers = {:,} '.format(state.upper(), total_takers)
+    if 'ci_upper' in data.columns:
+        spread = list(data.loc[data['type'] == 'any', 'ci_upper'])[0] - list(data.loc[data['type'] == 'any', 'ci_lower'])[0]
+        title += ' (\u00B1{:,}).'.format(spread)
 
     # Create chart to display benefit cost for each leave type
     fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
     ind = np.arange(len(leave_types))
     ys = data[:-1]['progtaker']
-    es = 0.5 * (data[:-1]['ci_upper'] - data[:-1]['ci_lower'])  # Used for confidence intervals
+    if 'ci_upper' in data.columns:
+        es = 0.5 * (data[:-1]['ci_upper'] - data[:-1]['ci_lower'])  # Used for confidence intervals
+    else:
+        es = None
     width = 0.5
     ax.bar(ind, ys, width, yerr=es, align='center', capsize=5, color='#1aff8c', ecolor='white')
     ax.set_ylabel('Leave Takers')
@@ -421,6 +441,15 @@ def create_r_command(general_params, other_params, progress_file, output_dir, mo
         Name of text file that will be checked for simulation progress
     :return: str
     """
+    if other_params.replacement_type == 'Static':
+        base_bene_level = other_params.replacement_ratio
+        formula_value_cuts = 'NULL'
+        formula_bene_levels = 'NULL'
+    else:
+        base_bene_level = 'NULL'
+        formula_value_cuts = ','.join(map(str, other_params.progressive_replacement_ratio['cutoffs']))
+        formula_bene_levels = ','.join(map(str, other_params.progressive_replacement_ratio['replacements']))
+
     # Create a list of parameter values
     params = {
         'acs_dir': general_params.acs_directory,
@@ -428,7 +457,7 @@ def create_r_command(general_params, other_params, progress_file, output_dir, mo
         'fmla_file': general_params.fmla_file,
         'fmla_year': general_params.fmla_wave,
         'acs_year': general_params.year,
-        'base_bene_level': other_params.replacement_ratio,  # base_bene_level
+        'base_bene_level': base_bene_level,  # base_bene_level
         'impute_method': general_params.simulation_method.replace(' ', '_'),  # impute_method
         'makelog': True,  # makelog
         'state': general_params.state,  # state
@@ -470,7 +499,10 @@ def create_r_command(general_params, other_params, progress_file, output_dir, mo
         'min_cfl_recollect': other_params.min_cfl_recollect,
         'dual_receiver': other_params.dual_receivers_share,
         'min_takeup_cpl': other_params.min_takeup_cpl,
-        'model_start_time': model_start_time
+        'model_start_time': model_start_time,
+        'formula_value_cuts': formula_value_cuts,
+        'formula_bene_levels': formula_bene_levels,
+        'se_report': other_params.calculate_se,
     }
 
     # Convert the list into a string

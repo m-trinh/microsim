@@ -14,6 +14,21 @@ if (dependent_allow != "0") {
 } else {
 	dependent_allow <- 0
 }
+if (formula_value_cuts != "NULL") {
+    formula_value_cuts <- as.numeric(strsplit(formula_value_cuts, ",")[[1]])
+} else {
+	formula_value_cuts <- NULL
+}
+if (formula_bene_levels != "NULL") {
+    formula_bene_levels <- as.numeric(strsplit(formula_bene_levels, ",")[[1]])
+} else {
+	formula_bene_levels <- NULL
+}
+if (base_bene_level == "NULL") {
+	base_bene_level = NULL
+} else {
+	base_bene_level = as.numeric(base_bene_level)
+}
 
 d <- policy_simulation(
 	acs_dir=acs_dir,
@@ -24,7 +39,7 @@ d <- policy_simulation(
 	FEDGOV=as.logical(FEDGOV),
 	STATEGOV=as.logical(STATEGOV),
 	LOCALGOV=as.logical(LOCALGOV),
-	base_bene_level=as.numeric(base_bene_level),
+	base_bene_level=base_bene_level,
 	impute_method=gsub('_', ' ', impute_method),
 	makelog = TRUE,
 	state=state,
@@ -64,5 +79,8 @@ d <- policy_simulation(
 	min_takeup_cpl=as.numeric(min_takeup_cpl),
 	model_start_time=model_start_time,
 	ABF_enabled=FALSE,
-	dependent_allow=dependent_allow
+	dependent_allow=dependent_allow,
+	formula_value_cuts=formula_value_cuts,
+	formula_bene_levels=formula_bene_levels,
+	se_report=as.logical(se_report),
 )
