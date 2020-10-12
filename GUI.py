@@ -1621,7 +1621,7 @@ class ProgramFrame(NotebookFrame):
 
         # ----------------------------------------- Wage Replacement Ratio ------------------------------------------
         self.replacement_label = ttk.Label(self.content, text='Wage Replacement:', cursor='question_arrow',
-                                           style='MSLabelframe.TLabelframe.Label', font='-size 10')
+                                           style='MSLabelframe.TLabelframe.Label', font='helvetica 10')
         self.replacement_frame = WageReplacementFrame(self.content, v, self.update_scroll_region,
                                                       labelwidget=self.replacement_label,
                                                       style='MSLabelframe.TLabelframe')
@@ -2203,9 +2203,9 @@ class WageReplacementFrame(ttk.LabelFrame):
         self.static_frame = Frame(self, bg=VERY_LIGHT_COLOR)
         tip = 'The percentage of wage that the program will pay.'
         self.replacement_ratio_label = TipLabel(self.static_frame, tip, text="Replacement Ratio:", bg=VERY_LIGHT_COLOR,
-                                                font='-size 11 -weight bold')
+                                                font='-family helvetica -size 11')
         self.replacement_ratio_input = NotebookEntry(self.static_frame, textvariable=variables['replacement_ratio'],
-                                                     font='-size 11')
+                                                     font='-family helvetica -size 11')
         self.pack_static_prog_frame(self.static_frame)
         self.replacement_ratio_label.pack(side=LEFT)
         self.replacement_ratio_input.pack(side=LEFT)
