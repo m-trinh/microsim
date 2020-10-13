@@ -25,7 +25,7 @@ import numpy as np
 import bisect
 import json
 from time import time
-from _5a_aux_functions import get_columns, get_sim_col, get_weighted_draws, get_na_count
+from _5a_aux_functions import get_columns, get_sim_col, get_weighted_draws, get_na_count, get_average_rrp
 import sklearn.linear_model
 import sklearn.naive_bayes
 import sklearn.neighbors
@@ -112,7 +112,7 @@ class SimulationEngine:
         # POW population weight multiplier
         self.pow_pop_multiplier = pow_pop_multiplier  # based on 2012-2016 ACS, see project acs_all
 
-    def set_simulation_params(self, elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp, wkbene_cap, d_maxwk,
+    def set_simulation_params(self, elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp_flat, rrp, wkbene_cap, d_maxwk,
                               d_takeup, incl_private, incl_empgov_fed, incl_empgov_st, incl_empgov_loc, incl_empself,
                               needers_fully_participate, clone_factor, dual_receivers_share, alpha,
                               min_takeup_cpl, wait_period, recollect, min_cfl_recollect,
@@ -122,7 +122,8 @@ class SimulationEngine:
             'elig_wkswork': elig_wkswork,
             'elig_yrhours': elig_yrhours,
             'elig_empsize': elig_empsize,
-            'rrp': rrp,
+            'rrp_flat': True, # if True then flat rrp, if False then rrp for each bracket specified (e.g. progressive)
+            'rrp': rrp, # scalar if rrp_flat, else two lists (k cutoffs and (k+1) rates for brackets)
             'wkbene_cap': wkbene_cap,
             'd_maxwk': d_maxwk,
             'd_takeup': d_takeup,
@@ -180,7 +181,8 @@ class SimulationEngine:
                          'Take Up Rates']  # type-specific parameters
 
         para_values = [self.st.upper(), self.yr, self.state_of_work, params['elig_wage12'],
-                       params['elig_wkswork'], params['elig_yrhours'], params['elig_empsize'], params['rrp'],
+                       params['elig_wkswork'], params['elig_yrhours'], params['elig_empsize'],
+                       params['rrp_flat'], params['rrp'],
                        params['wkbene_cap'], params['incl_private'],
                        params['incl_empgov_fed'], params['incl_empgov_st'],
                        params['incl_empgov_loc'], params['incl_empself'], self.clf_name, params['dual_receivers_share'],
@@ -505,7 +507,24 @@ class SimulationEngine:
                   (params['dual_receivers_share'], s_dual_receiver))
 
             # Simulate counterfactual leave lengths (cf-len) for dual receivers
-            # First get col of effective rrp for each person, subject to adding any dependency allowance, up to 1
+            # First get col of effective rrp for each person, subject to following adjustments
+            # 1. wage bracket-specific rrp (e.g. progressive) design
+            # 2. adding any dependency allowance, up to 1
+
+            # Adjustments are made in order listed so dependence allowance is added with a rate cap=1 only
+            # for average rrp before adjusting for deps, rather than for rrp of each wage bracket
+            # This ensures dep allowance is generously applied
+
+            # init effective_rrp
+            acs['effective_rrp'] = np.nan
+            # 1. wage bracket-specific rrp (e.g. progressive) design
+            if params['rrp_flat']: # flat rrp
+                acs['effective_rrp'] = params['rrp'] # scalar flat rrp
+            else: # wage bracket-level rrp profile
+                cuts, rates = params['rrp'] # unpack rrp profile
+                acs['effective_rrp'] = [get_average_rrp(x, cuts, rates) for x in acs['wage12']]
+
+            # 2. adding any dependency allowance, up to 1
             dependency_allowance = params['dependency_allowance']
             dependency_allowance_profile = params[
                 'dependency_allowance_profile']  # rrp increment by ndep, len of this is max ndep allowed

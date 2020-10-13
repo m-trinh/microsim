@@ -113,6 +113,48 @@ def fillna_df(df, random_state, method='simple'):
             df[c] = [int(x>=0.5) for x in df[c]]
     return df
 
+# Get effective (average) rrp (wage replacement rate) based on rrp profile
+# which contains wage cutoffs and bracket-level rates
+def get_average_rrp(wage, cuts, rates):
+    '''
+
+    :param wage: wage, a scalar
+    :param cuts: cutoffs for wage brackets, e.g. 30000, 50000. k cutoffs will result in k+1 brackets
+    :param rates: (k+1) wage replacement rate for the (k+1) brackets derived from k cutoffs
+    :return: average rrp
+    '''
+
+    # validation check - len(rates) = len(cuts)+1
+    assert len(rates) == len(cuts)+1, \
+        'Number of rates specified should be equal to (1 + Number of wage cutoffs specified)'
+
+    # init amount of wage replacement
+    replace_amount = 0
+    # set up cuts for brackets
+    cuts = [0] + cuts
+    idx_max = bisect_right(cuts, wage) # idx of min cut>=wage.
+    if idx_max<len(cuts): # wage <= max cut
+        cuts = cuts[:idx_max+1]
+        cuts[-1] = wage # set last elt of cuts as wage
+    else: #  when wage>max cut, idx_max = 1+max cut's index=len(cuts)
+        cuts = cuts + [wage]
+    # set up rates for bracekts
+    rates = rates[:len(cuts)]
+    # apply rates to brackets based on wage-adjusted cuts
+    for i, c in enumerate(cuts[:-1]):
+        replace_amount += rates[i] * (cuts[i+1]-c)
+    # get average rrp
+    rrp_avg = replace_amount/wage
+
+    return replace_amount, rrp_avg
+
+# test
+wage = 200
+cuts = [30, 50, 80, 100]
+rates = [0.8, 0.6, 0.4, 0.2, 0.1]
+get_average_rrp(wage, cuts, rates)
+
+
 # Adjust unconditional prob vector and conditional prob matrix wrt logical restrictions at worker level
 def get_adj_ups(ups, chars):
     '''
