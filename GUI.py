@@ -405,9 +405,14 @@ class MicrosimGUI(Tk):
 
         # Create instance of ABF module with simulation results and user parameters
         main_params = self.all_params[0]
+        state_of_work = self.general_params.state_of_work
+        pow_pop_multiplier = 1
+        if state_of_work:
+            pow_pop_multiplier = 1.02
         abf_module = ABF(results_files[0], total_benefits, main_params.eligible_size,
                          main_params.max_taxable_earnings_per_person, main_params.benefits_tax,
-                         main_params.average_state_tax, main_params.payroll_tax, output_dir=main_output_dir)
+                         main_params.average_state_tax, main_params.payroll_tax, pow_pop_multiplier=pow_pop_multiplier,
+                         output_dir=main_output_dir)
 
         # Keep track of all results windows that are created
         self.results_windows.append(ResultsWindow(self, costs, takers, self.current_state, results_files, abf_module))
@@ -571,7 +576,9 @@ class MicrosimGUI(Tk):
         fp_acsh_in = self.general_params.acs_directory + '/%s/household_files' % yr
         fp_acsp_in = self.general_params.acs_directory + '/%s/person_files' % yr
         state_of_work = self.general_params.state_of_work
+        pow_pop_multiplier = 1
         if state_of_work:
+            pow_pop_multiplier = 1.02 # no need to adjust for missing POW if state_of_work
             fp_acsh_in = self.general_params.acs_directory + '/%s/pow_household_files' % yr
             fp_acsp_in = self.general_params.acs_directory + '/%s/pow_person_files' % yr
         fp_fmla_out = './data/fmla/fmla_%s/fmla_clean_%s.csv' % (fmla_wave, fmla_wave)
@@ -586,7 +593,8 @@ class MicrosimGUI(Tk):
         random_seed = self.general_params.random_seed
 
         return SimulationEngine(st, yr, fmla_wave, fps_in, fps_out, clf_name=clf_name, random_state=random_seed,
-                                state_of_work=state_of_work, q=q)
+                                state_of_work=state_of_work, pow_pop_multiplier=pow_pop_multiplier,
+                                q=q)
 
     def add_engine_params(self, parameters):
         """Add additional engine parameters from an OtherParameters object
@@ -1613,7 +1621,7 @@ class ProgramFrame(NotebookFrame):
 
         # ----------------------------------------- Wage Replacement Ratio ------------------------------------------
         self.replacement_label = ttk.Label(self.content, text='Wage Replacement:', cursor='question_arrow',
-                                           style='MSLabelframe.TLabelframe.Label', font='-size 10')
+                                           style='MSLabelframe.TLabelframe.Label', font='helvetica 10')
         self.replacement_frame = WageReplacementFrame(self.content, v, self.update_scroll_region,
                                                       labelwidget=self.replacement_label,
                                                       style='MSLabelframe.TLabelframe')
@@ -2195,9 +2203,9 @@ class WageReplacementFrame(ttk.LabelFrame):
         self.static_frame = Frame(self, bg=VERY_LIGHT_COLOR)
         tip = 'The percentage of wage that the program will pay.'
         self.replacement_ratio_label = TipLabel(self.static_frame, tip, text="Replacement Ratio:", bg=VERY_LIGHT_COLOR,
-                                                font='-size 11 -weight bold')
+                                                font='-family helvetica -size 11')
         self.replacement_ratio_input = NotebookEntry(self.static_frame, textvariable=variables['replacement_ratio'],
-                                                     font='-size 11')
+                                                     font='-family helvetica -size 11')
         self.pack_static_prog_frame(self.static_frame)
         self.replacement_ratio_label.pack(side=LEFT)
         self.replacement_ratio_input.pack(side=LEFT)
