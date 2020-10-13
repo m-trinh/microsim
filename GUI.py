@@ -418,6 +418,9 @@ class MicrosimGUI(Tk):
         self.results_windows.append(ResultsWindow(self, costs, takers, self.current_state, results_files, abf_module))
         self.run_button.enable()  # Enable run button again after simulation is complete
 
+    def get_progressive_wage_replacement(self):
+        return self.parameter_notebook.program_frame.replacement_frame.progressive_frame.get_replacement_ratios()
+
     def create_params(self):
         """Create an object to store the non-general parameter values"""
         # The inputs are linked to a tkinter variable. Those values will have to be retrieved from each variable
@@ -437,8 +440,7 @@ class MicrosimGUI(Tk):
             elif var_name == 'dependency_allowance_profile':
                 variable_values[var_name] = self.parameter_notebook.program_frame.dep_allowance_frame.get_profile()
             elif var_name == 'progressive_replacement_ratio':
-                variable_values[var_name] = \
-                    self.parameter_notebook.program_frame.replacement_frame.progressive_frame.get_replacement_ratios()
+                variable_values[var_name] = self.get_progressive_wage_replacement()
             elif type(var_obj) == dict:
                 # Some parameters should return a dictionary
                 variable_values[var_name] = {k: v.get() for k, v in var_obj.items()}
@@ -608,7 +610,9 @@ class MicrosimGUI(Tk):
         elig_wkswork = parameters.eligible_weeks
         elig_yrhours = parameters.eligible_hours
         elig_empsize = parameters.eligible_size
-        rrp = parameters.replacement_ratio
+        rrp_flat = parameters.replacement_type == 'Static'
+        prog_rrp = parameters.progressive_replacement_ratio
+        rrp = parameters.replacement_ratio if rrp_flat else [prog_rrp['cutoffs'], prog_rrp['replacements']]
         wkbene_cap = parameters.weekly_ben_cap
 
         d_maxwk = {
@@ -661,10 +665,10 @@ class MicrosimGUI(Tk):
             leave_types.append('illparent')
 
         # Update simulation engine with the values
-        self.sim_engine.set_simulation_params(elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp, wkbene_cap,
-                                              d_maxwk, d_takeup, incl_private, incl_empgov_fed, incl_empgov_st,
-                                              incl_empgov_loc, incl_empself, needers_fully_participate, clone_factor,
-                                              dual_receivers_share, alpha, min_takeup_cpl, wait_period,
+        self.sim_engine.set_simulation_params(elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp_flat, rrp,
+                                              wkbene_cap, d_maxwk, d_takeup, incl_private, incl_empgov_fed,
+                                              incl_empgov_st, incl_empgov_loc, incl_empself, needers_fully_participate,
+                                              clone_factor, dual_receivers_share, alpha, min_takeup_cpl, wait_period,
                                               recollect, min_cfl_recollect, dependency_allowance,
                                               dependency_allowance_profile, leave_types=leave_types, sim_num=None)
 
