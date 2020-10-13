@@ -122,8 +122,8 @@ class SimulationEngine:
             'elig_wkswork': elig_wkswork,
             'elig_yrhours': elig_yrhours,
             'elig_empsize': elig_empsize,
-            'rrp_flat': True, # if True then flat rrp, if False then rrp for each bracket specified (e.g. progressive)
-            'rrp': rrp, # scalar if rrp_flat, else two lists (k cutoffs and (k+1) rates for brackets)
+            'rrp_flat': rrp_flat,  # if True then flat rrp, if False then rrp for each bracket specified (e.g. progressive)
+            'rrp': rrp,  # scalar if rrp_flat, else two lists (k cutoffs and (k+1) rates for brackets)
             'wkbene_cap': wkbene_cap,
             'd_maxwk': d_maxwk,
             'd_takeup': d_takeup,
@@ -167,8 +167,8 @@ class SimulationEngine:
 
         # save meta file of program parameters
         para_labels = ['State', 'Year', 'Place of Work', 'Minimum Annual Wage', 'Minimum Annual Work Weeks',
-                       'Minimum Annual Work Hours', 'Minimum Employer Size', 'Proposed Wage Replacement Ratio',
-                       'Weekly Benefit Cap', 'Include Private Employees',
+                       'Minimum Annual Work Hours', 'Minimum Employer Size', 'Static Wage Replacement',
+                       'Proposed Wage Replacement Ratio', 'Weekly Benefit Cap', 'Include Private Employees',
                        'Include Goverment Employees, Federal',
                        'Include Goverment Employees, State', 'Include Goverment Employees, Local',
                        'Include Self-employed', 'Simulation Method', 'Share of Dual Receivers',
@@ -529,7 +529,6 @@ class SimulationEngine:
             dependency_allowance_profile = params[
                 'dependency_allowance_profile']  # rrp increment by ndep, len of this is max ndep allowed
             cum_profile = np.cumsum(np.array(dependency_allowance_profile))
-            acs['effective_rrp'] = params['rrp']
             if dependency_allowance:
                 acs['effective_rrp'] += [
                     cum_profile[int(min(x, len(cum_profile))) - 1]  # ndep-1 to get index in cum_profile

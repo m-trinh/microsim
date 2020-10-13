@@ -610,10 +610,9 @@ class MicrosimGUI(Tk):
         elig_wkswork = parameters.eligible_weeks
         elig_yrhours = parameters.eligible_hours
         elig_empsize = parameters.eligible_size
-        rrp_flat = parameters.replacement_type
-        progressive_rrp = parameters.progressive_replacement_ratio
-        rrp = parameters.replacement_ratio if rrp_flat == 'Static' else [progressive_rrp['cutoffs'],
-                                                                         progressive_rrp['replacements']]
+        rrp_flat = parameters.replacement_type == 'Static'
+        prog_rrp = parameters.progressive_replacement_ratio
+        rrp = parameters.replacement_ratio if rrp_flat else [prog_rrp['cutoffs'], prog_rrp['replacements']]
         wkbene_cap = parameters.weekly_ben_cap
 
         d_maxwk = {
@@ -666,10 +665,10 @@ class MicrosimGUI(Tk):
             leave_types.append('illparent')
 
         # Update simulation engine with the values
-        self.sim_engine.set_simulation_params(elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp, wkbene_cap,
-                                              d_maxwk, d_takeup, incl_private, incl_empgov_fed, incl_empgov_st,
-                                              incl_empgov_loc, incl_empself, needers_fully_participate, clone_factor,
-                                              dual_receivers_share, alpha, min_takeup_cpl, wait_period,
+        self.sim_engine.set_simulation_params(elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp_flat, rrp,
+                                              wkbene_cap, d_maxwk, d_takeup, incl_private, incl_empgov_fed,
+                                              incl_empgov_st, incl_empgov_loc, incl_empself, needers_fully_participate,
+                                              clone_factor, dual_receivers_share, alpha, min_takeup_cpl, wait_period,
                                               recollect, min_cfl_recollect, dependency_allowance,
                                               dependency_allowance_profile, leave_types=leave_types, sim_num=None)
 
