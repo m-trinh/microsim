@@ -25,7 +25,7 @@ import numpy as np
 import bisect
 import json
 from time import time
-from _5a_aux_functions import get_columns, get_sim_col, get_weighted_draws, get_na_count
+from _5a_aux_functions import get_columns, get_sim_col, get_weighted_draws, get_na_count, get_average_rrp
 import sklearn.linear_model
 import sklearn.naive_bayes
 import sklearn.neighbors
@@ -34,6 +34,9 @@ import sklearn.ensemble
 import sklearn.gaussian_process
 import sklearn.svm
 import xgboost
+import mord
+from _5a_aux_functions import fillna_df
+from bisect import bisect_right
 from datetime import datetime
 import matplotlib.pyplot as plt
 import os
@@ -109,7 +112,7 @@ class SimulationEngine:
         # POW population weight multiplier
         self.pow_pop_multiplier = pow_pop_multiplier  # based on 2012-2016 ACS, see project acs_all
 
-    def set_simulation_params(self, elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp, wkbene_cap, d_maxwk,
+    def set_simulation_params(self, elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp_flat, rrp, wkbene_cap, d_maxwk,
                               d_takeup, incl_private, incl_empgov_fed, incl_empgov_st, incl_empgov_loc, incl_empself,
                               needers_fully_participate, clone_factor, dual_receivers_share, alpha,
                               min_takeup_cpl, wait_period, recollect, min_cfl_recollect,
@@ -119,7 +122,8 @@ class SimulationEngine:
             'elig_wkswork': elig_wkswork,
             'elig_yrhours': elig_yrhours,
             'elig_empsize': elig_empsize,
-            'rrp': rrp,
+            'rrp_flat': True, # if True then flat rrp, if False then rrp for each bracket specified (e.g. progressive)
+            'rrp': rrp, # scalar if rrp_flat, else two lists (k cutoffs and (k+1) rates for brackets)
             'wkbene_cap': wkbene_cap,
             'd_maxwk': d_maxwk,
             'd_takeup': d_takeup,
@@ -177,7 +181,8 @@ class SimulationEngine:
                          'Take Up Rates']  # type-specific parameters
 
         para_values = [self.st.upper(), self.yr, self.state_of_work, params['elig_wage12'],
-                       params['elig_wkswork'], params['elig_yrhours'], params['elig_empsize'], params['rrp'],
+                       params['elig_wkswork'], params['elig_yrhours'], params['elig_empsize'],
+                       params['rrp_flat'], params['rrp'],
                        params['wkbene_cap'], params['incl_private'],
                        params['incl_empgov_fed'], params['incl_empgov_st'],
                        params['incl_empgov_loc'], params['incl_empself'], self.clf_name, params['dual_receivers_share'],
@@ -330,7 +335,8 @@ class SimulationEngine:
                 elif c in ['take_illspouse', 'need_illspouse']:  # restricted sample for illspouse
                     simcol_indexed = get_sim_col(X, y, w, Xa, clf, self.random_state)
                     simcol_indexed = pd.Series(simcol_indexed, index=Xa[(Xa['nevermarried'] == 0) &
-                                                                        (Xa['divorced'] == 0)].index, name=c)
+                                                                        (Xa['divorced'] == 0) &
+                                                                        (Xa['widowed'] == 0)].index, name=c)
                     acs = acs.join(simcol_indexed)
                 else:  # sim col same length as acs
                     acs[c] = get_sim_col(X, y, w, Xa, clf, self.random_state)
@@ -341,8 +347,8 @@ class SimulationEngine:
             # Post-simluation logic control
             acs.loc[acs['male'] == 1, 'take_matdis'] = 0
             acs.loc[acs['male'] == 1, 'need_matdis'] = 0
-            acs.loc[(acs['nevermarried'] == 1) | (acs['divorced'] == 1), 'take_illspouse'] = 0
-            acs.loc[(acs['nevermarried'] == 1) | (acs['divorced'] == 1), 'need_illspouse'] = 0
+            acs.loc[(acs['nevermarried'] == 1) | (acs['divorced'] == 1) | (acs['widowed'] == 1), 'take_illspouse'] = 0
+            acs.loc[(acs['nevermarried'] == 1) | (acs['divorced'] == 1) | (acs['widowed'] == 1), 'need_illspouse'] = 0
             acs.loc[acs['nochildren'] == 1, 'take_bond'] = 0
             acs.loc[acs['nochildren'] == 1, 'need_bond'] = 0
             acs.loc[acs['nochildren'] == 1, 'take_matdis'] = 0
@@ -383,12 +389,18 @@ class SimulationEngine:
                 pass
             else:
                 y = [D_prop[x] for x in d.loc[X.index]['prop_pay_employer']]
-                yhat = get_sim_col(X, y, w, Xa, clf, self.random_state)
-                # prop_pay_employer labels are from 1 to 6, get_sim_col() vectorization sum gives 0~5, increase label by 1
-                yhat = pd.Series(data=[x + 1 for x in yhat], index=Xa.index, name='prop_pay_employer')
+                y = pd.Series(y, index=X.index, name='prop_pay_employer_code')
+                print(y.value_counts().sort_index())
+                clf_mord = mord.LogisticAT().fit(fillna_df(X, self.random_state), y)
+                phats = clf_mord.predict_proba(fillna_df(Xa, self.random_state))
+                cum_phats = np.cumsum(phats, axis=1)
+                us = self.random_state.rand(len(phats))  # random number
+                yhat = [bisect_right(row, us[i]) + 1 for i, row in enumerate(cum_phats)]
+                # convert code to prop_pay_employer decimal values
+                yhat = [d_prop[x] for x in yhat]
+                yhat = pd.Series(yhat, index=Xa.index, name='prop_pay_employer')
+                # join simulated yhat col to acs
                 acs = acs.join(yhat)
-                acs.loc[acs['prop_pay_employer'].notna(), 'prop_pay_employer'] = [d_prop[x] for x in
-                                                                acs.loc[acs['prop_pay_employer'].notna(), 'prop_pay_employer']]
 
             # Sample restriction - reduce to simulated takers/needers, append dropped rows later before saving post-sim acs
             acs_neither_taker_needer = acs[(acs['taker'] == 0) & (acs['needer'] == 0)]
@@ -402,6 +414,7 @@ class SimulationEngine:
             for t in params['leave_types']:
                 acs['len_%s' % t] = 0
                 n_lensim = len(acs.loc[acs['take_%s' % t] == 1])  # number of acs workers who need length simulation
+                print('type %s: n_lensim = %s' % (t, n_lensim))
                 ps = [x[1] for x in flen[pfl][t]]  # prob vector of length of type t
                 cs = np.cumsum(ps)
                 lens = []  # initiate list of lengths
@@ -413,6 +426,7 @@ class SimulationEngine:
             # conditional on max length >= without-program length
             for t in params['leave_types']:
                 # t0 = time()
+                # init mnl = 0
                 acs['mnl_%s' % t] = 0
                 # resp_len = 0 workers' mnl = status-quo length
                 acs.loc[acs['resp_len'] == 0, 'mnl_%s' % t] = acs.loc[acs['resp_len'] == 0, 'len_%s' % t]
@@ -434,21 +448,46 @@ class SimulationEngine:
 
             # logic control of mnl
             acs.loc[acs['male'] == 1, 'mnl_matdis'] = 0
-            acs.loc[(acs['nevermarried'] == 1) | (acs['divorced'] == 1), 'mnl_illspouse'] = 0
+            acs.loc[(acs['nevermarried'] == 1) | (acs['divorced'] == 1) | (acs['widowed'] == 1), 'mnl_illspouse'] = 0
             acs.loc[acs['nochildren'] == 1, 'mnl_bond'] = 0
             acs.loc[acs['nochildren'] == 1, 'mnl_matdis'] = 0
             acs.loc[acs['age'] > 50, 'mnl_matdis'] = 0
             acs.loc[acs['age'] > 50, 'mnl_bond'] = 0
 
             # check if sum of mnl hits max = 52*5 = 260. If so, use max=260 to distribute prop to mnl of 6 types
+            # when distribute ensure mnl_type is at least 2 days as mnl_type>len_type>=1
             acs['mnl_all'] = [x.sum() for x in acs[['mnl_%s' % x for x in params['leave_types']]].values]
             for t in params['leave_types']:
-                acs.loc[acs['mnl_all'] > 260, 'mnl_%s' % t] = [int(x) for x in
+                acs.loc[acs['mnl_all'] > 260, 'mnl_%s' % t] = [min(2, int(x)) for x in
                                                                acs.loc[acs['mnl_all'] > 260, 'mnl_%s' % t] /
                                                                acs.loc[acs['mnl_all'] > 260, 'mnl_all'] * 260]
-            # the mnl-capped workers would must have sq-len no larger than mn-len
+
+            # find longest-mnl type for mnl_all>260, and set that mnl_type = 260 - sum of other mnl_type
+            # do this because lower-bound of 2 days for mnl_type may cause mnl_all > 260
+            # for minimal distortion on linearly allocation 260 days, we adjust longest mnl_type = 260 - sum of rest
+            acs['longest_mnl_type'] = [params['leave_types'][np.argmax(x)] for x in
+                                       acs[['mnl_%s' % t for t in params['leave_types']]].values]
             for t in params['leave_types']:
-                acs.loc[acs['mnl_all'] > 260, 'len_%s' % t] = acs.loc[acs['mnl_all'] > 260, 'mnl_%s' % t]
+                # t: longest-mnl type considered
+                # tts: the other 5 types
+                tts = [tt for tt in params['leave_types'] if tt!=t]
+                acs.loc[(acs['mnl_all'] > 260) & (acs['longest_mnl_type']==t), 'mnl_%s' % t] = \
+                    [260 - x.sum() for x in acs.loc[(acs['mnl_all'] > 260) & (acs['longest_mnl_type']==t)
+                    , ['mnl_%s' % tt for tt in tts]].values]
+
+            # the mnl-capped workers would must have sq-len no larger than mn-len
+            # for these bounding cases:
+            # - if take_type = 1, set sq-len = max(1, mnl - 1)
+            # we respect initial sq-len draw so let it be as close to mnl as possible when mnl subject to cap
+            # - if take_type = 0, set sq-len = 0
+            for t in params['leave_types']:
+                acs.loc[(acs['mnl_all'] > 260) & (acs['take_%s' % t]==1), 'len_%s' % t] =\
+                    [max(x-1, 1) for x in
+                     acs.loc[(acs['mnl_all'] > 260) & (acs['take_%s' % t]==1), 'mnl_%s' % t].values]
+                acs.loc[(acs['mnl_all'] > 260) & (acs['take_%s' % t]==0), 'len_%s' % t] = 0
+
+            # reconcile mnl_all = sum of mnl_type across types, after mnl_type are capped
+            acs['mnl_all'] = [x.sum() for x in acs[['mnl_%s' % x for x in params['leave_types']]].values]
 
             # If do following, then ignores link between generosity (rrp) and cf-len, cp-len
             # # set covered-by-program leave lengths (cp-len) as maximum needed leave lengths (mn-len) for each type
@@ -468,7 +507,24 @@ class SimulationEngine:
                   (params['dual_receivers_share'], s_dual_receiver))
 
             # Simulate counterfactual leave lengths (cf-len) for dual receivers
-            # First get col of effective rrp for each person, subject to adding any dependency allowance, up to 1
+            # First get col of effective rrp for each person, subject to following adjustments
+            # 1. wage bracket-specific rrp (e.g. progressive) design
+            # 2. adding any dependency allowance, up to 1
+
+            # Adjustments are made in order listed so dependence allowance is added with a rate cap=1 only
+            # for average rrp before adjusting for deps, rather than for rrp of each wage bracket
+            # This ensures dep allowance is generously applied
+
+            # init effective_rrp
+            acs['effective_rrp'] = np.nan
+            # 1. wage bracket-specific rrp (e.g. progressive) design
+            if params['rrp_flat']: # flat rrp
+                acs['effective_rrp'] = params['rrp'] # scalar flat rrp
+            else: # wage bracket-level rrp profile
+                cuts, rates = params['rrp'] # unpack rrp profile
+                acs['effective_rrp'] = [get_average_rrp(x, cuts, rates) for x in acs['wage12']]
+
+            # 2. adding any dependency allowance, up to 1
             dependency_allowance = params['dependency_allowance']
             dependency_allowance_profile = params[
                 'dependency_allowance_profile']  # rrp increment by ndep, len of this is max ndep allowed
@@ -563,6 +619,12 @@ class SimulationEngine:
             for t in params['leave_types']:
                 acs.loc[acs['cpl_%s' % t] >= 0, 'cpl_%s' % t] = [min(x, 5 * params['d_maxwk'][t]) for x in
                                                                  acs.loc[acs['cpl_%s' % t] >= 0, 'cpl_%s' % t]]
+
+            # set sq-len, mnl, cfl, cpl all to 0 for acs_neither_taker_needer
+            for t in self.types:
+                for m in ['len', 'mnl', 'cfl', 'cpl']:
+                    acs_neither_taker_needer['%s_%s' % (m, t)] = 0
+
             # acs now is taker/needer only, append acs_neither_taker_needer to get all eligible workers
             acs = acs.append(acs_neither_taker_needer, sort=True)
 

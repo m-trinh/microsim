@@ -11,9 +11,8 @@ pd.set_option('display.width', 200)
 import numpy as np
 from _5a_aux_functions import *
 ## Read in post-sim ACS
-dp = pd.read_csv('./output/output_20200813_204412_main simulation/acs_sim_ri_20200813_204412.csv')
-dr = pd.read_csv('./output/output_20200813_205313/acs_sim_ri_20200813_205313.csv')
-
+dp = pd.read_csv('./output/output_20200909_210351_main simulation/acs_sim_nj_20200909_210351.csv')
+dr = pd.read_csv('./output/output_20200914_120326/acs_sim_ca_20200914_120326.csv')
 ## Find which persons are in R but not Python
 dm = pd.merge(dp[['SERIALNO', 'SPORDER']], dr[['SERIALNO', 'SPORDER']], how='outer', indicator=True)
 dm = dm[dm['_merge']!='both']
@@ -26,13 +25,159 @@ types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
 # check row counts and weight sum
 for t in types:
     print(dp['take_%s' % t].value_counts())
-    print('PWGTP sum Py = %s\n' % dp[dp['take_%s' % t]==1]['PWGTP'].sum())
     print(dr['take_%s' % t].value_counts())
-    print('PWGTP sum R = %s' % dr[dr['take_%s' % t]==1]['PWGTP'].sum())
+    # print(dp['need_%s' % t].value_counts())
+    # print(dr['need_%s' % t].value_counts())
     print('-----------------------------')
 print(dp['resp_len'].value_counts())
 print(dr['resp_len'].value_counts())
 ## If any diff in take/need_type, resp_len, check clean FMLA, clean ACS, NA handling, classifier
+
+# check taker/needer
+dr['taker2'] = [max(z) for z in dr[['take_%s' % t for t in types]].values]
+dr['needer2'] = [max(z) for z in dr[['need_%s' % t for t in types]].values]
+
+cols_check = ['needer2', 'needer'] + ['need_%s' % t for t in types]
+cols_check += ['male', 'nevermarried', 'divorced', 'widowed', 'nochildren', 'age']
+dr.loc[(dr['needer2']==1) & (dr['needer']==0), cols_check].head(10)
+
+for df in [dp, dr]:
+    print(df[(df['taker']==1) | (df['needer']==1)].shape)
+
+# check NAs in take/need, resp_len
+# for c in ['take_%s' % t for t in types] + ['need_%s' % t for t in types] + ['resp_len']:
+#     print(dr)
+
+# After take/need_type, resp_len, anypay, prop_pay_employer all checked
+# check sq-len: len_type for taker=1, lentype should =0 for taker=0
+import matplotlib.pyplot as plt
+binwidth = 5
+d_axs = dict(zip(types,[(x, y) for x in range(2) for y in range(3)]))
+fig, axs = plt.subplots(2, 3, tight_layout=True)
+for t in types:
+    ax = d_axs[t]
+    data = dp[dp['len_%s' % t] > 0]['len_%s' % t]
+    axs[ax].hist(data, bins=np.arange(0, max(data) + binwidth, binwidth), alpha=0.4, label='Py')
+    data = dr[dr['len_%s' % t] > 0]['len_%s' % t]
+    axs[ax].hist(data, bins=np.arange(0, max(data) + binwidth, binwidth), alpha=0.4, label='R')
+    axs[ax].title.set_text('len_%s' % t)
+    axs[ax].legend()
+
+# check sq-len NA counts, sq-len>0 counts for py/R. Verify this against len_type hisotgrams above
+for t in types:
+    print('-------Py---------')
+    #print(dp['len_%s' % t].isna().value_counts())
+    print(dp['take_%s' % t].value_counts())
+    print(dp[dp['len_%s' % t]>0]['len_%s' % t].describe())
+    print('-------R---------')
+    #print(dr['len_%s' % t].isna().value_counts())
+    print(dr['take_%s' % t].value_counts())
+    print(dr[dr['len_%s' % t] > 0]['len_%s' % t].describe())
+
+# check MNL, CFL, CPL
+binwidth = 5
+d_axs = dict(zip(types,[(x, y) for x in range(2) for y in range(3)]))
+fig, axs = plt.subplots(2, 3, tight_layout=True)
+lv = 'cpl'
+for t in types:
+    ax = d_axs[t]
+    data = dp[dp['%s_%s' % (lv, t)] > 0]['%s_%s' % (lv, t)]
+    axs[ax].hist(data, bins=np.arange(0, max(data) + binwidth, binwidth), alpha=0.4, label='Py')
+    data = dr[dr['%s_%s' % (lv, t)] > 0]['%s_%s' % (lv, t)]
+    axs[ax].hist(data, bins=np.arange(0, max(data) + binwidth, binwidth), alpha=0.4, label='R')
+    axs[ax].title.set_text('%s_%s' % (lv, t))
+    axs[ax].legend()
+for t in types:
+    print('-------Py---------')
+    print(dp[dp['%s_%s' % (lv, t)]>0]['%s_%s' % (lv, t)].describe())
+    print('-------R---------')
+    print(dr[dr['%s_%s' % (lv, t)]>0]['%s_%s' % (lv, t)].describe())
+
+# check uptakers
+for t in types:
+    # print('-------Py type = %s ---------' % t)
+    # print(dp[dp['cpl_%s' % t]>0]['cpl_%s' % t].describe())
+    # print(dp[dp['takeup_%s' % t]==1]['cpl_%s' % t].describe())
+    # print(dp[dp['takeup_%s' % t]==1]['PWGTP'].sum())
+    print('-------R type = %s ---------' % t)
+    print('       --- Summary of cpl_%s >0 --- ' % t)
+    print(dr[dr['cpl_%s' % t]>0]['cpl_%s' % t].describe())
+    print('       --- Summary of cpl_%s among takeup_%s ==1 --- ' % (t, t))
+    print(dr[dr['takeup_%s' % t]==1]['cpl_%s' % t].describe())
+    print('       --- PWGTP sum of takeup_%s ==1 --- ' % t)
+    print(dr[dr['takeup_%s' % t] == 1]['PWGTP'].sum())
+
+t = 'illchild'
+print(dr[dr['cpl_%s' % t] > 0]['cpl_%s' % t].describe())
+print(dr[dr['takeup_%s' % t] == 1]['cpl_%s' % t].describe())
+print(dr[dr['takeup_%s' % t] == 1]['PWGTP'].sum())
+
+# check total outlay
+bene_all = 0
+for t in types:
+    bene_all += (dr['bene_%s' % t]*dr['takeup_%s' % t]*dr['PWGTP']*1.02).sum() # 1.02 account for missing POW
+print(bene_all)
+
+(dr['annual_benefit_all']*dr['PWGTP']).sum()*1.02
+
+# use clean ACS (incl. ineligible workers, same size as input ACS) to get eligible pop estimate
+nj = pd.read_csv('./data/acs/ACS_cleaned_forsimulation_2016_nj.csv')
+nj = nj[(~nj['COW'].isin([6,7])) & (nj['emp_gov']==0) & (nj['wage12']>=8400)]
+
+## Check why some clfs (e.g. SVM, Ridge) lead to large outlays, while progtaker counts look good
+def check_outlay_components(dp, leave_types):
+    for t in leave_types:
+        print('\n-------type = %s --------- ' % t)
+        # check pop est of uptakers
+        print('-------uptakers, PWGTP sum for %s --------- ' % t)
+        print(dp[(dp['cpl_%s' % t]>0) & (dp['takeup_%s' % t]==1)]['PWGTP'].sum())
+        # check CPL for uptakers
+        print('-------uptakers, cpl_%s --------- ' % t)
+        print(dp[(dp['cpl_%s' % t]>0) & (dp['takeup_%s' % t]==1)]['cpl_%s' % t].describe())
+        # check annual benefit for uptakers
+        print('-------uptakers, annual_benefit_%s --------- ' % t)
+        print(dp[dp['annual_benefit_%s' % t] > 0]['annual_benefit_%s' % t].describe())
+        # check weekly benefit for uptakers
+        print('-------uptakers, annual_benefit_%s per week in program --------- ' % t)
+        print((5 * dp[(dp['takeup_%s' % t]==1)]['annual_benefit_%s' % t] /
+               dp[(dp['takeup_%s' % t]==1)]['cpl_%s' % t]).describe())
+        # check wage12 for uptakerse
+        print('-------uptakers, wage12 --------- ')
+        print(dp[(dp['takeup_%s' % t]==1)]['wage12'].describe())
+
+    return None
+
+# outlay for 4 PFL types
+bene_PFL = 0
+for t in ['bond', 'illchild', 'illspouse', 'illparent']:
+    bene_PFL += (dp['annual_benefit_%s' % t]*dp['takeup_%s' % t]*dp['PWGTP']*1.02).sum() # 1.02 account for missing POW
+print(bene_PFL)
+# outlay for 2 DI types
+bene_DI = 0
+for t in ['own', 'matdis']:
+    bene_DI += (dp['annual_benefit_%s' % t]*dp['takeup_%s' % t]*dp['PWGTP']*1.02).sum() # 1.02 account for missing POW
+print(bene_DI)
+# outlay components
+check_outlay_components(dp, ['own', 'matdis'])
+# check total DI length, total PFL length
+dp['cpl_DI'] = dp['cpl_own'] + dp['cpl_matdis']
+dp[(dp['takeup_own']==1) | (dp['takeup_matdis']==1)]['cpl_DI'].describe()
+# check DI length distribution to see how much overflow beyond the joint DI cap
+data = dp[(dp['takeup_own']==1) | (dp['takeup_matdis']==1)]['cpl_DI']
+binwidth=5
+data.hist(bins=np.arange(0, max(data) + binwidth, binwidth), alpha=0.4)
+# check DI outlay if REMOVING ENTIRELY all overflowed DI (so lower bound of DI outlay)
+DI_cap = 9999999
+bene_DI = 0
+for t in ['own', 'matdis']:
+    bene_DI += (dp[(dp['cpl_DI']<=DI_cap)]['annual_benefit_%s' % t]*
+                dp[(dp['cpl_DI']<=DI_cap)]['takeup_%s' % t]*
+                dp[(dp['cpl_DI']<=DI_cap)]['PWGTP']*1.02).sum() # 1.02 account for missing POW
+print(bene_DI)
+
+#######################################################################################################################
+
+
 
 # check clean FMLA
 fmla_p = pd.read_csv('./data/fmla/fmla_2012/fmla_clean_2012_Py.csv')
@@ -175,6 +320,10 @@ for t in types:
     print('post-sim ACS, R')
     print(dr[c].value_counts())
     print('-----------------------------')
+
+
+
+######################################## END OF 2020 check #############################################################
 
 # get diff in eligible workers' IDs between dr and dp
 # NOTE: SERIALNO is id for household not person.
@@ -501,3 +650,4 @@ D_prop = dict(zip(v, k))
 d = d[d['prop_pay']>0]
 d = d[d['prop_pay'].notna()]
 mlogit = sm.MNLogit(d[y], d['female']).fit()
+

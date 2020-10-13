@@ -36,7 +36,7 @@ DEFAULT_STATE_PARAMS = {
         'recollect': False,
         'min_cfl_recollect': 0,
         'min_takeup_cpl': 5,
-        'alpha': 1
+        'alpha': 0.75
     },
     'NJ': {
         'replacement_ratio': 0.66,
@@ -58,8 +58,8 @@ DEFAULT_STATE_PARAMS = {
         'state_employees': True,
         'local_employees': False,
         'self_employed': False,
-        'take_up_rates': {'Own Health': 0.0222, 'Maternity': 0.0082, 'New Child': 0.0090,
-                          'Ill Child': 0.0004, 'Ill Spouse': 0.0005, 'Ill Parent': 0.007},
+        'take_up_rates': {'Own Health': 0.0220, 'Maternity': 0.0081, 'New Child': 0.0089,
+                          'Ill Child': 0.0004, 'Ill Spouse': 0.0005, 'Ill Parent': 0.0007},
         'dependency_allowance': True,
         'dependency_allowance_profile': [0.07, 0.04, 0.04],
         'wait_period': 5,
@@ -90,8 +90,8 @@ DEFAULT_STATE_PARAMS = {
         'state_employees': False,
         'local_employees': False,
         'self_employed': False,
-        'take_up_rates': {'Own Health': 0.0809, 'Maternity': 0.0270, 'New Child': 0.0102,
-                          'Ill Child': 0.0006, 'Ill Spouse': 0.0015, 'Ill Parent': 0.0009},
+        'take_up_rates': {'Own Health': 0.0761, 'Maternity': 0.0254, 'New Child': 0.0117,
+                          'Ill Child': 0.0005, 'Ill Spouse': 0.0017, 'Ill Parent': 0.0010},
         'dependency_allowance': True,
         'dependency_allowance_profile': [0.07, 0.07, 0.07, 0.07, 0.07],
         'wait_period': 5,
