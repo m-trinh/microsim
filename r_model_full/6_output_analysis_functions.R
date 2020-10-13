@@ -304,7 +304,7 @@ create_meta_file <-function(d, out_dir,place_of_work, model_start_time, se_repor
       meta_take[i, 'progtaker'] <- as.integer(temp[3])
     }
   }
-  temp <- replicate_weights_SE(d, 'particip', place_of_work, se_report)
+  temp <- replicate_weights_SE(d, 'particip', place_of_work, se_report=se_report)
   if (se_report==TRUE) {
     meta_take['any', 'progtaker'] <- as.integer(temp[7])
     meta_take['any', 'ci_upper'] <- as.integer(temp[[7]] + temp[[8]] *1.96)
