@@ -516,7 +516,7 @@ class SimulationEngine:
             # This ensures dep allowance is generously applied
 
             # init effective_rrp
-            acs['effective_rrp'] = np.nan
+            acs['effective_rrp'] = 0
             # 1. wage bracket-specific rrp (e.g. progressive) design
             if params['rrp_flat']: # flat rrp
                 acs['effective_rrp'] = params['rrp'] # scalar flat rrp
@@ -530,9 +530,8 @@ class SimulationEngine:
                 'dependency_allowance_profile']  # rrp increment by ndep, len of this is max ndep allowed
             cum_profile = np.cumsum(np.array(dependency_allowance_profile))
             if dependency_allowance:
-                acs['effective_rrp'] += [
-                    cum_profile[int(min(x, len(cum_profile))) - 1]  # ndep-1 to get index in cum_profile
-                    if x > 0 else 0 for x in acs['ndep_spouse_kid']]
+                acs['effective_rrp'] = acs['effective_rrp'] + [cum_profile[int(min(x, len(cum_profile))) - 1] if x > 0 else 0 for x in acs['ndep_spouse_kid']] # ndep-1=ix in cum_profile
+                # apply upper bound 1
                 acs['effective_rrp'] = [min(x, 1) for x in acs['effective_rrp']]
 
             # Given cf-len, get cp-len

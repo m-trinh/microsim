@@ -146,13 +146,13 @@ def get_average_rrp(wage, cuts, rates):
     # get average rrp
     rrp_avg = replace_amount/wage
 
-    return replace_amount, rrp_avg
+    return rrp_avg
 
 # test
-wage = 200
-cuts = [30, 50, 80, 100]
-rates = [0.8, 0.6, 0.4, 0.2, 0.1]
-get_average_rrp(wage, cuts, rates)
+# wage = 200
+# cuts = [30, 50, 80, 100]
+# rates = [0.8, 0.6, 0.4, 0.2, 0.1]
+# get_average_rrp(wage, cuts, rates)
 
 
 # Adjust unconditional prob vector and conditional prob matrix wrt logical restrictions at worker level
