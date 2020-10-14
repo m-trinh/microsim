@@ -264,8 +264,12 @@ class MicrosimGUI(Tk):
         main_eligibility = [params.private, params.self_employed, params.fed_employees, params.state_employees,
                             params.local_employees]
         if self.current_state == 'All' and main_eligibility != [False, False, True, True, True]:
-            return messagebox.askokcancel('Warning', 'Running the model on all states will take a very long time and '
-                                                     'could exceed the system\'s memory. Would you like to proceed?')
+            return messagebox.askokcancel(
+                'Warning',
+                'Running the model for all states in a single simulation can cause long runtime, typically 24 hours or '
+                'longer. To ensure results are periodically saved to local disk, we recommend running the model for '
+                'individual states separately, then aggregate results across state output files to obtain national '
+                'level results.')
 
         return True
 
@@ -728,7 +732,7 @@ class MicrosimGUI(Tk):
         rate_entries += [p.input for p in self.parameter_notebook.program_frame.dep_allowance_frame.profiles]
         # rate_entries += [entry for entry in self.parameter_notebook.population_frame.leave_probability_factors_inputs]
 
-        if self.variables['replacement_type'] == 'Flat':
+        if self.variables['replacement_type'].get() == 'Flat':
             rate_entries.append(self.parameter_notebook.program_frame.replacement_frame.replacement_ratio_input)
         else:
             errors += self.parameter_notebook.program_frame.replacement_frame.progressive_frame.validate()
