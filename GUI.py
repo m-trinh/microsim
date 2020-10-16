@@ -264,8 +264,12 @@ class MicrosimGUI(Tk):
         main_eligibility = [params.private, params.self_employed, params.fed_employees, params.state_employees,
                             params.local_employees]
         if self.current_state == 'All' and main_eligibility != [False, False, True, True, True]:
-            return messagebox.askokcancel('Warning', 'Running the model on all states will take a very long time and '
-                                                     'could exceed the system\'s memory. Would you like to proceed?')
+            return messagebox.askokcancel(
+                'Warning',
+                'Running the model for all states in a single simulation can cause long runtime, typically 24 hours or '
+                'longer. To ensure results are periodically saved to local disk, we recommend running the model for '
+                'individual states separately, then aggregate results across state output files to obtain national '
+                'level results.')
 
         return True
 
@@ -610,7 +614,7 @@ class MicrosimGUI(Tk):
         elig_wkswork = parameters.eligible_weeks
         elig_yrhours = parameters.eligible_hours
         elig_empsize = parameters.eligible_size
-        rrp_flat = parameters.replacement_type == 'Static'
+        rrp_flat = parameters.replacement_type == 'Flat'
         prog_rrp = parameters.progressive_replacement_ratio
         rrp = parameters.replacement_ratio if rrp_flat else [prog_rrp['cutoffs'], prog_rrp['replacements']]
         wkbene_cap = parameters.weekly_ben_cap
@@ -728,7 +732,7 @@ class MicrosimGUI(Tk):
         rate_entries += [p.input for p in self.parameter_notebook.program_frame.dep_allowance_frame.profiles]
         # rate_entries += [entry for entry in self.parameter_notebook.population_frame.leave_probability_factors_inputs]
 
-        if self.variables['replacement_type'] == 'Static':
+        if self.variables['replacement_type'].get() == 'Flat':
             rate_entries.append(self.parameter_notebook.program_frame.replacement_frame.replacement_ratio_input)
         else:
             errors += self.parameter_notebook.program_frame.replacement_frame.progressive_frame.validate()
@@ -1894,7 +1898,7 @@ class SimulationFrame(NotebookFrame):
         # self.weight_factor_input.grid_forget()
         self.clone_factor_label.grid_forget()
         self.clone_factor_input.grid_forget()
-        self.calculate_se_input.grid_forget()
+        # self.calculate_se_input.grid_forget()
         # self.fmla_protection_constraint_input.grid_forget()
 
     def show_advanced_parameters(self):
@@ -1902,7 +1906,7 @@ class SimulationFrame(NotebookFrame):
         # self.weight_factor_input.grid(column=1, row=2, sticky=W, pady=self.row_padding)
         self.clone_factor_label.grid(column=0, row=2, sticky=W, pady=self.row_padding)
         self.clone_factor_input.grid(column=1, row=2, sticky=W, pady=self.row_padding)
-        self.calculate_se_input.grid(column=0, row=3, columnspan=2, sticky=W, pady=self.row_padding)
+        # self.calculate_se_input.grid(column=0, row=3, columnspan=2, sticky=W, pady=self.row_padding)
         # self.fmla_protection_constraint_input.grid(column=0, row=3, columnspan=2, sticky=W, pady=self.row_padding)
 
 
@@ -2034,7 +2038,7 @@ class BenefitFinancingFrame(ttk.LabelFrame):
         # Average State Tax
         tip = 'The applicable income tax rate on benefits.'
         self.average_state_tax_label = TipLabel(self, tip, text='State Income Tax Rate (%):', bg=VERY_LIGHT_COLOR,
-                                                font='-size 10 -weight bold')
+                                                font='-family helvetica -size 10 -weight bold')
         self.average_state_tax_input = NotebookEntry(self, textvariable=variables['average_state_tax'])
 
         # Add input widgets to the parent widget
@@ -2072,19 +2076,19 @@ class DependencyAllowanceFrame(Frame):
         # Labels that describe the profile inputs
         self.labels_frame = Frame(self.profile_frame, bg=VERY_LIGHT_COLOR)
         self.labels_frame.grid(row=0, column=0, sticky=E, padx=2)
-        Label(self.labels_frame, text='Dependents', bg=VERY_LIGHT_COLOR, font='-size 10 -weight bold').\
-            pack(side=TOP, anchor=E, pady=2)
-        Label(self.labels_frame, text='Replacement Ratio', bg=VERY_LIGHT_COLOR, font='-size 10 -weight bold').\
-            pack(side=TOP, anchor=E, pady=2)
+        Label(self.labels_frame, text='Dependents', bg=VERY_LIGHT_COLOR,
+              font='-family helvetica -size 10 -weight bold').pack(side=TOP, anchor=E, pady=2)
+        Label(self.labels_frame, text='Replacement Ratio', bg=VERY_LIGHT_COLOR,
+              font='-family helvetica -size 10 -weight bold').pack(side=TOP, anchor=E, pady=2)
 
         # Frame to hold buttons to add or remove profile inputs
         self.buttons_frame = Frame(self.profile_frame, bg=VERY_LIGHT_COLOR)
-        self.add_button = Button(self.buttons_frame, text='+', font='-size 9 -weight bold', relief='flat',
-                                 background='#00e600', width=3, padx=0, pady=0, highlightthickness=0,
+        self.add_button = Button(self.buttons_frame, text='+', font='-family helvetica -size 9 -weight bold',
+                                 relief='flat', background='#00e600', width=3, padx=0, pady=0, highlightthickness=0,
                                  foreground='#FFFFFF', command=self.add_dependent)
         self.add_button.pack(side=TOP, pady=2)
-        self.remove_button = Button(self.buttons_frame, text='-', font='-size 9 -weight bold', relief='flat',
-                                    background='#ff0000', width=3, padx=0, pady=0, highlightthickness=0,
+        self.remove_button = Button(self.buttons_frame, text='-', font='-family helvetica -size 9 -weight bold',
+                                    relief='flat', background='#ff0000', width=3, padx=0, pady=0, highlightthickness=0,
                                     foreground='#FFFFFF', command=self.remove_dependent)
         self.remove_button.pack(side=TOP, pady=2)
         self.buttons_frame.grid(row=0, column=1, padx=2, sticky=E)
@@ -2167,10 +2171,11 @@ class DependencyAllowanceProfileFrame(Frame):
         super().__init__(parent, bg=VERY_LIGHT_COLOR, width=10, **kwargs)
         self.num = num
         self.replacement_ratio = DoubleVar(value=0.0)
-        self.label = Label(self, text=str(num) + '+', bg=VERY_LIGHT_COLOR, font='-size 10 -weight bold')
+        self.label = Label(self, text=str(num) + '+', bg=VERY_LIGHT_COLOR,
+                           font='-family helvetica -size 10 -weight bold')
         self.label.pack(side=TOP, pady=2)
-        self.input = NotebookEntry(self, textvariable=self.replacement_ratio, width=5, font='-size 10',
-                                   justify='center')
+        self.input = NotebookEntry(self, textvariable=self.replacement_ratio, width=5,
+                                   font='-family helvetica -size 10', justify='center')
         self.input.pack(side=TOP, pady=2)
 
     def add_plus(self):
@@ -2195,7 +2200,7 @@ class WageReplacementFrame(ttk.LabelFrame):
                                                bg=VERY_LIGHT_COLOR)
         self.replacement_type_input = ttk.Combobox(self.replacement_type_frame,
                                                    textvariable=variables['replacement_type'], state="readonly",
-                                                   width=15, values=('Static', 'Progressive'))
+                                                   width=18, values=('Flat', 'Wage Bracket-Based'))
         self.replacement_type_input.current(0)
         self.replacement_type_frame.pack(anchor=W, padx=(12, 0))
         self.replacement_type_label.pack(side=LEFT)
@@ -2217,7 +2222,7 @@ class WageReplacementFrame(ttk.LabelFrame):
         self.progressive_frame = ProgressiveFrame(self)
 
     def toggle_replacement_type(self, *_):
-        if self.variables['replacement_type'].get() == 'Static':
+        if self.variables['replacement_type'].get() == 'Flat':
             self.pack_static_prog_frame(self.static_frame)
             self.progressive_frame.pack_forget()
         else:
@@ -2233,9 +2238,12 @@ class ProgressiveFrame(Frame):
     def __init__(self, parent):
         super().__init__(parent, bg=VERY_LIGHT_COLOR)
         self.parent = parent
-        Label(self, text='Lower Bound', font='-size 11 -weight bold', bg=VERY_LIGHT_COLOR).grid(row=0, column=0)
-        Label(self, text='Upper Bound', font='-size 11 -weight bold', bg=VERY_LIGHT_COLOR).grid(row=0, column=2)
-        Label(self, text='Wage Replacement', font='-size 11 -weight bold', bg=VERY_LIGHT_COLOR).grid(row=0, column=3)
+        Label(self, text='Lower Bound', font='-family helvetica -size 11 -weight bold',
+              bg=VERY_LIGHT_COLOR).grid(row=0, column=0)
+        Label(self, text='Upper Bound', font='-family helvetica -size 11 -weight bold',
+              bg=VERY_LIGHT_COLOR).grid(row=0, column=2)
+        Label(self, text='Wage Replacement', font='-family helvetica -size 11 -weight bold',
+              bg=VERY_LIGHT_COLOR).grid(row=0, column=3)
         self.wage_brackets = [
             WageBracket(self, 0, floor_value=0, first=True),
             WageBracket(self, 1, last=True)
@@ -2308,8 +2316,9 @@ class ProgressiveFrame(Frame):
     def validate(self):
         errors = []
         for i in range(len(self.wage_brackets) - 1):
-            if self.wage_brackets[i].ceiling.get() < self.wage_brackets[i].floor_value:
-                errors.append((self.wage_brackets[i].ceiling_input, 'The upper bound is lower than the lower bound'))
+            if self.wage_brackets[i].ceiling.get() <= self.wage_brackets[i].floor_value:
+                errors.append((self.wage_brackets[i].ceiling_input,
+                               'The upper bound should be greater than the lower bound'))
         return errors
 
 
@@ -2319,19 +2328,21 @@ class WageBracket:
         self.index = index
         self.first = first
         self.last = last
-        self.floor_label = Label(self.frame, bg=VERY_LIGHT_COLOR, font='-size 11')
+        self.floor_label = Label(self.frame, bg=VERY_LIGHT_COLOR, font='-family helvetica -size 11')
         self.floor_value = floor_value
         self.update_floor(floor_value)
-        self.to_label = Label(self.frame, text='-', width=3, bg=VERY_LIGHT_COLOR, font='-size 11')
+        self.to_label = Label(self.frame, text='-', width=3, bg=VERY_LIGHT_COLOR, font='-family helvetica -size 11')
         self.ceiling = IntVar()
-        self.ceiling_input = NotebookEntry(self.frame, width=15, textvariable=self.ceiling, font='-size 11')
+        self.ceiling_input = NotebookEntry(self.frame, width=15, textvariable=self.ceiling,
+                                           font='-family helvetica -size 11')
         self.ceiling.trace('w', self.frame.update_floors)
         self.replacement = DoubleVar()
-        self.replacement_input = NotebookEntry(self.frame, textvariable=self.replacement, width=10, font='-size 11')
-        self.remove_button = Button(self.frame, text='x', font='-size 10 -weight bold', relief='flat',
+        self.replacement_input = NotebookEntry(self.frame, textvariable=self.replacement, width=10,
+                                               font='-family helvetica -size 11')
+        self.remove_button = Button(self.frame, text='x', font='-family helvetica -size 10 -weight bold', relief='flat',
                                     background='#ff0000', width=3, padx=0, pady=0, highlightthickness=0,
                                     foreground='#FFFFFF', command=self.remove_bracket)
-        self.add_button = Button(self.frame, text='+', font='-size 10 -weight bold', relief='flat',
+        self.add_button = Button(self.frame, text='+', font='-family helvetica -size 10 -weight bold', relief='flat',
                                  background='#00e600', width=3, padx=0, pady=0, highlightthickness=0,
                                  foreground='#FFFFFF', command=self.add_bracket)
 
@@ -2886,8 +2897,8 @@ class ABFResults(ScrollFrame):
         self.display_abf_bar_graphs(pivot_tables)
 
         # Create frame to hold widgets used to rerun ABF module
-        self.abf_params_reveal = BorderButton(self, text='ABF Parameters', padx=4, command=self.show_params,
-                                              width=16, borderwidth=0, font='-size 12', background='#00e600')
+        self.abf_params_reveal = BorderButton(self, text='ABF Parameters', padx=4, command=self.show_params, width=16,
+                                              borderwidth=0, font='-family helvetica -size 12', background='#00e600')
         self.abf_params_reveal.pack(side=BOTTOM, anchor='se', padx=3, pady=2)
         self.abf_variables = self.create_abf_variables()
         self.abf_params = ABFParamsPopup(self)
@@ -3028,18 +3039,21 @@ class ABFResultsSummary(Frame):
 
         # Total income of workers
         self.income_label = Label(self, text='Total Income:', bg=DARK_COLOR, fg=LIGHT_COLOR, anchor='e',
-                                  font='-size 12 -weight bold')
-        self.income_value = Label(self, bg=LIGHT_COLOR, fg=DARK_COLOR, anchor='e', padx=5, font='-size 12')
+                                  font='-family helvetica -size 12 -weight bold')
+        self.income_value = Label(self, bg=LIGHT_COLOR, fg=DARK_COLOR, anchor='e', padx=5,
+                                  font='-family helvetica -size 12')
 
         # Total revenue from taxing workers
         self.tax_revenue_label = Label(self, text='Total Tax Revenue:', bg=DARK_COLOR, fg=LIGHT_COLOR, anchor='e',
-                                       font='-size 12 -weight bold')
-        self.tax_revenue_value = Label(self, bg=LIGHT_COLOR, fg=DARK_COLOR, anchor='e', padx=5, font='-size 12')
+                                       font='-family helvetica -size 12 -weight bold')
+        self.tax_revenue_value = Label(self, bg=LIGHT_COLOR, fg=DARK_COLOR, anchor='e', padx=5,
+                                       font='-family helvetica -size 12')
 
         # Total revenue from taxing benefits
         self.benefits_recouped_label = Label(self, text='Tax Revenue Recouped from Benefits:', bg=DARK_COLOR,
-                                             fg=LIGHT_COLOR, anchor='e', font='-size 12 -weight bold')
-        self.benefits_recouped_value = Label(self, bg=LIGHT_COLOR, fg=DARK_COLOR, anchor='e', padx=5, font='-size 12')
+                                             fg=LIGHT_COLOR, anchor='e', font='-family helvetica -size 12 -weight bold')
+        self.benefits_recouped_value = Label(self, bg=LIGHT_COLOR, fg=DARK_COLOR, anchor='e', padx=5,
+                                             font='-family helvetica -size 12')
 
         # Add labels to the frame
         self.income_label.grid(row=0, column=0, sticky='we', padx=3, pady=2)
@@ -3094,7 +3108,8 @@ class ABFParamsPopup(Frame):
         self.abf_params_hide = BorderButton(self.abf_params_buttons, text='Hide', padx=4, command=parent.hide_params,
                                             background='#00e600')
         self.abf_params_hide.pack(side=LEFT, pady=3, padx=5)
-        self.run_button = BorderButton(self.abf_params_buttons, font='-size 11 -weight bold', text="Run ABF",
+        self.run_button = BorderButton(self.abf_params_buttons, font='-family helvetica -size 11 -weight bold',
+                                       text="Run ABF",
                                        command=parent.rerun_abf, padx=4)
         self.run_button.pack(side=RIGHT, pady=3, padx=5)
 
@@ -3339,7 +3354,7 @@ class AdvancedFrame(Frame):
         # Label to describe the functions of the buttons
         tip = 'Reveal advanced simulation parameters'
         self.advanced_label = TipLabel(self, tip, text="Advanced Parameters:", bg=DARK_COLOR, fg=LIGHT_COLOR,
-                                       font='-size 9 -weight bold')
+                                       font='-family helvetica -size 9 -weight bold')
 
         if sys.platform == 'darwin':
             self.button_container = Frame(self, background=DARK_COLOR)
@@ -3359,7 +3374,7 @@ class AdvancedFrame(Frame):
 
 
 class SubtleButton(Button):
-    def __init__(self, parent=None, foreground='#FFFFFF', font='-size 8 -weight bold', pady=2, padx=3,
+    def __init__(self, parent=None, foreground='#FFFFFF', font='-family helvetica -size 8 -weight bold', pady=2, padx=3,
                  relief='flat', highlightthickness=0, borderwidth=0, background=DARK_COLOR, **kwargs):
         """Button that blends in with the background"""
         super().__init__(parent, background=background, activebackground=background, foreground=foreground,
@@ -3393,9 +3408,9 @@ class SubtleToggle(SubtleButton):
 
 
 class BorderButton(Frame):
-    def __init__(self, parent=None, custom=False, background='#0074BF', font='-size 11', width=7, pady=0,
-                 foreground='#FFFFFF', activebackground='#FFFFFF', relief='flat', highlightthickness=1, borderwidth=1,
-                 highlightbackground=LIGHT_COLOR, **kwargs):
+    def __init__(self, parent=None, custom=False, background='#0074BF', font='-family helvetica -size 11', width=7,
+                 pady=0, foreground='#FFFFFF', activebackground='#FFFFFF', relief='flat', highlightthickness=1,
+                 borderwidth=1, highlightbackground=LIGHT_COLOR, **kwargs):
         """A frame that imitates a button that has a border around it
 
         :param parent: Tk widget
@@ -3441,8 +3456,9 @@ class RunButton(BorderButton):
         :param kwargs: Other widget options
         """
         super().__init__(parent, custom=True)
-        button = Button(self, foreground='#FFFFFF', background='#ccebff', font='-size 11 -weight bold', width=8,
-                        relief='flat', activebackground='#FFFFFF', disabledforeground='#FFFFFF', state=DISABLED,
+        button = Button(self, foreground='#FFFFFF', background='#ccebff',
+                        font='-family helvetica -size 11 -weight bold', width=8, relief='flat',
+                        activebackground='#FFFFFF', disabledforeground='#FFFFFF', state=DISABLED,
                         highlightthickness=0, borderwidth=0, pady=1, **kwargs)
         self.add_content(button)
 
@@ -3459,11 +3475,11 @@ class GeneralEntry(Entry):
     def __init__(self, parent=None, **kwargs):
         """Entry with default styling"""
         super().__init__(parent, borderwidth=2, highlightbackground='#FFFFFF', relief='flat',
-                         highlightthickness=1, font='-size 11', **kwargs)
+                         highlightthickness=1, font='-family helvetica -size 11', **kwargs)
 
 
 class NotebookEntry(Entry):
-    def __init__(self, parent=None, font='-size 11', **kwargs):
+    def __init__(self, parent=None, font='-family helvetica -size 11', **kwargs):
         """Entry with default styling"""
         super().__init__(parent, borderwidth=2, highlightbackground='#999999', relief='flat',
                          highlightthickness=1, font=font, **kwargs)

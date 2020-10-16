@@ -147,7 +147,8 @@ class ABF:
                           'Tax Revenue Recouped from Benefits': recoup_tax_rev}
 
             pd.set_option('display.float_format', lambda x: '%.2f' % x)
-            revenue_by_class = pd.pivot_table(df, index=["class_cat"], values=["income_w", "ptax_rev_w"], aggfunc=[np.sum])
+            revenue_by_class = pd.pivot_table(df, index=["class_cat"], values=["income_w", "ptax_rev_w"],
+                                              aggfunc=[np.sum])
             revenue_by_age = pd.pivot_table(df, index=["age_cat"], values=["income_w", "ptax_rev_w"], aggfunc=[np.sum])
             revenue_by_gender = pd.pivot_table(df, index=["gender_cat"], values=["income_w", "ptax_rev_w"],
                                                aggfunc=[np.sum])
