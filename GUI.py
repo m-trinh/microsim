@@ -112,17 +112,20 @@ class MicrosimGUI(Tk):
         by the widgets in order to be used."""
         style = ttk.Style()
         style.configure('MSCombobox.TCombobox', relief='flat')
-        style.configure('MSCheckbutton.TCheckbutton', background=VERY_LIGHT_COLOR, font='-size 12')
-        style.configure('MSCheckbuttonSmall.TCheckbutton', background=VERY_LIGHT_COLOR, font='-size 10 -weight bold')
-        style.configure('MSCheckbuttonRed.TCheckbutton', background='red', foreground='white', font='-size 12')
-        style.configure('DarkCheckbutton.TCheckbutton', background=DARK_COLOR, foreground=LIGHT_COLOR, font='-size 12')
+        style.configure('MSCheckbutton.TCheckbutton', background=VERY_LIGHT_COLOR, font='-family helvetica -size 12')
+        style.configure('MSCheckbuttonSmall.TCheckbutton', background=VERY_LIGHT_COLOR,
+                        font='-family helvetica -size 10 -weight bold')
+        style.configure('MSCheckbuttonRed.TCheckbutton', background='red', foreground='white',
+                        font='-family helvetica -size 12')
+        style.configure('DarkCheckbutton.TCheckbutton', background=DARK_COLOR, foreground=LIGHT_COLOR,
+                        font='-family helvetica -size 12')
         style.configure('MSNotebook.TNotebook', background=VERY_LIGHT_COLOR)
-        style.configure('MSNotebook.TNotebook.Tab', font='-size 12', padding=(4, 0))
+        style.configure('MSNotebook.TNotebook.Tab', font='-family helvetica -size 12', padding=(4, 0))
         # style.configure('DarkNotebook.TNotebook', background=DARK_COLOR)
         # style.configure('DarkNotebook.TNotebook.Tab', font='-size 12', padding=(4, 0))
         style.configure('MSLabelframe.TLabelframe', background=VERY_LIGHT_COLOR)
         style.configure('MSLabelframe.TLabelframe.Label', background=VERY_LIGHT_COLOR, foreground=THEME_COLOR,
-                        font='-size 12')
+                        font='-family helvetica -size 12')
 
     def create_variables(self):
         """Create the variables that the users will update in the interface.
@@ -269,7 +272,7 @@ class MicrosimGUI(Tk):
                 'Running the model for all states in a single simulation can cause long runtime, typically 24 hours or '
                 'longer. To ensure results are periodically saved to local disk, we recommend running the model for '
                 'individual states separately, then aggregate results across state output files to obtain national '
-                'level results.')
+                'level results. Do you wish to continue?')
 
         return True
 
@@ -1283,13 +1286,13 @@ class ComparisonFrame(Frame):
         # Button to start comparison mode
         self.start_button = BorderButton(self.buttons, custom=True, borderwidth=1, relief='flat',
                                          highlightbackground='#FFFFFF')
-        button_content = SubtleToggle(self.start_button, text='Compare', font='-size 9 -weight bold',
+        button_content = SubtleToggle(self.start_button, text='Compare', font='-family helvetica -size 9 -weight bold',
                                       command=self.toggle_show_comparison)
         self.start_button.add_content(button_content)
         self.start_button.pack(side=RIGHT)
 
         # Button to add one comparison
-        self.add_simulation_button = BorderButton(self.buttons, text='+', font='-size 10 -weight bold',
+        self.add_simulation_button = BorderButton(self.buttons, text='+', font='-family helvetica -size 10 -weight bold',
                                                   background=THEME_COLOR, width=0, padx=4, pady=0,
                                                   highlightthickness=0, command=self.add_simulation)
 
@@ -1551,7 +1554,8 @@ class NotebookFrame(ScrollFrame):
         leave_type_inputs = []  # A list of entry inputs
         for i, leave_type in enumerate(LEAVE_TYPES):
             # Create the label and entry widgets
-            leave_type_labels.append(Label(parent, text=leave_type, bg=VERY_LIGHT_COLOR, font='-size 10'))
+            leave_type_labels.append(Label(parent, text=leave_type, bg=VERY_LIGHT_COLOR,
+                                           font='-family helvetica -size 10'))
             leave_type_inputs.append(NotebookEntry(parent, textvariable=leave_vars[leave_type], justify='center',
                                                    width=10))
             parent.columnconfigure(i, weight=1)
@@ -1571,7 +1575,8 @@ class ProgramFrame(NotebookFrame):
         # ------------------------------------------- Program Eligibility -------------------------------------------
         # Inputs related to eligibility will be grouped in a label frame
         self.eligibility_frame_label = ttk.Label(self.content, text='Eligibility Rules:', cursor='question_arrow',
-                                                 style='MSLabelframe.TLabelframe.Label', font='-size 10')
+                                                 style='MSLabelframe.TLabelframe.Label',
+                                                 font='-family helvetica -size 10')
         self.eligibility_frame = ttk.Labelframe(self.content, labelwidget=self.eligibility_frame_label,
                                                 style='MSLabelframe.TLabelframe')
         ToolTipCreator(self.eligibility_frame_label, 'The requirements to be eligible for the paid leave program.')
@@ -1579,34 +1584,34 @@ class ProgramFrame(NotebookFrame):
         # Earnings
         tip = 'The amount of money earned in the last year.'
         self.eligible_earnings_label = TipLabel(self.eligibility_frame, tip, text="Earnings", bg=VERY_LIGHT_COLOR,
-                                                font='-size 10')
+                                                font='-family helvetica -size 10')
         self.eligible_earnings_input = NotebookEntry(self.eligibility_frame, textvariable=v['eligible_earnings'],
                                                      justify='center', width=15)
 
         # Weeks worked
         tip = 'The number of weeks worked in the last year.'
         self.eligible_weeks_label = TipLabel(self.eligibility_frame, tip, text="Weeks", bg=VERY_LIGHT_COLOR,
-                                             font='-size 10')
+                                             font='-family helvetica -size 10')
         self.eligible_weeks_input = NotebookEntry(self.eligibility_frame, textvariable=v['eligible_weeks'],
                                                   justify='center', width=15)
 
         # Hours worked
         tip = 'The number of hours worked in the last year.'
         self.eligible_hours_label = TipLabel(self.eligibility_frame, tip, text="Hours", bg=VERY_LIGHT_COLOR,
-                                             font='-size 10')
+                                             font='-family helvetica -size 10')
         self.eligible_hours_input = NotebookEntry(self.eligibility_frame, textvariable=v['eligible_hours'],
                                                   justify='center', width=15)
 
         # Employer size
         tip = 'Size of the employer.'
         self.eligible_size_label = TipLabel(self.eligibility_frame, tip, text="Employer Size", bg=VERY_LIGHT_COLOR,
-                                            font='-size 10')
+                                            font='-family helvetica -size 10')
         self.eligible_size_input = NotebookEntry(self.eligibility_frame, textvariable=v['eligible_size'],
                                                  justify='center', width=15)
 
         # ----------------------------------------- Max Weeks with Benefits -----------------------------------------
         self.max_weeks_frame_label = ttk.Label(self.content, text='Max Weeks:', style='MSLabelframe.TLabelframe.Label',
-                                               cursor='question_arrow', font='-size 10')
+                                               cursor='question_arrow', font='-family helvetica -size 10')
         self.max_weeks_frame = ttk.Labelframe(self.content, labelwidget=self.max_weeks_frame_label,
                                               style='MSLabelframe.TLabelframe')
         self.max_weeks_labels, self.max_weeks_inputs = self.create_leave_objects(self.max_weeks_frame, v['max_weeks'])
@@ -1615,14 +1620,14 @@ class ProgramFrame(NotebookFrame):
 
         # ----------------------------------------- Employee Types Allowed ------------------------------------------
         self.employee_types_label = ttk.Label(self.content, text='Eligible Employee Types:', cursor='question_arrow',
-                                              style='MSLabelframe.TLabelframe.Label', font='-size 10')
+                                              style='MSLabelframe.TLabelframe.Label', font='-family helvetica -size 10')
         self.employee_types_frame = EmployeeTypesFrame(self.content, v, labelwidget=self.employee_types_label,
                                                        style='MSLabelframe.TLabelframe')
         ToolTipCreator(self.employee_types_label, 'The types of employees that will be eligible for program.')
 
         # ------------------------------------------- Leave Types Allowed -------------------------------------------
         self.leave_types_label = ttk.Label(self.content, text='Leave Types Allowed:', cursor='question_arrow',
-                                           style='MSLabelframe.TLabelframe.Label', font='-size 10')
+                                           style='MSLabelframe.TLabelframe.Label', font='-family helvetica -size 10')
         self.leave_types_frame = LeaveTypesFrame(self.content, v, labelwidget=self.leave_types_label,
                                                  style='MSLabelframe.TLabelframe')
         ToolTipCreator(self.leave_types_label, 'The leave types that the program will provide benefits for.')
@@ -1644,7 +1649,8 @@ class ProgramFrame(NotebookFrame):
 
         # -------------------------------------------- Benefit Financing --------------------------------------------
         self.benefit_financing_label = ttk.Label(self.content, text='Benefit Financing:', cursor='question_arrow',
-                                                 style='MSLabelframe.TLabelframe.Label', font='-size 10')
+                                                 style='MSLabelframe.TLabelframe.Label',
+                                                 font='-family helvetica -size 10')
         self.benefit_financing_frame = BenefitFinancingFrame(self.content, v, labelwidget=self.benefit_financing_label,
                                                              style='MSLabelframe.TLabelframe')
         ToolTipCreator(self.benefit_financing_label, 'Parameters related to program financing.')
@@ -1664,8 +1670,9 @@ class ProgramFrame(NotebookFrame):
         # Minimum Leave Length Required for Recollection
         tip = 'Minimum leave length (in number work days) required for recollection.'
         self.min_cfl_recollect_label = TipLabel(self.content, tip, text="Minimum Leave Length:", bg=VERY_LIGHT_COLOR,
-                                                font='-size 10 -weight bold')
-        self.min_cfl_recollect_input = NotebookEntry(self.content, textvariable=v['min_cfl_recollect'], font='-size 10')
+                                                font='-family helvetica -size 10 -weight bold')
+        self.min_cfl_recollect_input = NotebookEntry(self.content, textvariable=v['min_cfl_recollect'],
+                                                     font='-family helvetica -size 10')
 
         # Reveal min_cfl_recollect widgets only if recollect is checked and hide if unchecked
         v['recollect'].trace("w", self.toggle_min_cfl_recollect)
@@ -1733,7 +1740,8 @@ class PopulationFrame(NotebookFrame):
         # Create the input widgets for population parameters
         # ---------------------------------------------- Take Up Rates ----------------------------------------------
         self.take_up_rates_frame_label = ttk.Label(self.content, text='Take Up Rates:', cursor='question_arrow',
-                                                   style='MSLabelframe.TLabelframe.Label', font='-size 10')
+                                                   style='MSLabelframe.TLabelframe.Label',
+                                                   font='-family helvetica -size 10')
         self.take_up_rates_frame = ttk.Labelframe(self.content, labelwidget=self.take_up_rates_frame_label,
                                                   style='MSLabelframe.TLabelframe')
         self.take_up_rates_labels, self.take_up_rates_inputs = \

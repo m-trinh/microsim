@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 DEFAULT_STATE_PARAMS = {
     '': {},
     'CA': {
+        'replacement_type': 'Flat',
         'replacement_ratio': 0.57,
         'benefit_effect': True,
         'top_off_rate': 0.01,
@@ -41,6 +42,7 @@ DEFAULT_STATE_PARAMS = {
         'alpha': 0.75
     },
     'NJ': {
+        'replacement_type': 'Flat',
         'replacement_ratio': 0.66,
         'benefit_effect': True,
         'top_off_rate': 0.01,
@@ -75,6 +77,7 @@ DEFAULT_STATE_PARAMS = {
         # wait period, recollect / min cpl for recolllect - to be added
     },
     'RI': {
+        'replacement_type': 'Flat',
         'replacement_ratio': 0.6,
         'benefit_effect': True,
         'top_off_rate': 0.01,
@@ -165,7 +168,7 @@ class OtherParameters(Parameters):
                  counterfactual='', policy_sim=False, existing_program='', dual_receivers_share=1,
                  dependency_allowance=False, dependency_allowance_profile=None, wait_period=5, recollect=False,
                  min_cfl_recollect=None, min_takeup_cpl=5, alpha=0, private=True, own_health=True, maternity=True,
-                 new_child=True, ill_child=True, ill_spouse=True, ill_parent=True, replacement_type='Static',
+                 new_child=True, ill_child=True, ill_spouse=True, ill_parent=True, replacement_type='Flat',
                  progressive_replacement_ratio=None, calculate_se=True):
         """Other program parameters. A distinction needs to be made for program comparison, as each program will not
         share these parameters."""
@@ -447,7 +450,7 @@ def create_r_command(general_params, other_params, progress_file, output_dir, mo
         Name of text file that will be checked for simulation progress
     :return: str
     """
-    if other_params.replacement_type == 'Static':
+    if other_params.replacement_type == 'Flat':
         base_bene_level = other_params.replacement_ratio
         formula_value_cuts = 'NULL'
         formula_bene_levels = 'NULL'
@@ -549,7 +552,3 @@ def check_dependency(package_name, min_version):
             return False
 
     return True
-
-
-def get_costs_r(df):
-    pass
