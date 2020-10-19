@@ -538,20 +538,21 @@ FORMULA <- function(d, formula_prop_cuts=NULL, formula_value_cuts=NULL, formula_
     d <- d %>% mutate(bene_received = ifelse(formula_value_cuts[1]>wage12, wage12 * formula_bene_levels[1],formula_value_cuts[1]* formula_bene_levels[1]))
     d <- d %>% mutate(wage_allocate = ifelse(formula_value_cuts[1]>wage12, 0, wage12 - formula_value_cuts[1]))
     
-    # in between intervals
-    lvl=1
-    for (i in formula_value_cuts[2:len_cuts]) {
-      lvl = lvl +1 
-      # if within current interval, just add remaining wage_allocated prorated at current bene level, then set wage allocate to 0 
-      d <- d %>% mutate(bene_received = ifelse(i>wage12 & wage_allocate!=0, 
-                                              wage_allocate * formula_bene_levels[lvl] + bene_received,bene_received))
-      d <- d %>% mutate(wage_allocate = ifelse(i>wage12 & wage_allocate!=0, 0, wage_allocate))
-      
-      # if greater than current interval, add entire interval amount 
-      d <- d %>% mutate(bene_received = ifelse(i<wage12, (formula_value_cuts[lvl] - formula_value_cuts[lvl-1]) * (formula_bene_levels[lvl]) + bene_received,bene_received))
-      d <- d %>% mutate(wage_allocate = ifelse(i<wage12, wage_allocate - (formula_value_cuts[lvl] - formula_value_cuts[lvl-1]), wage_allocate))
-    }
-    
+    if (len_cuts>1) {
+      # in between intervals
+      lvl=1
+      for (i in formula_value_cuts[2:len_cuts]) {
+        lvl = lvl +1 
+        # if within current interval, just add remaining wage_allocated prorated at current bene level, then set wage allocate to 0 
+        d <- d %>% mutate(bene_received = ifelse(i>wage12 & wage_allocate!=0, 
+                                                wage_allocate * formula_bene_levels[lvl] + bene_received,bene_received))
+        d <- d %>% mutate(wage_allocate = ifelse(i>wage12 & wage_allocate!=0, 0, wage_allocate))
+        
+        # if greater than current interval, add entire interval amount 
+        d <- d %>% mutate(bene_received = ifelse(i<wage12, (formula_value_cuts[lvl] - formula_value_cuts[lvl-1]) * (formula_bene_levels[lvl]) + bene_received,bene_received))
+        d <- d %>% mutate(wage_allocate = ifelse(i<wage12, wage_allocate - (formula_value_cuts[lvl] - formula_value_cuts[lvl-1]), wage_allocate))
+      }
+    }  
     # last cut 
     d <- d %>% mutate(bene_received = ifelse(formula_value_cuts[len_cuts]<=wage12  & wage_allocate!=0, 
                                              wage_allocate * formula_bene_levels[len_lvls] + bene_received,bene_received))    
