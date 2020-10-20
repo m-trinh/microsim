@@ -484,25 +484,21 @@ class DataCleanerACS:
         # TODO: GUI's default_params.private etc. not updated per user input, not passed to worker_class in GUI
         # TODO: temp solution below - if st=ALL, do it for US Fed gov workers... need a formal fix
         else:
-            dout = self.clean_person_state_data(self.st, cps, chunk_size=chunk_size)
-            dout.to_csv(os.path.join(self.fp_out, "ACS_cleaned_forsimulation_%s_%s.csv" % (self.yr, self.st)),
-                        index=False, header=True)
-        # # all states, private workers eligible
-        # elif self.worker_class['private']:
-        #     for i, st in enumerate(STATE_CODES):
-        #         dout = self.clean_person_state_data(st.lower(), self.worker_class, cps, chunk_size=chunk_size)
-        #         if i == 0:
-        #             dout.to_csv(self.fp_out + "ACS_cleaned_forsimulation_%s_%s.csv" % (self.yr, self.st), index=False,
-        #                         header=True)
-        #         else:
-        #             dout.to_csv(self.fp_out + "ACS_cleaned_forsimulation_%s_%s.csv" % (self.yr, self.st), index=False,
-        #                         mode='a', header=False)
-        # # all states, private workers ineligible, self-emp ineligible, any gov workers eligible
-        # elif not self.worker_class['self_emp'] and \
-        #     (self.worker_class['gov_fed'] or self.worker_class['gov_st'] or self.worker_class['gov_loc']):
-        #     dout = self.clean_person_state_data(self.st, self.worker_class, chunk_size=chunk_size)
-        #     dout.to_csv(self.fp_out + "ACS_cleaned_forsimulation_%s_%s_gov.csv" % (self.yr, self.st), index=False,
-        #                 header=True)
+            # all states, private workers ineligible, self-emp ineligible, any gov workers eligible
+            if not (self.self_emp or self.private) and (self.gov_fed or self.gov_st or self.gov_loc):
+                dout = self.clean_person_state_data(self.st, cps, chunk_size=chunk_size)
+                dout.to_csv(self.fp_out + "ACS_cleaned_forsimulation_%s_%s_gov.csv" % (self.yr, self.st), index=False,
+                            header=True)
+            # all states, private workers eligible
+            else:
+                for i, st in enumerate(STATE_CODES):
+                    dout = self.clean_person_state_data(st.lower(), cps, chunk_size=chunk_size)
+                    if i == 0:
+                        dout.to_csv(self.fp_out + "ACS_cleaned_forsimulation_%s_%s.csv" % (self.yr, self.st), index=False,
+                                    header=True)
+                    else:
+                        dout.to_csv(self.fp_out + "ACS_cleaned_forsimulation_%s_%s.csv" % (self.yr, self.st), index=False,
+                                    mode='a', header=False)
 
 
         t1 = time()
