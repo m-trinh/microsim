@@ -166,9 +166,10 @@ class SimulationEngine:
             os.makedirs(output_directory)
 
         # save meta file of program parameters
+        # param labels
         para_labels = ['State', 'Year', 'Place of Work', 'Minimum Annual Wage', 'Minimum Annual Work Weeks',
-                       'Minimum Annual Work Hours', 'Minimum Employer Size', 'Static Wage Replacement',
-                       'Proposed Wage Replacement Ratio', 'Weekly Benefit Cap', 'Include Private Employees',
+                       'Minimum Annual Work Hours', 'Minimum Employer Size',
+                       'Weekly Benefit Cap', 'Include Private Employees',
                        'Include Goverment Employees, Federal',
                        'Include Goverment Employees, State', 'Include Goverment Employees, Local',
                        'Include Self-employed', 'Simulation Method', 'Share of Dual Receivers',
@@ -176,20 +177,41 @@ class SimulationEngine:
                        'Waiting Period', 'Recollect Benefits of Waiting Period', 'Minimum Leave Length for Recollection',
                        'Dependent Allowance',
                        'Dependent Allowance Profile: Increments of Replacement Ratio by Number of Dependants',
-                       'Clone Factor','Random Seed']
+                       'Clone Factor','Random Seed',]
+        # add wage replacement param labels depending on wage replacement type
+        if params['rrp_flat']:
+            para_labels.append('Wage Replacement Type')
+            para_labels.append('Wage Replacement Rate')
+        else:
+            para_labels.append('Wage Replacement Type')
+            cuts, rates = params['rrp']  # unpack rrp profile
+            para_labels += ['Wage Replacement Rate%s' % x for x in range(1, len(rates) + 1)]
+            para_labels += ['Wage Replacement Cutoff%s' % x for x in range(1, len(rates) + 1)]
+        # add param labels that has sub-cat by leave reason
         para_labels_m = ['Maximum Week of Benefit Receiving',
                          'Take Up Rates']  # type-specific parameters
-
+        # param values
         para_values = [self.st.upper(), self.yr, self.state_of_work, params['elig_wage12'],
                        params['elig_wkswork'], params['elig_yrhours'], params['elig_empsize'],
-                       params['rrp_flat'], params['rrp'],
                        params['wkbene_cap'], params['incl_private'],
                        params['incl_empgov_fed'], params['incl_empgov_st'],
                        params['incl_empgov_loc'], params['incl_empself'], self.clf_name, params['dual_receivers_share'],
                        params['alpha'], params['min_takeup_cpl'],
                        params['wait_period'], params['recollect'], params['min_cfl_recollect'],
                        params['dependency_allowance'], params['dependency_allowance_profile'],
-                       params['clone_factor'], self.random_seed]
+                       params['clone_factor'], self.random_seed,
+                       ]
+        # add wage replacement param values depending on wage replacement type
+        if params['rrp_flat']:
+            para_values.append('Flat')
+            para_values.append(params['rrp'])
+        else:
+            para_values.append('Wage Bracket-Based')
+            cuts, rates = params['rrp']  # unpack rrp profile
+            para_values += rates
+            para_values += cuts
+            para_values.append('Inf') # by default add Inf as the last Cutoff
+        # add param values that has sub-cat by leave reason
         para_values_m = [params['d_maxwk'], params['d_takeup']]
 
         d = pd.DataFrame(para_values, index=para_labels)
