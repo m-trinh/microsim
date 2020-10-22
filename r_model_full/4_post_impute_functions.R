@@ -581,6 +581,7 @@ FORMULA <- function(d, formula_prop_cuts=NULL, formula_value_cuts=NULL, formula_
     #   prev_val=i
     # }
   }
+  
   return(d)
 }
 
