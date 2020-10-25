@@ -175,9 +175,12 @@ class SimulationEngine:
                        'Include Self-employed', 'Simulation Method', 'Share of Dual Receivers',
                        'Alpha', 'Minimum Leave Length Applied',
                        'Waiting Period', 'Recollect Benefits of Waiting Period', 'Minimum Leave Length for Recollection',
-                       'Dependent Allowance',
-                       'Dependent Allowance Profile: Increments of Replacement Ratio by Number of Dependants',
-                       'Clone Factor','Random Seed',]
+                       'Dependent Allowance',]
+        # if dependent allowance is True, add profile (increment rates)
+        if params['dependency_allowance']:
+            para_labels += ['Dependent Allowance Profile: Increments of Replacement Ratio by Number of Dependants%s'
+                            % (i+1) for i, x in enumerate(params['dependency_allowance_profile'])] # Incr Dep1, Incr Dep2..
+        para_labels += ['Clone Factor','Random Seed',]
         # add wage replacement param labels depending on wage replacement type
         if params['rrp_flat']:
             para_labels.append('Wage Replacement Type')
@@ -198,9 +201,12 @@ class SimulationEngine:
                        params['incl_empgov_loc'], params['incl_empself'], self.clf_name, params['dual_receivers_share'],
                        params['alpha'], params['min_takeup_cpl'],
                        params['wait_period'], params['recollect'], params['min_cfl_recollect'],
-                       params['dependency_allowance'], params['dependency_allowance_profile'],
-                       params['clone_factor'], self.random_seed,
+                       params['dependency_allowance'],
                        ]
+        # if dependent allowance is True, add profile (increment rates)
+        if params['dependency_allowance']:
+            para_values += params['dependency_allowance_profile'] # add to para_values each rate but not a single list
+        para_values += [params['clone_factor'], self.random_seed,]
         # add wage replacement param values depending on wage replacement type
         if params['rrp_flat']:
             para_values.append('Flat')
