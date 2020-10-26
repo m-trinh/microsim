@@ -246,7 +246,6 @@ policy_simulation <- function(
     'Minimum Annual Work Weeks' = weeks, 
     'Minimum Annual Work Hours' = ann_hours, 
     'Minimum Employer Size' = minsize, 
-    'Proposed Wage Replacement Ratio' = base_bene_level, 
     'Weekly Benefit Cap' = week_bene_cap, 
     'Include Private Employees' = PRIVATE, 
     'Include Goverment Employees, Federal' = FEDGOV, 
@@ -265,8 +264,15 @@ policy_simulation <- function(
     'Clone Factor' = clone_factor, 
     'Random Seed' = random_seed
   )
+  if (is.null(formula_value_cuts)) {
+    meta_params <- c(meta_params, c('Wage Replacement Type'='Flat','Wage Replacement Rate' = base_bene_level)) 
+  } else {
+    cuts_print <- c(formula_value_cuts,'Inf')
+    meta_params <- c(meta_params,c('Wage Replacement Type'='Wage Bracked-Based', 
+                                   'Wage Replacement Rate' = formula_bene_levels,
+                                   'Wage Replacement Cutoff'= cuts_print))
+  }
   meta_params <- data.frame(meta_params)
- 
   write.table(meta_params, sep=',', file=paste0(out_dir, '/prog_para_',model_start_time,'.csv'), col.names = FALSE)
   bene_take <- data.frame(row.names=c('Maximum Week of Benefit Receiving','Take Up Rates'))
   leave_types <- c("own","matdis","bond","illchild","illspouse","illparent")
@@ -275,8 +281,7 @@ policy_simulation <- function(
     bene_take['Maximum Week of Benefit Receiving',i] <- get(paste0('maxlen_',i))/5
     bene_take['Take Up Rates',i] <- get(paste0(i,'_uptake'))
   }
-  write.table(bene_take, sep=',', file=paste0(out_dir, '/prog_para_', model_start_time,'.csv'), append=TRUE)
-  
+  write.table(bene_take, sep=',', file=paste0(out_dir, '/prog_para_', model_start_time,'.csv'), append=TRUE, col.names = NA)
   
   
   ####################################
