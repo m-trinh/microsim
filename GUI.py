@@ -266,7 +266,7 @@ class MicrosimGUI(Tk):
         params = self.all_params[0]
         main_eligibility = [params.private, params.self_employed, params.fed_employees, params.state_employees,
                             params.local_employees]
-        if self.current_state == 'All' and main_eligibility != [False, False, True, True, True]:
+        if self.current_state == 'All' and main_eligibility[:2] != [False, False]:
             return messagebox.askokcancel(
                 'Warning',
                 'Running the model for all states in a single simulation can cause long runtime, typically 24 hours or '
@@ -673,9 +673,10 @@ class MicrosimGUI(Tk):
 
         # Update simulation engine with the values
         self.sim_engine.set_simulation_params(elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp_flat, rrp,
-                                              wkbene_cap, d_maxwk, d_takeup, incl_private, incl_empgov_fed,
-                                              incl_empgov_st, incl_empgov_loc, incl_empself, needers_fully_participate,
-                                              clone_factor, dual_receivers_share, alpha, min_takeup_cpl, wait_period,
+                                              wkbene_cap, d_maxwk, d_takeup, incl_private, incl_empself,
+                                              incl_empgov_fed, incl_empgov_st, incl_empgov_loc,
+                                              needers_fully_participate, clone_factor, dual_receivers_share,
+                                              alpha, min_takeup_cpl, wait_period,
                                               recollect, min_cfl_recollect, dependency_allowance,
                                               dependency_allowance_profile, leave_types=leave_types, sim_num=None)
 

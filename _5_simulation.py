@@ -113,7 +113,7 @@ class SimulationEngine:
         self.pow_pop_multiplier = pow_pop_multiplier  # based on 2012-2016 ACS, see project acs_all
 
     def set_simulation_params(self, elig_wage12, elig_wkswork, elig_yrhours, elig_empsize, rrp_flat, rrp, wkbene_cap, d_maxwk,
-                              d_takeup, incl_private, incl_empgov_fed, incl_empgov_st, incl_empgov_loc, incl_empself,
+                              d_takeup, incl_private, incl_empself, incl_empgov_fed, incl_empgov_st, incl_empgov_loc,
                               needers_fully_participate, clone_factor, dual_receivers_share, alpha,
                               min_takeup_cpl, wait_period, recollect, min_cfl_recollect,
                               dependency_allowance, dependency_allowance_profile, leave_types=None, sim_num=None):
@@ -166,30 +166,58 @@ class SimulationEngine:
             os.makedirs(output_directory)
 
         # save meta file of program parameters
+        # param labels
         para_labels = ['State', 'Year', 'Place of Work', 'Minimum Annual Wage', 'Minimum Annual Work Weeks',
-                       'Minimum Annual Work Hours', 'Minimum Employer Size', 'Static Wage Replacement',
-                       'Proposed Wage Replacement Ratio', 'Weekly Benefit Cap', 'Include Private Employees',
+                       'Minimum Annual Work Hours', 'Minimum Employer Size',
+                       'Weekly Benefit Cap', 'Include Private Employees',
                        'Include Goverment Employees, Federal',
                        'Include Goverment Employees, State', 'Include Goverment Employees, Local',
                        'Include Self-employed', 'Simulation Method', 'Share of Dual Receivers',
                        'Alpha', 'Minimum Leave Length Applied',
                        'Waiting Period', 'Recollect Benefits of Waiting Period', 'Minimum Leave Length for Recollection',
-                       'Dependent Allowance',
-                       'Dependent Allowance Profile: Increments of Replacement Ratio by Number of Dependants',
-                       'Clone Factor','Random Seed']
+                       'Dependent Allowance',]
+        # if dependent allowance is True, add profile (increment rates)
+        if params['dependency_allowance']:
+            para_labels += ['Dependent Allowance Profile: Increments of Replacement Ratio by Number of Dependants%s'
+                            % (i+1) for i, x in enumerate(params['dependency_allowance_profile'])] # Incr Dep1, Incr Dep2..
+        para_labels += ['Clone Factor','Random Seed',]
+        # add wage replacement param labels depending on wage replacement type
+        if params['rrp_flat']:
+            para_labels.append('Wage Replacement Type')
+            para_labels.append('Wage Replacement Rate')
+        else:
+            para_labels.append('Wage Replacement Type')
+            cuts, rates = params['rrp']  # unpack rrp profile
+            para_labels += ['Wage Replacement Rate%s' % x for x in range(1, len(rates) + 1)]
+            para_labels += ['Wage Replacement Cutoff%s' % x for x in range(1, len(rates) + 1)]
+        # add param labels that has sub-cat by leave reason
         para_labels_m = ['Maximum Week of Benefit Receiving',
                          'Take Up Rates']  # type-specific parameters
-
+        # param values
         para_values = [self.st.upper(), self.yr, self.state_of_work, params['elig_wage12'],
                        params['elig_wkswork'], params['elig_yrhours'], params['elig_empsize'],
-                       params['rrp_flat'], params['rrp'],
                        params['wkbene_cap'], params['incl_private'],
                        params['incl_empgov_fed'], params['incl_empgov_st'],
                        params['incl_empgov_loc'], params['incl_empself'], self.clf_name, params['dual_receivers_share'],
                        params['alpha'], params['min_takeup_cpl'],
                        params['wait_period'], params['recollect'], params['min_cfl_recollect'],
-                       params['dependency_allowance'], params['dependency_allowance_profile'],
-                       params['clone_factor'], self.random_seed]
+                       params['dependency_allowance'],
+                       ]
+        # if dependent allowance is True, add profile (increment rates)
+        if params['dependency_allowance']:
+            para_values += params['dependency_allowance_profile'] # add to para_values each rate but not a single list
+        para_values += [params['clone_factor'], self.random_seed,]
+        # add wage replacement param values depending on wage replacement type
+        if params['rrp_flat']:
+            para_values.append('Flat')
+            para_values.append(params['rrp'])
+        else:
+            para_values.append('Wage Bracket-Based')
+            cuts, rates = params['rrp']  # unpack rrp profile
+            para_values += rates
+            para_values += cuts
+            para_values.append('Inf') # by default add Inf as the last Cutoff
+        # add param values that has sub-cat by leave reason
         para_values_m = [params['d_maxwk'], params['d_takeup']]
 
         d = pd.DataFrame(para_values, index=para_labels)
@@ -230,9 +258,10 @@ class SimulationEngine:
                           'value': 'Cleaning ACS data. State chosen = %s. Chunk size = 100000 ACS rows' % self.st})
         # set yr_adjinc = self.fmla_wave to inflation-adjust
         dca = DataCleanerACS(self.st, self.yr, self.fp_acsh_in, self.fp_acsp_in, self.fp_acs_out, self.state_of_work,
-                             self.random_state, self.fmla_wave, self.prog_para[0]['incl_private'],
+                             self.random_state, self.fmla_wave,
+                             self.prog_para[0]['incl_private'], self.prog_para[0]['incl_empself'],
                              self.prog_para[0]['incl_empgov_fed'], self.prog_para[0]['incl_empgov_st'],
-                             self.prog_para[0]['incl_empgov_loc'], self.prog_para[0]['incl_empself'])
+                             self.prog_para[0]['incl_empgov_loc'])
         message = dca.clean_person_data(self.fp_cps_in)
         self.__put_queue({'type': 'progress', 'engine': None, 'value': 50})
         self.__put_queue({'type': 'message', 'engine': None, 'value': message})
@@ -247,8 +276,19 @@ class SimulationEngine:
         d = pd.read_csv(self.fp_fmla_out, low_memory=False)
         with open(self.fp_length_distribution_out) as f:
             flen = json.load(f)
+        # acs_fp_in depends worker class
+        print('------TEST prog paara -------', self.prog_para)
+        # if private included, label with year and state name, or 'all'
+        if self.prog_para[0]['incl_private']:
+            acs_fp_in = os.path.join(self.fp_acs_out, 'ACS_cleaned_forsimulation_%s_%s.csv' % (self.yr, self.st))
+        # if private not included, self-emp not included, only gov workers (all or some) included
+        # label with year and 'gov'
+        elif not self.prog_para[0]['incl_empself'] and \
+            (self.prog_para[0]['incl_empgov_fed'] or
+             self.prog_para[0]['incl_empgov_st'] or
+             self.prog_para[0]['incl_empgov_loc']):
+            acs_fp_in = os.path.join(self.fp_acs_out, 'ACS_cleaned_forsimulation_%s_gov.csv' % self.yr)
 
-        acs_fp_in = os.path.join(self.fp_acs_out, 'ACS_cleaned_forsimulation_%s_%s.csv' % (self.yr, self.st))
         acs_fp_out = '%s/acs_sim_%s_%s.csv' % (self.output_directories[sim_num], self.st, self.out_id)
         append = False
 

@@ -12,15 +12,18 @@ import matplotlib
 from Utils import format_chart
 
 ## Set up local directory
-fp_out = 'E:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_3/ib3_v3/'
+fp_out = 'E:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_3/ib3_v3/test/'
 
 ## Read in post-sim ACS (MD using CA para, Logit Regularized, seed=12345)
-tag, method = '20201007_170151', 'glm' # tag = '20201006_093049' for xgb, Simulation method label (in output PNG file name)
+tag = '20201007_170151' # label for timestamp
+method = 'glm' # label for sim method
 #tag, method = '20201006_093049', 'xgb'
 st = 'md'
 pow_multiplier = 1.02 # set to 1 if State of Work is unchecked in GUI
 # read sim output file for analysis, and some basic set up
-acs = pd.read_csv('./output/output_%s_main simulation/acs_sim_%s_%s.csv' % (tag,st, tag))
+fp_sim_out = './output/'
+acs = pd.read_csv(fp_sim_out + 'output_%s_main simulation/acs_sim_%s_%s.csv' % (tag,st, tag))
+
 acs['PWGTP_POW'] = [int(x) for x in (acs['PWGTP']*pow_multiplier)]
 types = ['own', 'matdis', 'bond', 'illchild', 'illspouse', 'illparent']
 # low wage12 (wage12<=30k)
