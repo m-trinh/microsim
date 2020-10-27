@@ -36,10 +36,10 @@ def download_url_and_extract(dir_save, file_type, yr, st, st_code, chunk_size=12
     # extract CSV from ZIP
     archive = zipfile.ZipFile(fp_zip_save)
     for file in archive.namelist():
-        if file.startswith('psam'):
+        if file.startswith('ss'):
             archive.extract(file, dir_save)
     # rename CSV
-    os.rename(dir_save + 'psam_%s%s.csv' % (file_type, st_code), dir_save +'ss%s%s%s.csv' % (yr, file_type, st))
+    # os.rename(dir_save + 'psam_%s%s.csv' % (file_type, st_code), dir_save +'ss%s%s%s.csv' % (yr, file_type, st))
     return None
 
 ## Download and Extract CSV
@@ -48,12 +48,12 @@ for st, st_code in dct_fips.items():
     # a random pause to let server rest
     time.sleep(randint(5, 10))
     # set download state list
-    sts = ['ak', 'al', 'ar'] # test
-    #sts = dct_fips.keys()
+    #sts = ['ak', 'al', 'ar'] # test
+    sts = dct_fips.keys()
     # download
     if st in sts:
         print('---------- file type = %s, now working on state %s ... -----------' % (file_type, st.upper()))
-        yr = '18'
+        yr = '16'
         fp_zip_save = dir_save + 'ss%sh%s.zip' % (yr, st)
         download_url_and_extract(dir_save, file_type, yr, st, st_code)
         print('---------- State %s CSV file successfully extracted -----------' % st.upper())
