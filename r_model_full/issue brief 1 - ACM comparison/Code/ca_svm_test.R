@@ -1,0 +1,43 @@
+source("0_master_execution_function.R")
+meth <- "Support Vector Machine"
+timestart <<- Sys.time()
+nj <- policy_simulation(
+  # Policy simulation parameters
+  state='NJ',
+  base_bene_level=.66,
+  impute_method=meth,
+  place_of_work = TRUE,
+  dual_receiver = 1,
+  ext_resp_len = TRUE,
+  ext_base_effect=TRUE,
+  fmla_protect=FALSE,
+  topoff_rate=0, 
+  topoff_minlength=40, 
+  rr_sensitive_leave_len=FALSE,
+  bene_effect=FALSE, 
+  wait_period=5, 
+  week_bene_cap=594, 
+  week_bene_min=0,
+  alpha=0,
+  own_uptake=.0250, 
+  matdis_uptake=.0088, 
+  bond_uptake=.0092, 
+  illchild_uptake=.0004, 
+  illspouse_uptake=.0005, 
+  illparent_uptake=.0007,
+  maxlen_PFL= 30, 
+  maxlen_DI=130, 
+  maxlen_own =130, 
+  maxlen_matdis =130, 
+  maxlen_bond =30, 
+  maxlen_illparent=30,
+  maxlen_illspouse =30, 
+  maxlen_illchild =30, 
+  maxlen_total=130, 
+  earnings=8400,  
+  random_seed=12312,
+  # output parameters - has no effect on simulation, just how output is created
+  saveCSV=TRUE,
+  makelog=TRUE,
+  output=paste0("NJ_",meth,"_issue_brief_1_11092020"),
+  addl_vars=c('DI_plen'))

@@ -11,4 +11,4 @@ cpl_illchild,Ill Child,Average weeks received benefits for ill child leave,3.7,3
 cpl_illparent,Ill Parent,Average weeks received benefits for ill parent leave,7,7,7,Actual
 cpl_bond,Child Bonding,Average weeks received benefits for bonding with new child leave,5.7,5.7,5.7,Actual
 DI_plen,Own/Maternal ,Average weeks for own illness or maternal disability leave,15.8,15.8,15.8,Actual
-annual_benefit_all,Benefits,"Benefits Received ($), total",5169808997,506940000,169506473,Actual
+annual_benefit_all,Benefits,"Benefits Received ($), total",5019923417,492706433,159854345,Actual

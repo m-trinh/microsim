@@ -43,7 +43,7 @@ d_se <- melt(impaq[c('var','CA_SE','NJ_SE','RI_SE','model')])
 d_se <- rbind(d_se,melt(ACM[c('var','CA_SE','NJ_SE','RI_SE','model')]))
 temp_se <- melt(actual[c('var','CA','NJ','RI','model')])
 temp_se$variable <- paste0(temp_se$variable,'_SE')
-temp_se$value <- 0
+temp_se$value <- NA
 d_se <- rbind(d_se,temp_se)
 names(d_se)[names(d_se) == "variable"] <- "state"
 
@@ -92,7 +92,7 @@ ggplot(data=d[d['var']=='annual_benefit_all',], aes(x=state, y=value,fill=model)
         text=element_text(size = 11)) +
   # Data labels
   geom_text(size=4,position = position_dodge(width= 1),aes(y=value+250000000,
-                label=paste0(format(value/1000000, big.mark=",", nsmall=0, digits=2, scientific=FALSE)
+                label=paste0(format(value/1000000, big.mark=",", nsmall=1, digits=2, scientific=FALSE)
                               ))) +
   geom_errorbar(position = position_dodge(width= 1),aes(ymin=value-se_value*1.96, ymax=value+se_value*1.96), width=.2) +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
@@ -100,7 +100,7 @@ ggplot(data=d[d['var']=='annual_benefit_all',], aes(x=state, y=value,fill=model)
   scale_fill_manual(values=c("#820023","#B2A97E",'grey')) + 
   xlab("State")+ theme(legend.title = element_blank(), legend.position = c(.75, 1), legend.justification = c(0, 1))
 
-ggsave(file="./exhibits/IB1_benefit_outlay.png", width=8, dpi=300)
+ggsave(file="./exhibits/IB1_benefit_outlay.png", width=9, height=5, dpi=300)
 
 # Exhibit 2 ---- Comparing Total Eligible Workers
 ggplot(data=d[d['var']=='eligworker',], aes(x=state, y=value,fill=model)) +
@@ -118,7 +118,7 @@ ggplot(data=d[d['var']=='eligworker',], aes(x=state, y=value,fill=model)) +
         text=element_text(size = 11)) +
   # Data labels
   geom_text(size=4,position = position_dodge(width= 1),aes(y=value+1000000,
-                                                       label=paste0(format(value/1000000, big.mark=",", nsmall=1, digits=2, scientific=FALSE)
+                                                       label=paste0(format(value/1000000, big.mark=",", nsmall=1, digits=1, scientific=FALSE)
                                                                     ))) +
   geom_errorbar(position = position_dodge(width= 1),aes(ymin=value-se_value*1.96, ymax=value+se_value*1.96), width=.2)+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
@@ -126,7 +126,7 @@ ggplot(data=d[d['var']=='eligworker',], aes(x=state, y=value,fill=model)) +
   scale_fill_manual(values=c("#820023","#B2A97E",'grey')) + 
   xlab("State")+ theme(legend.title = element_blank(), legend.position = c(.75, 1), legend.justification = c(0, 1))
         
-ggsave(file="./exhibits/IB2_eligible_workers.png", width=8, dpi=300)
+ggsave(file="./exhibits/IB2_eligible_workers.png", width=9, height=5, dpi=300)
 
 # Exhibit 3 ---- California, Number of leave takers
 ggplot(data=d[d['state']=='CA' & grepl('takeup',d$var),], aes(x=Leave_Type, y=value,fill=model)) +
@@ -144,7 +144,7 @@ ggplot(data=d[d['state']=='CA' & grepl('takeup',d$var),], aes(x=Leave_Type, y=va
         text=element_text(size = 11)) +
   # Data labels
   geom_text(size=4,position = position_dodge(width= 1),aes(y=value+25000,
-                                                       label=paste0(format(value/1000, big.mark=",", nsmall=0, digits=2, scientific=FALSE)
+                                                       label=paste0(format(value/1000, big.mark=",", nsmall=1, digits=2, scientific=FALSE)
                                                                     ))) +
   geom_errorbar(position = position_dodge(width= 1),aes(ymin=value-se_value*1.96, ymax=value+se_value*1.96), width=.2) +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
@@ -153,7 +153,7 @@ ggplot(data=d[d['state']=='CA' & grepl('takeup',d$var),], aes(x=Leave_Type, y=va
   xlab("Leave Type")+ theme(legend.title = element_blank(), legend.position = c(.75, 1), legend.justification = c(0, 1))
         
 
-ggsave(file="./exhibits/IB3_CA_Leave_Takers.png", width=8, dpi=300)
+ggsave(file="./exhibits/IB3_CA_Leave_Takers.png", width=9, height=5, dpi=300)
 
 # Exhibit 5 ---- New Jersey, Number of leave takers
 ggplot(data=d[d['state']=='NJ' & grepl('takeup',d$var),], aes(x=Leave_Type, y=value,fill=model)) +
@@ -171,7 +171,7 @@ ggplot(data=d[d['state']=='NJ' & grepl('takeup',d$var),], aes(x=Leave_Type, y=va
         text=element_text(size = 11)) +
   # Data labels
   geom_text(size=4,position = position_dodge(width= 1),aes(y=value+4000,
-                                                    label=paste0(format(value/1000, big.mark=",", nsmall=0, digits=2, scientific=FALSE)
+                                                    label=paste0(format(value/1000, big.mark=",", nsmall=1, digits=2, scientific=FALSE)
                                                                  ))) +
   geom_errorbar(position = position_dodge(width= 1),aes(ymin=value-se_value*1.96, ymax=value+se_value*1.96), width=.2)+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
@@ -180,7 +180,7 @@ ggplot(data=d[d['state']=='NJ' & grepl('takeup',d$var),], aes(x=Leave_Type, y=va
   xlab("Leave Type")+ theme(legend.title = element_blank(), legend.position = c(.75, 1), legend.justification = c(0, 1))
         
 
-ggsave(file="./exhibits/IB5_NJ_Leave_Takers.png", width=8, dpi=300)
+ggsave(file="./exhibits/IB5_NJ_Leave_Takers.png", width=9, height=5, dpi=300)
 
 # Exhibit 6 ---- New Jersey, leave length
 ggplot(data=d[d['state']=='NJ' & (grepl('cpl',d$var) | grepl('DI_plen',d$var)),], aes(x=Leave_Type, y=value,fill=model)) +
@@ -206,7 +206,7 @@ ggplot(data=d[d['state']=='NJ' & (grepl('cpl',d$var) | grepl('DI_plen',d$var)),]
   xlab("Leave Type") + theme(legend.title = element_blank(), legend.position = c(.75, 1), legend.justification = c(0, 1))
         
 
-ggsave(file="./exhibits/IB6_NJ_Leave_Length.png", width=8, dpi=300)
+ggsave(file="./exhibits/IB6_NJ_Leave_Length.png", width=9, height=5, dpi=300)
 
 # Exhibit 7 ---- Rhode Island, Number of leave takers
 ggplot(data=d[d['state']=='RI' & grepl('takeup',d$var),], aes(x=Leave_Type, y=value,fill=model)) +
@@ -233,5 +233,5 @@ ggplot(data=d[d['state']=='RI' & grepl('takeup',d$var),], aes(x=Leave_Type, y=va
   xlab("Leave Type") + theme(legend.title = element_blank(), legend.position = c(.75, 1), legend.justification = c(0, 1))
         
 
-ggsave(file="./exhibits/IB7_RI_Leave_Takers.png", width=8, dpi=300)
+ggsave(file="./exhibits/IB7_RI_Leave_Takers.png", width=9, height=5, dpi=300)
 
