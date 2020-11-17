@@ -12,7 +12,7 @@ import matplotlib
 from Utils import format_chart
 
 ## Set up local directory
-fp_out = 'E:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_3/ib3_v3/test/'
+fp_out = 'E:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_3/ib3_v4/exhibits/'
 
 ## Read in post-sim ACS (MD using CA para, Logit Regularized, seed=12345)
 tag = '20201007_170151' # label for timestamp
@@ -37,39 +37,44 @@ acs['low_wage12'] = np.where(acs['wage12']<=30000, 1, 0)
 # no-program taker status: taker
 # with program taker status: cfl_type > 0  for any type
 acs['taker_cf'] = [int(x>0) for x in np.nanmax(acs[['cfl_%s' % t for t in types]].values, axis=1)]
-
 # top code wage
 thre = np.percentile(acs[acs['taker_cf']==1]['wage12'], 95)
 acs[(acs['taker_cf']==1) & (acs['wage12']<=thre)]['wage12'].hist()
 
-# Number of leave takers, by income group
+binwidth=10000
+takers = acs[acs['taker']==1][['PWGTP_POW']].groupby(pd.cut(acs[acs['taker']==1]['wage12'],
+                                                        np.arange(0, thre+binwidth, binwidth))).sum()
+takers.columns = ['n_takers']
+takers_cf = acs[acs['taker_cf']==1][['PWGTP_POW']].groupby(pd.cut(acs[acs['taker_cf']==1]['wage12'],
+                                                        np.arange(0, thre+binwidth, binwidth))).sum()
+takers = takers.join(takers_cf)
+takers.columns = ['n_takers', 'n_takers_cf']
+# plot
 # title = 'Number of leave takers, by annual wage income group'
 title = ''
-xs = {
-    'no_prog': acs[(acs['taker']==1) & (acs['wage12']<=thre)]['wage12'],
-    'prog': acs[(acs['taker_cf']==1) & (acs['wage12']<=thre)]['wage12']
-}
-wts = {
-    'no_prog': acs[(acs['taker']==1) & (acs['wage12']<=thre)]['PWGTP_POW'],
-    'prog': acs[(acs['taker_cf']==1) & (acs['wage12']<=thre)]['PWGTP_POW']
-}
-binwidth = 5000
-fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
-bar1 = plt.hist(xs['prog'], width=binwidth/2, align='mid',
-                weights=wts['prog'], bins=range(0, int(thre) + binwidth, binwidth), color='indianred',
-                alpha=0.8, edgecolor='black', label='With Hypothetical CA Program') #
-bar2 = plt.hist(xs['no_prog'],
-                weights=wts['no_prog'], bins=range(0, int(thre) + binwidth, binwidth), color='lightgrey',
-                alpha=0.8, edgecolor='black', label='Without Paid Leave Program') #
-plt.legend()
+ys = takers[['n_takers', 'n_takers_cf']]
+xs = np.arange(len(ys))
+fig, ax = plt.subplots(figsize=(10, 6), dpi=100)
+#plt.bar(xs, ys, color='wheat', alpha=1, edgecolor='black') #
+width=0.4
+bar1 = ax.bar(xs - width / 2, ys['n_takers'], width, align='center', capsize=5, color='lightgrey',
+              edgecolor='black', label='Unpaid FMLA Scenario')
+bar2 = ax.bar(xs + width / 2, ys['n_takers_cf'], width, align='center', capsize=5, color='indianred',
+              edgecolor='black', label='Paid Leave Program Scenario')
 ax.set_ylabel('Number of workers')
 ax.set_xlabel('$ Annual Wage Income')
+x_tick_labels = [str(int(x.left/1000)) + '-' + str(int(x.right/1000)) + 'k' for x in takers['n_takers'].index]
+ax.set_xticks(xs)
+ax.set_xticklabels(x_tick_labels)
 ax.yaxis.grid(False)
+plt.legend()
 format_chart(fig, ax, title,  bg_color='white', fg_color='k')
 plt.savefig(fp_out + 'MD_CA_%s_takers.png' % method, facecolor='white', edgecolor='white') #
 # get exact increase of total leave takers
 x0, x1 = acs[acs['taker']==1]['PWGTP_POW'].sum(), acs[acs['taker_cf']==1]['PWGTP_POW'].sum()
 print('Increase in total number of leave takers: %s percent, from %s to %s' % (round((x1-x0)/x0*100, 1), x0, x1))
+
+
 
 # ----------
 # Plot - Exhibit 2
@@ -139,9 +144,9 @@ ys['len'] = dct_taker['len'].values()
 ys['cfl'] = dct_taker['cfl'].values()
 width = 0.4
 bar_l = ax.bar(ind - width / 2, ys['len'] , width, align='center', capsize=5,
-               color='lightgrey', alpha=0.8, edgecolor='black', label='Without Program')
+               color='lightgrey', alpha=0.8, edgecolor='black', label='Unpaid FMLA Scenario')
 bar_h = ax.bar(ind + width / 2, ys['cfl'] , width, align='center', capsize=5,
-               color='indianred', alpha=0.8, edgecolor='black', label='With Program')
+               color='indianred', alpha=0.8, edgecolor='black', label='Paid Leave Program Scenario')
 plt.legend()
 ax.set_ylabel('Number of workers')
 ax.set_xticks(ind)
@@ -266,9 +271,9 @@ ys['low_wage'] = dct_bene['low_wage'].values()
 ys['high_wage'] = dct_bene['high_wage'].values()
 width = 0.4
 bar_l = ax.bar(ind - width / 2, ys['low_wage'] , width, align='center', capsize=5,
-               color='maroon', edgecolor='black', label='Annual Wage Earnings <= $30,000')
+               color='maroon', alpha=0.7, edgecolor='black', label='Annual Wage Earnings ≤ $30,000')
 bar_h = ax.bar(ind + width / 2, ys['high_wage'] , width, align='center', capsize=5,
-               color='darksalmon', edgecolor='black', label='Annual Wage Earnings > $30,000')
+               color='darksalmon', alpha=0.5, edgecolor='black', label='Annual Wage Earnings > $30,000')
 plt.legend()
 ax.set_ylabel('Number of workers')
 ax.set_xticks(ind)
