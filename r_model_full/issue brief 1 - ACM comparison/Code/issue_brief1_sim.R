@@ -47,7 +47,7 @@
                             maxlen_illchild =20, 
                             maxlen_total=150, 
                             earnings=3840, 
-                            random_seed=12317,
+                            random_seed=12312,
                             # output parameters - has no effect on simulation, just how output is created
                             saveCSV=TRUE, 
                             output=paste0("RI_",meth,"issue_brief_1_111020"),

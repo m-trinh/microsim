@@ -11,9 +11,9 @@ library('ggplot2')
 source("6_output_analysis_functions.R")
 
 # load simulated csvs for each state - FOR REPLICATION, THESE WILL NEED TO BE POINTED TO THE OUTPUT FILES CREATED BY SIMULATIONS RAN IN issue_brief1_sim.R
-ri <- read.csv('C:/Users/lpatterson/AnacondaProjects/microsim/output/output_20201111_221015/RI_Logistic Regression GLMissue_brief_1_111020.csv')
-ca <- read.csv('C:/Users/lpatterson/AnacondaProjects/microsim/output/output_20201111_221825/CA_Logistic Regression GLMissue_brief_1_111020.csv')
-nj <- read.csv('C:/Users/lpatterson/AnacondaProjects/microsim/output/output_20201111_221213/NJ_Logistic Regression GLMissue_brief_1_111020.csv')
+ri <- read.csv('C:/Users/lpatterson/AnacondaProjects/microsim/output/output_20201118_120358/RI_Logistic Regression GLMissue_brief_1_111020.csv')
+ca <- read.csv('C:/Users/lpatterson/AnacondaProjects/microsim/output/output_20201117_174910/CA_Logistic Regression GLMissue_brief_1_111020.csv')
+nj <- read.csv('C:/Users/lpatterson/AnacondaProjects/microsim/output/output_20201117_174503/NJ_Logistic Regression GLMissue_brief_1_111020.csv')
 # ri <- read.csv('C:/Users/lsp52/AnacondaProjects/microsim/output/output_20200915_170429/RI_Logistic Regression GLMissue_brief_1_091120.csv')
 # ca <- read.csv('C:/Users/lsp52/AnacondaProjects/microsim/output/output_20200915_162527/CA_Logistic Regression GLMissue_brief_1_091120.csv')
 # nj <- read.csv('C:/Users/lsp52/AnacondaProjects/microsim/output/output_20200915_162229/NJ_Logistic Regression GLMissue_brief_1_091120.csv')
