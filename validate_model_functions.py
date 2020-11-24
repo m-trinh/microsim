@@ -540,27 +540,50 @@ def plot_sim_costs(sts, costs, add_title=False, savefig=None, figsize=(18.5, 10)
         plt.savefig(dir_out + 'program_outlay.png', facecolor='white', edgecolor='grey') #
     return None
 
-# get wage percentils data for given state and leave type, for all sim methods
-def get_wage_pcts(dir_sim_out, st, leave_type, methods):
-    wages = {}
+# get continuous variable percentiles data for given state and leave type, for all sim methods
+def get_var_pcts(var, dir_sim_out, st, leave_type, methods):
+    # var: col name of variable of interest in post-sim ACS
+    vars = {}
     for method in methods:
         fp = dir_sim_out + '%s_%s/' % (st, method)
         fs = [f for f in listdir(fp) if isfile(join(fp, f))]
         f_acs = [f for f in fs if f[:7]=='acs_sim'][0]
         acs = pd.read_csv(fp + f_acs)
-        wage_col = acs[(acs['takeup_%s' % leave_type] == 1)]['wage12']
-        stats = wage_col.describe()
-        stats['5%'] = np.percentile(wage_col, 5)
-        stats['90%'] = np.percentile(wage_col, 90)
-        wages[method] = stats
-    wages = pd.DataFrame.from_dict(wages)
-    wages = wages[methods] # order df to match order in list methods for proper labeling in plot
-    wage_pcts = wages.loc[['5%','25%','50%','75%','90%'],]
+        # create columns if needed
+        if var=='cpl_all':
+            acs[var] = [x.sum() for x in acs[['cpl_own', 'cpl_matdis', 'cpl_bond',
+                                'cpl_illchild', 'cpl_illspouse', 'cpl_illparent']].values]
+        var_col = acs[(acs['takeup_%s' % leave_type] == 1)][var]
+        stats = var_col.describe()
+        stats['5%'] = np.percentile(var_col, 5)
+        stats['90%'] = np.percentile(var_col, 90)
+        vars[method] = stats
+    vars = pd.DataFrame.from_dict(vars)
+    vars = vars[methods] # order df to match order in list methods for proper labeling in plot
+    var_pcts = vars.loc[['5%','25%','50%','75%','90%'],]
 
-    return wage_pcts
+    return var_pcts
 
-# plot wage percentils for given state and leave type, for all sim methods
+# get average of binary variable given state and leave type, for all sim methods
+def get_var_avg(var, dir_sim_out, st, leave_type, methods):
+    # var: col name of variable of interest in post-sim ACS
+    vars = {}
+    for method in methods:
+        fp = dir_sim_out + '%s_%s/' % (st, method)
+        fs = [f for f in listdir(fp) if isfile(join(fp, f))]
+        f_acs = [f for f in fs if f[:7]=='acs_sim'][0]
+        acs = pd.read_csv(fp + f_acs)
+        var_col = acs[(acs['takeup_%s' % leave_type] == 1)][var]
+        vars[method] = var_col.mean()
+    vars = pd.DataFrame.from_dict(vars, orient='index')
+    vars = vars.T
+    var_avg= vars[methods] # order df to match order in list methods for proper labeling in plot
+
+    return var_avg
+
+# plot wage percentiles for given state and leave type, for all sim methods
 def plot_wage_pcts(wage_pcts, st, leave_type, methods, add_title=False, savefig=None, figsize=(12, 10)):
+    # leave_type - only used for labeling and filename
     title = ''
     if add_title:
         title = 'Wage Percentiles (5%, 25%, 50%, 75%, 90%) ' \
@@ -594,6 +617,7 @@ def plot_wage_pcts(wage_pcts, st, leave_type, methods, add_title=False, savefig=
     ax.set_xticklabels(
         ('Logit GLM', 'Logit Regularized', 'KNN', 'Naive Bayes', 'Random Forest', 'XGB', 'Ridge', 'SVC'))
     ax.set_ylabel('Annual Wage Earnings, Dollars')
+    ax.set_xlabel('Simulation Method', fontsize=10)
     ax.get_yaxis().set_major_formatter(plt.FuncFormatter(lambda x, loc: "{:,}".format(int(x))))
     format_chart(fig, ax, title, bg_color='white', fg_color='k')
 
@@ -602,3 +626,79 @@ def plot_wage_pcts(wage_pcts, st, leave_type, methods, add_title=False, savefig=
         # save
         plt.savefig(dir_out + 'wage_percentiles_%s_%s.png' % (st, leave_type), facecolor='white', edgecolor='grey') #
     return None
+
+
+# plot CPL (covered-by-program lengths) for given state and leave type, for all sim methods
+def plot_cpl_pcts(cpl_pcts, st, leave_type, methods, add_title=False, savefig=None, figsize=(12, 10)):
+    # leave_type - only used for labeling and filename
+    title = ''
+    if add_title:
+        title = 'Leave Length under Program Percentiles (5%, 25%, 50%, 75%, 90%) ' \
+                'for Uptakers in %s, %s' % (st.upper(), leave_type.capitalize())
+
+    fig, ax = plt.subplots(figsize=figsize, dpi=100)
+    b = ax.boxplot(cpl_pcts.T, whis='range', patch_artist=True,
+                   boxprops=dict(facecolor="lightblue",
+                                 color="lightblue"),
+                   medianprops=dict(color="steelblue"),
+                   )
+    # make a dict from lines (positions) on a boxplot to percentile values (5%, 25%, etc).
+    lines = []
+    for element in ['whiskers', 'medians', 'caps']:
+        lines += b[element][:int(len(b[element]) / len(methods))]
+    dct_pcts = dict(zip(lines, [' ' * 4 + x for x in ['25%', '75%', '50%', '5%', '90%']]))
+    for line in lines:
+        # Get the position of the element. y is the label you want
+        (x_l, y), (x_r, _) = line.get_xydata()
+        # Make sure datapoints exist
+        # (I've been working with intervals, should not be problem for this case)
+        if not np.isnan(y):
+            x_line_center = x_l + (x_r - x_l) / 2
+            y_line_center = y  # Since it's a line and it's horizontal
+            # overlay the value:  on the line, from center to right
+            ax.text(x_line_center, y_line_center,  # Position
+                    dct_pcts[line],  # Value (3f = 3 decimal float)
+                    verticalalignment='bottom',  # vertical position of data label
+                    horizontalalignment='left',
+                    fontsize=9)
+    ax.set_xticklabels(
+        ('Logit GLM', 'Logit Regularized', 'KNN', 'Naive Bayes', 'Random Forest', 'XGB', 'Ridge', 'SVC'))
+    ax.set_ylabel('Leave Length under Program, Days')
+    ax.set_xlabel('Simulation Method', fontsize=10)
+    ax.get_yaxis().set_major_formatter(plt.FuncFormatter(lambda x, loc: "{:,}".format(int(x))))
+    format_chart(fig, ax, title, bg_color='white', fg_color='k')
+
+    if savefig is not None:
+        dir_out = savefig
+        # save
+        plt.savefig(dir_out + 'cpl_percentiles_%s_%s.png' % (st, leave_type), facecolor='white', edgecolor='grey') #
+    return None
+
+
+# plot resp_len (status of responding to program by taking longer leaves) for all sim methods
+def plot_resp_len(ys, st, leave_type, methods, add_title=False, savefig=None, figsize=(12, 10)):
+    # ys: values to be plotted = average resp_len value of uptakers
+    # leave_type - only used for labeling and filename
+    title = ''
+    if add_title:
+        title = 'Proportion of Uptakers in %s with Longer Leave Lengths after Program Implementation, %s' \
+                % (st.upper(), leave_type.capitalize())
+
+    fig, ax = plt.subplots(figsize=figsize, dpi=100)
+    ind = np.arange(len(ys))
+    width = 0.2
+    ax.bar(ind, ys, width, align='center', capsize=5, color='silver', ecolor='grey')
+    ax.set_xticks(ind)
+    ax.set_xticklabels(
+        ('Logit GLM', 'Logit Regularized', 'KNN', 'Naive Bayes', 'Random Forest', 'XGB', 'Ridge', 'SVC'))
+    ax.set_ylabel('Proportion of Workers')
+    ax.set_xlabel('Simulation Method', fontsize=10)
+    ax.get_yaxis().set_major_formatter(plt.FuncFormatter(lambda x, loc: "{:.0%}".format(x)))
+    format_chart(fig, ax, title, bg_color='white', fg_color='k')
+
+    if savefig is not None:
+        dir_out = savefig
+        # save
+        plt.savefig(dir_out + 'resp_len_%s_%s.png' % (st, leave_type), facecolor='white', edgecolor='grey') #
+    return None
+plot_resp_len(ys, st, t, methods, add_title=False, savefig=dir_out, figsize=(9, 7.5))

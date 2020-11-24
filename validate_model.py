@@ -68,13 +68,24 @@ costs = get_sim_costs(dir_sim_out, sts, methods)
 # plot simulated costs by state and methods
 plot_sim_costs(sts, costs, add_title=False, savefig=dir_out, figsize=(9, 7.5))
 
-# get wage12 of uptakers for all sim methods, given state and leave type (CA, own)
+# check what are causing variation in outlay estimates across simulation methods
+# use a big state (CA) and a 'big' leave reason (own) as example
+# consider wage (wage12), covered-by-program length (cpl_all, sum of cpl_own, cpl_matdis,... for 6 reasons),
+# and status of responding to program by taking longer leaves (resp_len)
+
+# set state, leave type (CA, own), and simulation methods
 st = 'ca' # can also set to 'nj', 'ri'
 t = 'own' # can also set to 'matdis', 'bond', 'illchild', 'illspouse', 'illparent'
 methods = ['logit_glm', 'logit_reg', 'knn', 'nb', 'rf', 'xgb', 'ridge', 'svc']
-wage_pcts = get_wage_pcts(dir_sim_out, st, t, methods)
 # plot wage percentiles, given state and leave type
+wage_pcts = get_var_pcts('wage12', dir_sim_out, st, t, methods)
 plot_wage_pcts(wage_pcts, st, t, methods, add_title=False, savefig=dir_out, figsize=(9, 7.5))
+# plot cpl percentiles, given state and leave type
+cpl_pcts = get_var_pcts('cpl_all', dir_sim_out, st, t, methods)
+plot_cpl_pcts(cpl_pcts, st, t, methods, add_title=False, savefig=dir_out, figsize=(9, 7.5))
+# plot resp_len percentiles, given state and leave type
+ys = get_var_avg('resp_len', dir_sim_out, st, t, methods).values[0]
+plot_resp_len(ys, st, t, methods, add_title=False, savefig=dir_out, figsize=(9, 7.5))
 
 ######################################## END #############################################
 
