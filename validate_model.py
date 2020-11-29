@@ -17,7 +17,7 @@ fmla_wave = 2018
 # file path to pre-processed clean FMLA file
 fp_in_fmla = './data/fmla/fmla_%s/fmla_clean_%s.csv' % (fmla_wave, fmla_wave)
 # directory to store figures plotted and cross-validation results (CSV files)
-dir_out = 'E:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_2/results/ib2_v3_results/'
+dir_out = 'E:/workfiles/Microsimulation/draft/issue_briefs/issue_brief_2/results/ib2_v4_results/'
 # directory to store output folders created by simulation from GUI. Folders should be renamed as 'ca_logit_glm' etc.
 dir_sim_out = './output/_ib2_v3/'
 
@@ -35,23 +35,24 @@ seeds = list(range(12345, 12345 + n_seeds))
 clf_profile = get_cv_results(d, fmla_wave, fold, seeds, dir_out) # clfs, clf_class_names, dct_clf
 clfs, clf_class_names_plot, dct_clf = clf_profile
 # get avg_out_pop
-avg_out_p = get_avg_out_pop(dir_out, seeds, true_numbers=True)
+avg_out_p = get_avg_out_pop(dir_out, seeds, fold, true_numbers=True, fmla_wave=fmla_wave)
 avg_out_p = avg_out_p[[x for x in avg_out_p.columns if x!='true'] + ['true']]
 # get avg_out_ind
-avg_out_i = get_avg_out_ind(dir_out, seeds)
+avg_out_i = get_avg_out_ind(dir_out, seeds, fold, fmla_wave=fmla_wave)
+
 
 # Plot with average results
 # Pop level results - worker counts
 suffix = '_k%s' % fold
 savefig = (dir_out, suffix)
-plot_pop_level_worker_counts(avg_out_p, clf_class_names_plot, clf_profile, add_title=False, savefig=savefig, figsize=(9, 7.5))
+plot_pop_level_worker_counts(avg_out_p, add_title=False, savefig=savefig, figsize=(9, 7.5))
 # Pop level results - leave counts
-plot_pop_level_leave_counts(avg_out_p, clf_class_names_plot, clf_profile, add_title=False, savefig=savefig, figsize=(9, 7.5))
+plot_pop_level_leave_counts(avg_out_p, add_title=False, savefig=savefig, figsize=(9, 7.5))
 # Ind level results
 for yvar in ['take_own', 'need_own', 'take_matdis', 'need_matdis']: # can also check ['taker', 'needer', 'resp_len']
     suffix = '_%s_k%s_%s' % (fmla_wave, fold, yvar)
     savefig = (dir_out, suffix)
-    plot_ind_level(avg_out_i, clf_class_names_plot, clf_profile, yvar, savefig=savefig, figsize=(9, 7.5))
+    plot_ind_level(avg_out_i, yvar, savefig=savefig, figsize=(9, 7.5))
 
 #------------------------------------
 # External: Compare simulated outlays

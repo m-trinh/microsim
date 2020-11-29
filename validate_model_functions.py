@@ -137,30 +137,28 @@ def get_individual_level_results(d, clf_name, weighted_test=True):
 # ------------------------
 
 # a function to plot pop level results - worker counts
-def plot_pop_level_worker_counts(dp, clf_class_names_plot, clf_profile, add_title=False, savefig=None, figsize=(18.5, 10)):
+def plot_pop_level_worker_counts(dp, add_title=False, savefig=None, figsize=(18.5, 10)):
     '''
     :param: clf_class_names: col of dp except 'true', numbers will follow this order in plot
     '''
-    # get clfs with cv results (ready for plot), dct_clf, and clf_class_names from clf_profile
-    clfs, clf_class_names_plot, dct_clf = clf_profile
-    # get clf class names, and corresponding labels for plot, must align for proper plotting
-    # clf_class_names_plot = [type(z).__name__ for z in clfs]
-    clf_labels_plot = tuple([dct_clf[x] for x in clf_class_names_plot])
     # make plot
     title = ''
     if add_title:
         title = 'Population Level Validation Results - Worker Counts'
     fig, ax = plt.subplots(figsize=figsize, dpi=100)
-    dp = dp[clf_class_names_plot + ['true']]
+    dp = dp[['DummyClassifier', 'GLM', 'LogisticRegression', 'KNeighborsClassifier', 'MultinomialNB',
+             'RandomForestClassifier', 'XGBClassifier', 'RidgeClassifier', 'SVC', 'true']]
     ys = dp.drop(columns=['true']).loc['n_takers'].values
     zs = dp.drop(columns=['true']).loc['n_needers'].values
     ind = np.arange(len(ys))
     width = 0.2
     bar1 = ax.bar(ind - width / 2, ys, width, align='center', capsize=5, color='indianred', ecolor='grey')
     bar2 = ax.bar(ind + width / 2, zs, width, align='center', capsize=5, color='tan', ecolor='grey')
+    ax.set_xlabel('Simulation Method')
     ax.set_ylabel('Millions of workers')
     ax.set_xticks(ind)
-    ax.set_xticklabels(clf_labels_plot)
+    ax.set_xticklabels(['Random Draw','Logit GLM', 'Logit Regularized', 'KNN', 'Naive Bayes',
+                        'Random Forest', 'XGB', 'Ridge', 'SVC'])
     ax.yaxis.grid(False)
     ax.legend((bar1, bar2), ('Leave Takers', 'Leave Needers'))
     ax.ticklabel_format(style='plain', axis='y')
@@ -184,28 +182,26 @@ def plot_pop_level_worker_counts(dp, clf_class_names_plot, clf_profile, add_titl
     return None
 
 # a function to plot pop level results - leave counts
-def plot_pop_level_leave_counts(dp, clf_class_names_plot, clf_profile, add_title=False, savefig=None, figsize=(18.5, 10)):
+def plot_pop_level_leave_counts(dp, add_title=False, savefig=None, figsize=(18.5, 10)):
     '''
     :param: clf_class_names: col of dp except 'true', numbers will follow this order in plot
     '''
-    # get clfs with cv results (ready for plot), dct_clf, and clf_class_names from clf_profile
-    clfs, clf_class_names_plot, dct_clf = clf_profile
-    # get clf class names, and corresponding labels for plot, must align for proper plotting
-    # clf_class_names_plot = [type(z).__name__ for z in clfs]
-    clf_labels_plot = tuple([dct_clf[x] for x in clf_class_names_plot])
     # make plot
     title = ''
     if add_title:
         title = 'Population Level Validation Results - Leaves Taken'
     fig, ax = plt.subplots(figsize=figsize, dpi=100)
-    dp = dp[clf_class_names_plot + ['true']]
+    dp = dp[['DummyClassifier', 'GLM', 'LogisticRegression', 'KNeighborsClassifier', 'MultinomialNB',
+             'RandomForestClassifier', 'XGBClassifier', 'RidgeClassifier', 'SVC', 'true']]
     ys = dp.drop(columns=['true']).loc['n_reasons_taken'].values
     ind = np.arange(len(ys))
     width = 0.2
     bar1 = ax.bar(ind, ys, width, align='center', capsize=5, color='indianred', ecolor='grey')
+    ax.set_xlabel('Simulation Method')
     ax.set_ylabel('Number of Leaves')
     ax.set_xticks(ind)
-    ax.set_xticklabels(clf_labels_plot)
+    ax.set_xticklabels(['Random Draw','Logit GLM', 'Logit Regularized', 'KNN', 'Naive Bayes',
+                        'Random Forest', 'XGB', 'Ridge', 'SVC'])
     ax.yaxis.grid(False)
     ax.ticklabel_format(style='plain', axis='y')
     ax.get_yaxis().set_major_formatter(matplotlib.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
@@ -229,18 +225,15 @@ def plot_pop_level_leave_counts(dp, clf_class_names_plot, clf_profile, add_title
     return None
 
 # a function to plot ind level results
-def plot_ind_level(di, clf_class_names_plot, clf_profile, yvar, add_title=False, savefig=None, figsize=(18.5, 10)):
-    # get clfs with cv results (ready for plot), dct_clf, and clf_class_names from clf_profile
-    clfs, clf_class_names_plot, dct_clf = clf_profile
-    # get clf class names, and corresponding labels for plot, must align for proper plotting
-    # clf_class_names_plot = [type(z).__name__ for z in clfs]
-    clf_labels_plot = tuple([dct_clf[x] for x in clf_class_names_plot])
+def plot_ind_level(di, yvar, add_title=False, savefig=None, figsize=(18.5, 10)):
+
     # make plot
     title = ''
     if add_title:
         title = 'Individual Level Validation Results - Performance Measures\nOutcome = %s' % yvar
     fig, ax = plt.subplots(figsize=figsize, dpi=100)
-    di = di[clf_class_names_plot] # order to ensure
+    di = di[['DummyClassifier', 'GLM', 'LogisticRegression', 'KNeighborsClassifier', 'MultinomialNB',
+             'RandomForestClassifier', 'XGBClassifier', 'RidgeClassifier', 'SVC']] # order to ensure
     ys = [x[yvar] for x in di.loc['precision'].values]
     zs = [x[yvar] for x in di.loc['recall'].values]
     ws = [x[yvar] for x in di.loc['f1'].values]
@@ -249,9 +242,11 @@ def plot_ind_level(di, clf_class_names_plot, clf_profile, yvar, add_title=False,
     bar1 = ax.bar(ind - width, ys, width, align='center', capsize=5, color='indianred', ecolor='grey')
     bar2 = ax.bar(ind, zs, width, align='center', capsize=5, color='tan', ecolor='grey')
     bar3 = ax.bar(ind + width, ws, width, align='center', capsize=5, color='slategray', ecolor='grey')
+    ax.set_xlabel('Simulation Method')
     ax.set_ylabel('Performance Measure')
     ax.set_xticks(ind)
-    ax.set_xticklabels(clf_labels_plot)
+    ax.set_xticklabels(['Random Draw','Logit GLM', 'Logit Regularized', 'KNN', 'Naive Bayes',
+                        'Random Forest', 'XGB', 'Ridge', 'SVC'])
     ax.yaxis.grid(False)
     ax.legend((bar1, bar2, bar3), ('Precision', 'Recall', 'F1'))
     ax.ticklabel_format(style='plain', axis='y')
@@ -384,7 +379,7 @@ def get_cv_results(d, fmla_wave, fold, seeds, fp_dir_out):
     #     plot_ind_level(di, yvar, suffix=suffix)
 
 ## Get average within-FMLA validation results across seeds
-def get_avg_out_pop(dir_results, seeds, true_numbers=False):
+def get_avg_out_pop(dir_results, seeds, fold, true_numbers=False, fmla_wave=2018):
     '''
 
     :param dir_results: directory storing seed-specific result folders, e.g. ./seeds_12345_12354_noSVC
@@ -415,7 +410,7 @@ def get_avg_out_pop(dir_results, seeds, true_numbers=False):
         avg_out_p = avg_out_p.join(true_counts)
     return avg_out_p
 
-def get_avg_out_ind(dir_results, seeds):
+def get_avg_out_ind(dir_results, seeds, fold, fmla_wave=2018):
     '''
 
     :param dir_results: directory storing seed-specific result folders, e.g. ./seeds_12345_12354_noSVC
@@ -515,6 +510,7 @@ def plot_sim_costs(sts, costs, add_title=False, savefig=None, figsize=(18.5, 10)
     bar6 = ax.bar(ind[-1:]+width, ws[mask_avg], width, align='center', capsize=5,
                   color=dct_color['ca'], hatch='//', ecolor='grey')
 
+    ax.set_xlabel('Simulation Method')
     ax.set_ylabel('Program Benefit Outlay, Million Dollars')
     ax.get_yaxis().set_major_formatter(plt.FuncFormatter(lambda x, loc: "{:,}".format(int(x))))
     ax.set_xticks(ind)
@@ -701,4 +697,3 @@ def plot_resp_len(ys, st, leave_type, methods, add_title=False, savefig=None, fi
         # save
         plt.savefig(dir_out + 'resp_len_%s_%s.png' % (st, leave_type), facecolor='white', edgecolor='grey') #
     return None
-plot_resp_len(ys, st, t, methods, add_title=False, savefig=dir_out, figsize=(9, 7.5))
