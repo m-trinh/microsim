@@ -83,7 +83,7 @@ ggplot(data=d[d['var']=='annual_benefit_all',], aes(x=state, y=value,fill=model)
   # theme
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
   # y axis label
-  ylab('Benefits Outlayed (Millions)') +
+  ylab('Benefits Outlaid (Millions)') +
   # y axis tick labels
   scale_y_continuous(labels = function(x) paste0(format(x/1000000, big.mark=",", scientific=FALSE))) +
 
