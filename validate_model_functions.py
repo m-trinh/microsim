@@ -155,7 +155,7 @@ def plot_pop_level_worker_counts(dp, add_title=False, savefig=None, figsize=(18.
     bar1 = ax.bar(ind - width / 2, ys, width, align='center', capsize=5, color='indianred', ecolor='grey')
     bar2 = ax.bar(ind + width / 2, zs, width, align='center', capsize=5, color='tan', ecolor='grey')
     ax.set_xlabel('Simulation Method')
-    ax.set_ylabel('Millions of workers')
+    ax.set_ylabel('Millions of Workers')
     ax.set_xticks(ind)
     ax.set_xticklabels(['Random Draw','Logit GLM', 'Logit Regularized', 'KNN', 'Naive Bayes',
                         'Random Forest', 'XGB', 'Ridge', 'SVC'])
@@ -527,7 +527,7 @@ def plot_sim_costs(sts, costs, add_title=False, savefig=None, figsize=(18.5, 10)
         y = dct_cost[st]
         plt.axhline(y=y, color=dct_color[st], linestyle='--')
         hline_offset = dct_offset[st]
-        hline_text = 'Actual Program Outlay, %s: $%s million' % (st.upper(), y)
+        hline_text = 'Actual Program Outlay, %s: $%s million' % (st.upper(), '{:,.1f}'.format(y))
         plt.text(2, y * hline_offset, hline_text, horizontalalignment='center', color='k')
     format_chart(fig, ax, title, bg_color='white', fg_color='k')
     if savefig is not None:
@@ -613,7 +613,7 @@ def plot_wage_pcts(wage_pcts, st, leave_type, methods, add_title=False, savefig=
     ax.set_xticklabels(
         ('Logit GLM', 'Logit Regularized', 'KNN', 'Naive Bayes', 'Random Forest', 'XGB', 'Ridge', 'SVC'))
     ax.set_ylabel('Annual Wage Earnings, Dollars')
-    ax.set_xlabel('Simulation Method', fontsize=10)
+    ax.set_xlabel('Simulation Method')
     ax.get_yaxis().set_major_formatter(plt.FuncFormatter(lambda x, loc: "{:,}".format(int(x))))
     format_chart(fig, ax, title, bg_color='white', fg_color='k')
 
