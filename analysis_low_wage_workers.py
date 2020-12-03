@@ -61,8 +61,8 @@ bar1 = ax.bar(xs - width / 2, ys['n_takers'], width, align='center', capsize=5, 
               edgecolor='black', label='Unpaid FMLA Scenario')
 bar2 = ax.bar(xs + width / 2, ys['n_takers_cf'], width, align='center', capsize=5, color='indianred',
               edgecolor='black', label='Paid Leave Program Scenario')
-ax.set_ylabel('Number of workers')
-ax.set_xlabel('$ Annual Wage Income')
+ax.set_ylabel('Number of Workers')
+ax.set_xlabel('$ Annual Wages')
 x_tick_labels = [str(int(x.left/1000)) + '-' + str(int(x.right/1000)) + 'k' for x in takers['n_takers'].index]
 ax.set_xticks(xs)
 ax.set_xticklabels(x_tick_labels)
@@ -98,8 +98,8 @@ xs = np.arange(len(ys))
 fig, ax = plt.subplots(figsize=(10, 6), dpi=100)
 plt.bar(xs, ys, color='wheat', alpha=1, edgecolor='black') #
 #bar1 = ax.bar(ind - width / 2, ys, width, align='center', capsize=5, color='indianred', ecolor='grey')
-ax.set_ylabel('Simulated percent increase in number of leave takers')
-ax.set_xlabel('$ Annual Wage Income')
+ax.set_ylabel('Simulated Percent Increase in Number of Leave Takers')
+ax.set_xlabel('$ Annual Wages')
 x_tick_labels = [str(int(x.left/1000)) + '-' + str(int(x.right/1000)) + 'k' for x in takers['g_takers'].index]
 ax.set_xticks(xs)
 ax.set_xticklabels(x_tick_labels)
@@ -148,7 +148,7 @@ bar_l = ax.bar(ind - width / 2, ys['len'] , width, align='center', capsize=5,
 bar_h = ax.bar(ind + width / 2, ys['cfl'] , width, align='center', capsize=5,
                color='indianred', alpha=0.8, edgecolor='black', label='Paid Leave Program Scenario')
 plt.legend()
-ax.set_ylabel('Number of workers')
+ax.set_ylabel('Number of Workers')
 ax.set_xticks(ind)
 ax.set_xticklabels(('Own Health', 'Maternity', 'New Child', 'Ill Child', 'Ill Spouse', 'Ill Parent'))
 ax.set_xlabel('Leave Reason')
@@ -275,7 +275,7 @@ bar_l = ax.bar(ind - width / 2, ys['low_wage'] , width, align='center', capsize=
 bar_h = ax.bar(ind + width / 2, ys['high_wage'] , width, align='center', capsize=5,
                color='darksalmon', alpha=0.5, edgecolor='black', label='Annual Wage Earnings > $30,000')
 plt.legend()
-ax.set_ylabel('Number of workers')
+ax.set_ylabel('Number of Workers')
 ax.set_xticks(ind)
 ax.set_xticklabels(('Own Health', 'Maternity', 'New Child', 'Ill Child', 'Ill Spouse', 'Ill Parent'))
 ax.set_xlabel('Leave Reason')
@@ -348,9 +348,10 @@ binwidth = 1000
 #thre = acs[(acs['low_wage12']==1) & (acs['annual_benefit_all']>0)]['annual_benefit_all'].max()
 thre = 30000 # censored as low-wage workers can get benefit >30k if part time, earn < 30k, and take very long leaves
 plt.hist(xs, weights=wts, bins=range(0, int(thre) + binwidth, binwidth), color='tan', edgecolor='black')
-ax.set_xticks(range(0, int(thre) + binwidth, 2*binwidth))
-ax.set_ylabel('Number of workers')
+ax.set_xticks(range(0, int(thre) + binwidth, 5*binwidth))
+ax.set_ylabel('Number of Workers')
 ax.set_xlabel('$ Benefits Received')
+ax.get_xaxis().set_major_formatter(matplotlib.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
 ax.yaxis.grid(False)
 format_chart(fig, ax, title, bg_color='white', fg_color='k')
 plt.savefig(fp_out + 'MD_CA_glm_low_wage_benefit_amount.png', facecolor='white', edgecolor='white') #
