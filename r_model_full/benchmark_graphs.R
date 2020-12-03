@@ -1,7 +1,9 @@
+# benchmark_graphs.R
+# PURPOSE: code for issue brief benchmarking model results against ACM model and actual data in CA/NJ/RI
+# this file generates the graphs found in the issue brief from the analysis results found in "output/issue_brief_1 nums 9_11.csv".
+
 cat("\014")  
-basepath <- rprojroot::find_rstudio_root_file()
-setwd(basepath)
-options(error=recover)
+
 library(plyr)
 library(ggplot2)
 library(reshape2)

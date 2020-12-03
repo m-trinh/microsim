@@ -1,13 +1,13 @@
-  # code for issue brief 1 - simulating 2012 leave program in RI 
-  
-  #rm(list=ls())
-  cat("\014")  
-  options(error=recover)
-  #options(error=NULL)
-  
-  # sample master execution function for testing code
+# benchmark_sim_all_meth.R
+# PURPOSE: code for issue brief benchmarking model results against ACM model and actual data in CA/NJ/RI
+# this file runs all available methods on all states.
+
+# load master execution function - this file should be placed in the same folder as this function.
   source("0_master_execution_function.R")
+  
+# list of methods to test
   meths <- c("Logistic Regression GLM",'Logistic Regression Regularized','K Nearest Neighbor',"Naive Bayes","Ridge Classifier","Random Forest","Support Vector Machine","XGBoost")
+  
   for (meth in meths) {
     print(meth)
     #=================================
@@ -148,26 +148,3 @@
                             makelog=TRUE,
                             addl_vars=c('DI_plen'))
   }
-  # timestart <<- Sys.time()
-  # nj <- policy_simulation(saveCSV=TRUE,
-  #                         state='NJ',
-  #                         makelog=TRUE,
-  #                         base_bene_level=.66,
-  #                         impute_method='Random Forest',
-  #                         place_of_work = TRUE,
-  #                         dual_receiver = 1,
-  #                         ext_resp_len = TRUE,
-  #                         ext_base_effect=TRUE,
-  #                         fmla_protect=FALSE,
-  #                         topoff_rate=.06, topoff_minlength=40, 
-  #                         rr_sensitive_leave_len=FALSE,
-  #                         bene_effect=FALSE, wait_period=5, clone_factor=1, week_bene_cap=594, week_bene_min=0,
-  #                         alpha=0,
-  #                         sens_var='resp_len',
-  #                         own_uptake=.0250, matdis_uptake=.0088, bond_uptake=.0092, 
-  #                         illchild_uptake=.0004, illspouse_uptake=.0005, illparent_uptake=.0007,
-  #                         maxlen_PFL= 30, maxlen_DI=130, maxlen_own =130, maxlen_matdis =130, maxlen_bond =30, maxlen_illparent=30,
-  #                         maxlen_illspouse =30, maxlen_illchild =30, maxlen_total=130, earnings=8400,output=paste0("NJ_",meth,"issue_brief_1_091120_RF"),
-  #                         addl_vars=c('DI_plen'),  random_seed=12312)
-  # timeend <<- Sys.time()
-  # print(timeend - timestart)

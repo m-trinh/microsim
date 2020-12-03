@@ -1,11 +1,7 @@
-# analysis for issue brief 
+# benchmark_analysis.R
+# PURPOSE: code for issue brief benchmarking model results against ACM model and actual data in CA/NJ/RI
+# This analyzes the results of the simulations run in benchmark_sim.R and outputs the results to "output/issue_brief_1 nums 9_11.csv"
 
-#rm(list=ls())
-cat("\014")  
-basepath <- rprojroot::find_rstudio_root_file()
-setwd(basepath)
-options(error=recover)
-#options(error=NULL)
 library('stringr')
 library('ggplot2')
 source("6_output_analysis_functions.R")
@@ -14,9 +10,6 @@ source("6_output_analysis_functions.R")
 ri <- read.csv('C:/Users/lpatterson/AnacondaProjects/microsim/output/output_20201118_120358/RI_Logistic Regression GLMissue_brief_1_111020.csv')
 ca <- read.csv('C:/Users/lpatterson/AnacondaProjects/microsim/output/output_20201117_174910/CA_Logistic Regression GLMissue_brief_1_111020.csv')
 nj <- read.csv('C:/Users/lpatterson/AnacondaProjects/microsim/output/output_20201117_174503/NJ_Logistic Regression GLMissue_brief_1_111020.csv')
-# ri <- read.csv('C:/Users/lsp52/AnacondaProjects/microsim/output/output_20200915_170429/RI_Logistic Regression GLMissue_brief_1_091120.csv')
-# ca <- read.csv('C:/Users/lsp52/AnacondaProjects/microsim/output/output_20200915_162527/CA_Logistic Regression GLMissue_brief_1_091120.csv')
-# nj <- read.csv('C:/Users/lsp52/AnacondaProjects/microsim/output/output_20200915_162229/NJ_Logistic Regression GLMissue_brief_1_091120.csv')
 
 # start a data frame to store all the summary statistics we need
 states <- c('CA','NJ','RI')
