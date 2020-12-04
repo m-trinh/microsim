@@ -10,12 +10,12 @@ library(reshape2)
 library(varhandle)
 
 # read in IMPAQ results
-impaq <- read.csv('output/issue_brief_1 nums 9_11.csv')
+impaq <- read.csv('output/benchmark nums 9_11.csv')
 names(impaq)[names(impaq) == "X"] <- "var"
 names(impaq)[names(impaq) == "source"] <- "model"
 
 # input ACM results
-ACM <- read.csv('issue brief 1 - ACM comparison/ACM Benchmark 1.csv')
+ACM <- read.csv('benchmark_ACM/ACM Benchmark 1.csv')
 temp <- unfactor(ACM)
 temp['var'] <- ACM['var']
 ACM <- temp
@@ -30,7 +30,7 @@ ACM[ACM['var']=='annual_benefit_all',c('CA','NJ','RI','CA_SE','NJ_SE','RI_SE')]<
     ACM[ACM['var']=='annual_benefit_all',c('CA','NJ','RI','CA_SE','NJ_SE','RI_SE')]*1000000
 
 # read in actual results 
-actual <- read.csv('issue brief 1 - ACM comparison/actual leave data.csv')
+actual <- read.csv('benchmark_ACM/actual leave data.csv')
 names(actual)[names(actual) == "source"] <- "model"
 
 

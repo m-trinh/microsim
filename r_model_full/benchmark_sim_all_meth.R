@@ -50,7 +50,7 @@
                               random_seed=12312,
                               # output parameters - has no effect on simulation, just how output is created
                               saveCSV=TRUE, 
-                              output=paste0("RI_",meth,"_issue_brief_1_11052020"),
+                              output=paste0("RI_",meth,"_benchmark_11052020"),
                               addl_vars=c('DI_plen'), 
                               makelog=TRUE)
     
@@ -98,7 +98,7 @@
                       # output parameters - has no effect on simulation, just how output is created
                       saveCSV=TRUE,
                       makelog=TRUE,
-                      output=paste0("NJ_",meth,"_issue_brief_1_11052020"),
+                      output=paste0("NJ_",meth,"_benchmark_11052020"),
                       addl_vars=c('DI_plen'))
     
     #=================================
@@ -143,7 +143,7 @@
                             earnings=300,
                             random_seed=12312, 
                             # output parameters - has no effect on simulation, just how output is created
-                            output=paste0("CA_",meth,"_issue_brief_1_11052020"),
+                            output=paste0("CA_",meth,"_benchmark_11052020"),
                             saveCSV=TRUE,
                             makelog=TRUE,
                             addl_vars=c('DI_plen'))

@@ -1,12 +1,13 @@
 # benchmark_analysis.R
 # PURPOSE: code for issue brief benchmarking model results against ACM model and actual data in CA/NJ/RI
-# This analyzes the results of the simulations run in benchmark_sim.R and outputs the results to "output/issue_brief_1 nums 9_11.csv"
+# This analyzes the results of the simulations run in benchmark_sim.R and outputs the results to "output/benchmark nums 9_11.csv"
 
 library('stringr')
 library('ggplot2')
+source("5_ABF_functions.R")
 source("6_output_analysis_functions.R")
 
-# load simulated csvs for each state - FOR REPLICATION, THESE WILL NEED TO BE POINTED TO THE OUTPUT FILES CREATED BY SIMULATIONS RAN IN issue_brief1_sim.R
+# load simulated csvs for each state - FOR REPLICATION, THESE WILL NEED TO BE POINTED TO THE OUTPUT FILES CREATED BY SIMULATIONS RAN IN benchmark_sim.R
 ri <- read.csv('C:/Users/lpatterson/AnacondaProjects/microsim/output/output_20201118_120358/RI_Logistic Regression GLMissue_brief_1_111020.csv')
 ca <- read.csv('C:/Users/lpatterson/AnacondaProjects/microsim/output/output_20201117_174910/CA_Logistic Regression GLMissue_brief_1_111020.csv')
 nj <- read.csv('C:/Users/lpatterson/AnacondaProjects/microsim/output/output_20201117_174503/NJ_Logistic Regression GLMissue_brief_1_111020.csv')
@@ -81,6 +82,6 @@ for (v in vars) {
   }
 }
 results['source'] <- 'Worker PLUS'
-write.csv(results,file='output/issue_brief_1 nums 9_11.csv')
+write.csv(results,file='output/benchmark nums 9_11.csv')
 
 
